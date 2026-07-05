@@ -64,7 +64,11 @@ export interface SampleTest {
 
 export interface ProblemStatement {
   problemId: ProblemId;
-  /** Sanitized statement HTML (KaTeX-renderable, CF markup preserved). */
+  /**
+   * Sanitized statement HTML with math pre-rendered to KaTeX markup
+   * server-side (CF `$$$...$$$` delimiters are replaced, not preserved).
+   * Safe to inject; re-sanitized client-side as defense in depth.
+   */
   html: string;
   samples: SampleTest[];
 }
