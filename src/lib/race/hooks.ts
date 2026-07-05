@@ -131,7 +131,7 @@ export type FinishRace = (input: {
   raceId: string;
   outcome: "p1_win" | "p2_win" | "draw";
   winnerId: string | null;
-  reason: "forfeit" | "solved" | "timeout";
+  reason: "forfeit" | "solved" | "timeout" | "agreement";
 }) => Promise<void>;
 
 /** Authoritative, idempotent finish — see `src/lib/race/finish.ts`. */

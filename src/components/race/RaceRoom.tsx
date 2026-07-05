@@ -30,6 +30,7 @@ import {
   Copy,
   ExternalLink,
   Flag,
+  Handshake,
   Loader2,
   MonitorSmartphone,
   RefreshCw,
@@ -122,6 +123,7 @@ export function RaceRoom({
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [opponentLive, setOpponentLive] = useState(true);
   const [forfeiting, setForfeiting] = useState(false);
+  const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
   const editorRef = useRef<CppEditorHandle>(null);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -321,6 +323,43 @@ export function RaceRoom({
     }
   }, [forfeiting, raceId]);
 
+  // --- Draw offers (offer / accept / decline / withdraw) -----------------
+  const handleDrawAction = useCallback(
+    async (action: "offer" | "accept" | "decline") => {
+      if (drawActionPending) return;
+      setDrawActionPending(true);
+      try {
+        const res = await fetch(`/api/races/${raceId}/draw`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        const data = (await res.json().catch(() => null)) as RaceSnapshot | null;
+        if (res.ok && data && typeof data.status === "string") {
+          setSnapshot(data);
+          if (action === "offer") {
+            toast.info("Draw offer sent.");
+          } else if (action === "accept") {
+            toast.success("Draw agreed.");
+          } else {
+            toast.info("Draw offer cleared.");
+          }
+        } else {
+          // The offer state moved under us (e.g. the opponent withdrew before
+          // our accept landed → 409). Refetch so the UI reflects the truth
+          // instead of leaving a stale banner/button.
+          toast.error("Couldn't update the draw offer — it may have changed.");
+          void refetch();
+        }
+      } catch {
+        toast.error("Couldn't reach the server. Try again.");
+      } finally {
+        setDrawActionPending(false);
+      }
+    },
+    [drawActionPending, raceId, refetch],
+  );
+
   // --- Opponent disconnect grace: only counts a *sustained* absence, so a
   // brief reconnect blip never flashes the banner. -------------------------
   const handlePresenceChange = useCallback((present: boolean) => {
@@ -349,6 +388,12 @@ export function RaceRoom({
   const isP1 = currentUserId === snapshot.p1.id;
   const you = isP1 ? snapshot.p1 : snapshot.p2 ?? snapshot.p1;
   const opponent = isP1 ? snapshot.p2 : snapshot.p1;
+
+  // --- Draw offer state (active race only) --------------------------------
+  const drawOfferBy = snapshot.drawOfferBy;
+  const iOfferedDraw = drawOfferBy !== null && drawOfferBy === currentUserId;
+  const opponentOfferedDraw =
+    drawOfferBy !== null && opponent !== null && drawOfferBy === opponent.id;
 
   // --- Lobby (pending / ready) -------------------------------------------
   if (status === "pending" || status === "ready") {
@@ -417,6 +462,33 @@ export function RaceRoom({
           <RotateCcw aria-hidden />
           Reset
         </Button>
+        {!iOfferedDraw && !opponentOfferedDraw && (
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="draw-offer-btn"
+            onClick={() => void handleDrawAction("offer")}
+            disabled={drawActionPending}
+          >
+            <Handshake aria-hidden />
+            Offer draw
+          </Button>
+        )}
+        {iOfferedDraw && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Draw offered — waiting for opponent</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="draw-withdraw-btn"
+              onClick={() => void handleDrawAction("decline")}
+              disabled={drawActionPending}
+            >
+              Withdraw
+            </Button>
+          </div>
+        )}
         <Button
           type="button"
           variant="ghost"
@@ -500,6 +572,39 @@ export function RaceRoom({
 
   const rightRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+      {opponentOfferedDraw && (
+        <div
+          data-testid="draw-offer-banner"
+          role="alert"
+          className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-600 dark:text-sky-400"
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <Handshake className="size-4 shrink-0" aria-hidden />
+            Your opponent offers a draw.
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              data-testid="draw-accept-btn"
+              onClick={() => void handleDrawAction("accept")}
+              disabled={drawActionPending}
+            >
+              Accept
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="draw-decline-btn"
+              onClick={() => void handleDrawAction("decline")}
+              disabled={drawActionPending}
+            >
+              Decline
+            </Button>
+          </div>
+        </div>
+      )}
       {opponentDisconnected && (
         <div
           data-testid="opponent-disconnected-banner"

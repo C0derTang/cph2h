@@ -23,7 +23,13 @@ import type { Race } from "@/lib/db/schema";
  */
 export type MachineRace = Pick<
   Race,
-  "status" | "p1Id" | "p2Id" | "p1Ready" | "p2Ready" | "timeLimitSec"
+  | "status"
+  | "p1Id"
+  | "p2Id"
+  | "p1Ready"
+  | "p2Ready"
+  | "timeLimitSec"
+  | "drawOfferBy"
 >;
 
 /** Reasons a guard can reject a transition. */
@@ -34,7 +40,10 @@ export type GuardReason =
   | "not_participant"
   | "not_ready_phase"
   | "not_both_ready"
-  | "already_finished";
+  | "already_finished"
+  | "not_active"
+  | "no_draw_offer"
+  | "own_draw_offer";
 
 /** Discriminated guard result. */
 export type GuardResult = { ok: true } | { ok: false; reason: GuardReason };
@@ -87,6 +96,42 @@ export function canAbort(race: MachineRace, userId: string): GuardResult {
   if (race.status === "finished" || race.status === "aborted") {
     return fail("already_finished");
   }
+  return ok;
+}
+
+/**
+ * Can `userId` offer (or re-offer) a draw? Any participant may offer while the
+ * race is `active`. Re-offering by the same player who already has an
+ * outstanding offer is a no-op-ok (idempotent) — this guard does not inspect
+ * `drawOfferBy` at all.
+ */
+export function canOfferDraw(race: MachineRace, userId: string): GuardResult {
+  if (!isParticipant(race, userId)) return fail("not_participant");
+  if (race.status !== "active") return fail("not_active");
+  return ok;
+}
+
+/**
+ * Can `userId` accept the outstanding draw offer? Requires an active race
+ * with an offer outstanding from the *opponent* — a player can never accept
+ * their own offer.
+ */
+export function canAcceptDraw(race: MachineRace, userId: string): GuardResult {
+  if (!isParticipant(race, userId)) return fail("not_participant");
+  if (race.status !== "active") return fail("not_active");
+  if (race.drawOfferBy === null) return fail("no_draw_offer");
+  if (race.drawOfferBy === userId) return fail("own_draw_offer");
+  return ok;
+}
+
+/**
+ * Can `userId` decline/withdraw the outstanding draw offer? Either
+ * participant may clear it: the opponent declines, or the offerer withdraws.
+ */
+export function canDeclineDraw(race: MachineRace, userId: string): GuardResult {
+  if (!isParticipant(race, userId)) return fail("not_participant");
+  if (race.status !== "active") return fail("not_active");
+  if (race.drawOfferBy === null) return fail("no_draw_offer");
   return ok;
 }
 

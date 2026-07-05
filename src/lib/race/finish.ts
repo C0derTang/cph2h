@@ -46,7 +46,7 @@ export interface FinishRaceInput {
   /** CF submission id that won the race, when the finish is a solve. */
   winningSubmissionId?: number | null;
   /** Why the race ended — informational; does not change Elo handling. */
-  reason?: "forfeit" | "solved" | "timeout";
+  reason?: "forfeit" | "solved" | "timeout" | "agreement";
 }
 
 /**
@@ -67,6 +67,9 @@ export async function finishRace(input: FinishRaceInput): Promise<void> {
       winnerId,
       winningSubmissionId: winningSubmissionId ?? null,
       finishedAt: now,
+      // Cosmetic: an outstanding draw offer only matters while the race is
+      // active, but clear it here so a finished race never shows one.
+      drawOfferBy: null,
     })
     .where(and(eq(races.id, raceId), eq(races.status, "active")))
     .returning();
