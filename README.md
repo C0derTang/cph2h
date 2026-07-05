@@ -6,7 +6,7 @@ Head-to-head Codeforces races: challenge a friend or quick-match by Elo, then ra
 
 - **Challenge or Quick-Match**: Invite a friend directly or get matched by Elo rating for a fair fight
 - **Real-time Voice & Video**: Integrated LiveKit for voice and video chat during races
-- **In-Browser C++ Editor**: Monaco editor with syntax highlighting, inline compilation via Judge0, and personal C++ templates
+- **In-Browser C++ Editor**: Monaco editor with syntax highlighting, inline compilation via Piston, and personal C++ templates
 - **Direct Codeforces Integration**: Submit solutions directly to Codeforces and see verdicts in real-time
 - **Elo Rating System**: Provisional (10 races) and standard K-factors track your skill over time
 - **Race Leaderboard**: See top racers and your own progress
@@ -17,7 +17,7 @@ Head-to-head Codeforces races: challenge a friend or quick-match by Elo, then ra
 - **Database**: Neon Postgres with Drizzle ORM
 - **Auth**: Clerk
 - **Real-time**: LiveKit Cloud (voice/video + race event broadcasts)
-- **Code Execution**: Judge0 CE (sample test compilation & runs)
+- **Code Execution**: Piston (free, keyless sample test compilation & runs)
 - **Code Editor**: Monaco (C++ syntax, per-user template)
 
 ## Getting Started
@@ -29,7 +29,7 @@ Head-to-head Codeforces races: challenge a friend or quick-match by Elo, then ra
 - A Neon Postgres database
 - LiveKit Cloud credentials
 - A Codeforces account (to link in the app)
-- Judge0 RapidAPI key (for sample test compilation)
+- No signup needed for sample test compilation — Piston is free and keyless (see [`docs/deployment.md`](./docs/deployment.md))
 
 ### Local Development
 
@@ -119,7 +119,7 @@ See [`docs/architecture.md`](./docs/architecture.md) for more detail on the race
 
 ## Deployment
 
-Full deployment instructions (Vercel, Neon, Clerk, LiveKit, Judge0 setup, cron config) are in [`docs/deployment.md`](./docs/deployment.md).
+Full deployment instructions (Vercel, Neon, Clerk, LiveKit, Piston setup, cron config) are in [`docs/deployment.md`](./docs/deployment.md).
 
 Before deploying to production, review the [production checklist](./docs/deployment.md#production-checklist).
 
