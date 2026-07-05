@@ -10,7 +10,7 @@ import { getUserById, seedRacer } from "./support/seed";
  * challenge, B joins, both ready up, the countdown runs out, the problem +
  * samples render for both, and `POST /api/dev/inject-verdict` (issue #15's
  * `RACE_TEST_MODE` shortcut) stands in for a real Codeforces
- * submission/poll cycle so the test never touches CF or Judge0. Finally both
+ * submission/poll cycle so the test never touches CF or Piston. Finally both
  * clients' result cards, the players' Elo, and the leaderboard/dashboard are
  * asserted to reflect the finished race.
  *

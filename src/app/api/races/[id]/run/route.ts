@@ -1,6 +1,7 @@
 /**
  * POST /api/races/[id]/run — run submitted C++ against a race problem's
- * cached sample tests via Judge0 CE (issue #13).
+ * cached sample tests via the public Piston API (issue #46, replaces
+ * Judge0/#13).
  *
  * This is a convenience/practice endpoint, not the scoring path: the
  * authoritative verdict comes from a real Codeforces submission (#11). Guards:
@@ -12,7 +13,7 @@
  * in-memory map keyed by userId, per the issue spec (acceptable for this
  * non-authoritative, best-effort endpoint).
  *
- * Samples run sequentially through Judge0. A compilation error is identical
+ * Samples run sequentially through Piston. A compilation error is identical
  * for every sample (the same source is recompiled each time), so we
  * short-circuit after the first one rather than re-submitting unchanged
  * source `samples.length` times.
@@ -26,11 +27,11 @@ import { problemStatements, races } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { isParticipant } from "@/lib/race/machine";
 import {
-  JUDGE0_STATUS_ACCEPTED,
-  JUDGE0_STATUS_COMPILE_ERROR,
+  PISTON_STATUS_ACCEPTED,
+  PISTON_STATUS_COMPILE_ERROR,
   outputsMatch,
   runCode,
-} from "@/lib/judge0";
+} from "@/lib/piston";
 import {
   RUN_RATE_LIMIT_SEC,
   type RunResponse,
@@ -109,7 +110,7 @@ export async function POST(
   }
 
   // Only mark the rate-limit clock once we're actually about to spend a
-  // Judge0 call — guard failures above (not found / not participant /
+  // Piston call — guard failures above (not found / not participant /
   // no samples) don't count against the caller.
   lastRunAt.set(userId, now);
 
@@ -121,7 +122,7 @@ export async function POST(
       results.push({
         sampleIndex: i,
         passed:
-          result.statusId === JUDGE0_STATUS_ACCEPTED &&
+          result.statusId === PISTON_STATUS_ACCEPTED &&
           outputsMatch(result.stdout, sample.output),
         actualOutput: result.stdout,
         stderr: result.stderr,
@@ -130,7 +131,7 @@ export async function POST(
         timeSec: result.timeSec,
       });
 
-      if (result.statusId === JUDGE0_STATUS_COMPILE_ERROR) {
+      if (result.statusId === PISTON_STATUS_COMPILE_ERROR) {
         break;
       }
     }
@@ -140,8 +141,10 @@ export async function POST(
     return json(
       {
         ok: false,
+        // Error code kept as "judge0_error" (see RunResponse in types.ts) —
+        // renaming the union member is out of scope for this swap.
         error: "judge0_error",
-        message: err instanceof Error ? err.message : "Judge0 request failed.",
+        message: err instanceof Error ? err.message : "Runner request failed.",
       },
       502,
     );

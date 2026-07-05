@@ -3,7 +3,7 @@
 /**
  * Run panel (issue #13): "Run samples" button that submits `code` against a
  * race problem's cached sample tests (via `POST /api/races/[id]/run`, backed
- * by Judge0 CE) and renders per-sample pass/fail.
+ * by Piston, #46) and renders per-sample pass/fail.
  *
  * Deliberately standalone — this component takes `code` (and optionally the
  * problem's `samples`, for showing expected output on failure) as props
@@ -95,7 +95,7 @@ export function RunPanel({ raceId, code, samples, className }: RunPanelProps) {
           {running ? "Running…" : "Run samples"}
         </Button>
         <span className="text-xs text-muted-foreground">
-          Judge0 compiler is GCC 9.2 (C++17) — Codeforces judges on a newer GCC.
+          Piston compiler is GCC 10.2 (C++17) — Codeforces judges on a newer GCC.
         </span>
       </div>
 

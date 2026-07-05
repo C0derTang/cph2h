@@ -1,7 +1,7 @@
 /**
  * Tests for src/app/api/races/[id]/run/route.ts
  *
- * `requireLinkedUser` and the Judge0 HTTP call (`runCode`) are mocked; `db`
+ * `requireLinkedUser` and the Piston HTTP call (`runCode`) are mocked; `db`
  * is mocked at the `select().from().where().limit()` call shape used by the
  * route (see tests/livekit-token-route.test.ts for the same pattern).
  */
@@ -26,12 +26,13 @@ vi.mock("@/lib/db", () => ({
   db: { select: selectMock },
 }));
 
-vi.mock("@/lib/judge0", async (importActual) => {
-  const actual = await importActual<typeof import("../src/lib/judge0")>();
+vi.mock("@/lib/piston", async (importActual) => {
+  const actual = await importActual<typeof import("../src/lib/piston")>();
   return { ...actual, runCode: runCodeMock };
 });
 
 import { POST } from "../src/app/api/races/[id]/run/route";
+import { PISTON_STATUS_ACCEPTED, PISTON_STATUS_COMPILE_ERROR } from "../src/lib/piston";
 import type { RunResponse } from "../src/lib/types";
 
 const RACE_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
@@ -139,7 +140,7 @@ describe("POST /api/races/[id]/run", () => {
     ]);
     runCodeMock
       .mockResolvedValueOnce({
-        statusId: 3,
+        statusId: PISTON_STATUS_ACCEPTED,
         status: "Accepted",
         stdout: "2\n",
         stderr: "",
@@ -147,7 +148,7 @@ describe("POST /api/races/[id]/run", () => {
         timeSec: 0.01,
       })
       .mockResolvedValueOnce({
-        statusId: 3,
+        statusId: PISTON_STATUS_ACCEPTED,
         status: "Accepted",
         stdout: "5\n", // wrong
         stderr: "",
@@ -173,7 +174,7 @@ describe("POST /api/races/[id]/run", () => {
       [makeStatementRow([{ input: "1\n", output: "2\n" }, { input: "2\n", output: "4\n" }])],
     ]);
     runCodeMock.mockResolvedValueOnce({
-      statusId: 6,
+      statusId: PISTON_STATUS_COMPILE_ERROR,
       status: "Compilation Error",
       stdout: "",
       stderr: "",
@@ -198,7 +199,7 @@ describe("POST /api/races/[id]/run", () => {
       [makeRace()],
     ]);
     runCodeMock.mockResolvedValue({
-      statusId: 3,
+      statusId: PISTON_STATUS_ACCEPTED,
       status: "Accepted",
       stdout: "2\n",
       stderr: "",
@@ -213,7 +214,7 @@ describe("POST /api/races/[id]/run", () => {
     expect(second.status).toBe(429);
     const json = (await second.json()) as RunResponse;
     expect(json).toMatchObject({ ok: false, error: "rate_limited" });
-    // The rate limit is enforced before spending another Judge0 call.
+    // The rate limit is enforced before spending another Piston call.
     expect(runCodeMock).toHaveBeenCalledTimes(1);
   });
 
@@ -250,12 +251,12 @@ describe("POST /api/races/[id]/run", () => {
     expect(json).toMatchObject({ ok: false, error: "no_samples" });
   });
 
-  it("returns judge0_error when the Judge0 call fails", async () => {
+  it("returns judge0_error when the Piston call fails", async () => {
     mockSelectSequence([
       [makeRace()],
       [makeStatementRow([{ input: "1\n", output: "2\n" }])],
     ]);
-    runCodeMock.mockRejectedValue(new Error("Judge0 request failed: HTTP 503"));
+    runCodeMock.mockRejectedValue(new Error("Piston request failed: HTTP 503"));
 
     const res = await POST(makeRequest({ code: "int main(){}" }), { params });
 
