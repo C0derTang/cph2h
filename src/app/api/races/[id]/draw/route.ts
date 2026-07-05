@@ -111,8 +111,41 @@ export async function POST(
       );
     }
 
-    // finishRace is idempotent (its own active -> finished claim), so we never
-    // need our own guard here beyond the draw-offer check above.
+    // The `canAcceptDraw` check above is only a fast, friendly rejection: it
+    // read `race` once at the top of the handler, so between that read and now
+    // the offerer could have withdrawn (decline → draw_offer_by = NULL, still
+    // active) or the race could have ended. `finishRace`'s only atomic
+    // condition is `status='active'` — it never re-checks `draw_offer_by`, so
+    // finishing off the stale read would finalize a draw (and Elo) on consent
+    // that no longer exists. Atomically *consume* the opponent's specific offer
+    // as the real gate: only a row that still has THIS opponent's outstanding
+    // offer in an active race clears it and proceeds to finish.
+    const opponentId = userId === race.p1Id ? race.p2Id : race.p1Id;
+    const [claimed] = await db
+      .update(races)
+      .set({ drawOfferBy: null })
+      .where(
+        and(
+          eq(races.id, id),
+          eq(races.status, "active"),
+          eq(races.drawOfferBy, opponentId as string),
+        ),
+      )
+      .returning();
+
+    if (!claimed) {
+      // Offer was withdrawn/declined, or the race is no longer active — the
+      // consent we saw is gone. Do NOT finish.
+      const current = (await loadRace(id)) ?? race;
+      const reason = current.status === "active" ? "no_draw_offer" : "not_active";
+      return NextResponse.json(
+        { error: reason, race: await buildRaceSnapshot(current) },
+        { status: 409 },
+      );
+    }
+
+    // We consumed a still-valid offer. finishRace is idempotent (its own
+    // active -> finished claim), so a concurrent solve/timeout finish is safe.
     await finishRace({
       raceId: id,
       outcome: "draw",
@@ -120,7 +153,7 @@ export async function POST(
       reason: "agreement",
     });
 
-    const current = (await loadRace(id)) ?? race;
+    const current = (await loadRace(id)) ?? claimed;
     return NextResponse.json(await buildRaceSnapshot(current), { status: 200 });
   }
 

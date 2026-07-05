@@ -220,7 +220,7 @@ describe("POST /api/races/[id]/draw — offer", () => {
 });
 
 describe("POST /api/races/[id]/draw — accept", () => {
-  it("finishes the race as a draw via finishRace and returns the fresh snapshot", async () => {
+  it("atomically consumes the opponent's offer, finishes as a draw, returns the fresh snapshot", async () => {
     const offered = makeRace({ drawOfferBy: P1 });
     const finished = makeRace({
       drawOfferBy: null,
@@ -232,10 +232,18 @@ describe("POST /api/races/[id]/draw — accept", () => {
       user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
     });
     queueSelects([[offered], [finished]]);
+    // The CAS claim finds the still-valid offer and clears it.
+    dbState.updateReturning = [{ ...offered, drawOfferBy: null }];
 
     const res = await POST(makeRequest({ action: "accept" }), { params });
 
     expect(res.status).toBe(200);
+    // Consent is gated by the atomic CAS (clear draw_offer_by), not just the
+    // pre-guard, and only then does the finish run.
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ drawOfferBy: null }),
+    );
     expect(finishRaceMock).toHaveBeenCalledWith({
       raceId: RACE_ID,
       outcome: "draw",
@@ -244,6 +252,44 @@ describe("POST /api/races/[id]/draw — accept", () => {
     });
     const json = await res.json();
     expect(json).toEqual({ __snapshotFor: RACE_ID, status: "finished", drawOfferBy: null });
+  });
+
+  it("does NOT finish when the offer was withdrawn before the accept's atomic claim (TOCTOU)", async () => {
+    // The handler's initial read still sees P1's offer (guard passes), but by
+    // the time the CAS runs P1 has withdrawn (draw_offer_by=NULL, still
+    // active) so the claim matches zero rows.
+    const stillOffered = makeRace({ drawOfferBy: P1 });
+    const withdrawn = makeRace({ drawOfferBy: null }); // active, no offer
+    requireLinkedUserMock.mockResolvedValue({
+      ok: true,
+      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
+    });
+    queueSelects([[stillOffered], [withdrawn]]);
+    dbState.updateReturning = []; // CAS lost — offer already gone
+
+    const res = await POST(makeRequest({ action: "accept" }), { params });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("no_draw_offer");
+    // Crucially: the race is NOT finished on consent that no longer exists.
+    expect(finishRaceMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 not_active when the race ended before the accept's atomic claim", async () => {
+    const stillOffered = makeRace({ drawOfferBy: P1 });
+    const ended = makeRace({ drawOfferBy: null, status: "finished" });
+    requireLinkedUserMock.mockResolvedValue({
+      ok: true,
+      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
+    });
+    queueSelects([[stillOffered], [ended]]);
+    dbState.updateReturning = []; // CAS lost — race no longer active
+
+    const res = await POST(makeRequest({ action: "accept" }), { params });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("not_active");
+    expect(finishRaceMock).not.toHaveBeenCalled();
   });
 
   it("rejects the offerer accepting their own offer", async () => {

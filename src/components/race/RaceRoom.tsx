@@ -345,7 +345,11 @@ export function RaceRoom({
             toast.info("Draw offer cleared.");
           }
         } else {
-          toast.error("Couldn't update the draw offer — try again.");
+          // The offer state moved under us (e.g. the opponent withdrew before
+          // our accept landed → 409). Refetch so the UI reflects the truth
+          // instead of leaving a stale banner/button.
+          toast.error("Couldn't update the draw offer — it may have changed.");
+          void refetch();
         }
       } catch {
         toast.error("Couldn't reach the server. Try again.");
@@ -353,7 +357,7 @@ export function RaceRoom({
         setDrawActionPending(false);
       }
     },
-    [drawActionPending, raceId],
+    [drawActionPending, raceId, refetch],
   );
 
   // --- Opponent disconnect grace: only counts a *sustained* absence, so a
