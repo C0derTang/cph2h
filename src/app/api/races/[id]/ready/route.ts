@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { races, type Race } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
-import { canReady, nextOnBothReady } from "@/lib/race/machine";
+import { canReady, canStart, nextOnBothReady } from "@/lib/race/machine";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { publishRaceEvent, selectRaceProblem } from "@/lib/race/hooks";
 
@@ -69,7 +69,7 @@ export async function POST(
   });
 
   // Not both ready yet — nothing more to do.
-  if (!(afterReady.p1Ready && afterReady.p2Ready)) {
+  if (!canStart(afterReady).ok) {
     return NextResponse.json(await buildRaceSnapshot(afterReady), { status: 200 });
   }
 
