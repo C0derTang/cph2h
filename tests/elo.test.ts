@@ -229,5 +229,27 @@ describe("elo", () => {
       // High-rated loses: large loss
       expect(result.d2).toBeLessThan(-16);
     });
+
+    it("should clamp delta for two provisional players at floor losing", () => {
+      // Two PROVISIONAL players both at ELO_FLOOR (100), K=64
+      // p1 loses to p2
+      const result = applyResult(
+        { elo: 100, racesPlayed: 5 }, // p1: provisional, at floor
+        { elo: 100, racesPlayed: 8 }, // p2: provisional, at floor
+        "p2_win"
+      );
+      // exp1 = 0.5, exp2 = 0.5 (equal ratings)
+      // rawD1 = 64 * (0 - 0.5) = -32
+      // rawD2 = 64 * (1 - 0.5) = 32
+      // d1 = round(-32) = -32
+      // d2 = round(32) = 32
+      // clampedD1 = max(-32, 100 - 100) = max(-32, 0) = 0
+      // clampedD2 = max(32, 100 - 100) = max(32, 0) = 32
+      expect(result.d1).toBe(0); // clamped from -32 to 0
+      expect(result.d2).toBe(32);
+      // Verify final ratings stay >= ELO_FLOOR
+      expect(100 + result.d1).toBeGreaterThanOrEqual(100);
+      expect(100 + result.d2).toBeGreaterThanOrEqual(100);
+    });
   });
 });

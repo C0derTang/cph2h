@@ -32,23 +32,18 @@ export interface DecryptionPayload {
  * @throws Error if key length is invalid (must be 64 hex chars / 32 bytes)
  */
 export function encryptSecret(plaintext: string, keyHex: string): EncryptionResult {
-  // Validate key length: must be 64 hex characters (32 bytes)
+  // Validate key: must be exactly 64 hex characters (32 bytes)
   if (keyHex.length !== 64) {
     throw new Error(`Invalid key length: expected 64 hex characters (32 bytes), got ${keyHex.length}`);
   }
 
-  // Convert hex key to buffer
-  let key: Buffer;
-  try {
-    key = Buffer.from(keyHex, "hex");
-  } catch {
-    throw new Error("Invalid key: must be a valid hex string");
+  // Validate hex format
+  if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    throw new Error("Invalid key: must be a valid hex string (64 hex characters)");
   }
 
-  // Verify key is exactly 32 bytes
-  if (key.length !== 32) {
-    throw new Error(`Invalid key length: expected 32 bytes, got ${key.length}`);
-  }
+  // Convert hex key to buffer
+  const key = Buffer.from(keyHex, "hex");
 
   // Generate random 12-byte IV for each call
   const iv = randomBytes(12);
@@ -79,36 +74,40 @@ export function encryptSecret(plaintext: string, keyHex: string): EncryptionResu
  * @throws Error if key length is invalid, authentication fails, or decryption fails
  */
 export function decryptSecret(payload: DecryptionPayload, keyHex: string): string {
-  // Validate key length: must be 64 hex characters (32 bytes)
+  // Validate key: must be exactly 64 hex characters (32 bytes)
   if (keyHex.length !== 64) {
     throw new Error(`Invalid key length: expected 64 hex characters (32 bytes), got ${keyHex.length}`);
   }
 
+  // Validate hex format
+  if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    throw new Error("Invalid key: must be a valid hex string (64 hex characters)");
+  }
+
   // Convert hex key to buffer
-  let key: Buffer;
-  try {
-    key = Buffer.from(keyHex, "hex");
-  } catch {
-    throw new Error("Invalid key: must be a valid hex string");
-  }
+  const key = Buffer.from(keyHex, "hex");
 
-  // Verify key is exactly 32 bytes
-  if (key.length !== 32) {
-    throw new Error(`Invalid key length: expected 32 bytes, got ${key.length}`);
-  }
+  // Validate and decode base64 components
+  // Base64 validation: check that the strings are valid base64 and round-trip correctly
+  const validateBase64 = (str: string, name: string): Buffer => {
+    try {
+      const buf = Buffer.from(str, "base64");
+      // Round-trip check: ensure encoding the buffer back produces the original string
+      if (buf.toString("base64") !== str) {
+        throw new Error(`Invalid ${name}: base64 string is malformed or contains non-canonical encoding`);
+      }
+      return buf;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Invalid")) {
+        throw err;
+      }
+      throw new Error(`Invalid ${name}: must be a valid base64 string`);
+    }
+  };
 
-  // Decode base64 components
-  let iv: Buffer;
-  let ciphertext: Buffer;
-  let authTag: Buffer;
-
-  try {
-    iv = Buffer.from(payload.iv, "base64");
-    ciphertext = Buffer.from(payload.ciphertext, "base64");
-    authTag = Buffer.from(payload.authTag, "base64");
-  } catch {
-    throw new Error("Invalid payload: ciphertext, iv, and authTag must be valid base64");
-  }
+  const iv = validateBase64(payload.iv, "iv");
+  const ciphertext = validateBase64(payload.ciphertext, "ciphertext");
+  const authTag = validateBase64(payload.authTag, "authTag");
 
   // Create decipher
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
