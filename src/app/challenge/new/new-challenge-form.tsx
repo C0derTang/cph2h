@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Check, Copy, Loader2, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,12 +32,14 @@ export function NewChallengeForm() {
   const [timeLimitSec, setTimeLimitSec] = useState(DEFAULT_TIME_LIMIT_SEC);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [result, setResult] = useState<CreateRaceResponse | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleCreate() {
     setCreating(true);
     setError(null);
+    setErrorCode(null);
     try {
       const res = await fetch("/api/races", {
         method: "POST",
@@ -45,12 +48,17 @@ export function NewChallengeForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(createErrorMessage(data?.error));
+        const message = createErrorMessage(data?.error);
+        setError(message);
+        setErrorCode(data?.error ?? null);
+        toast.error(message);
         return;
       }
       setResult(data as CreateRaceResponse);
+      toast.success("Challenge created — share the link with a friend.");
     } catch {
       setError("Network error — please try again.");
+      toast.error("Network error — please try again.");
     } finally {
       setCreating(false);
     }
@@ -61,9 +69,10 @@ export function NewChallengeForm() {
     try {
       await navigator.clipboard.writeText(result.joinUrl);
       setCopied(true);
+      toast.success("Link copied to clipboard.");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard may be unavailable — fail silently.
+      toast.error("Couldn't copy — your browser may be blocking clipboard access.");
     }
   }
 
@@ -127,9 +136,22 @@ export function NewChallengeForm() {
         </div>
 
         {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+            {errorCode === "cf_not_linked" && (
+              <Button
+                render={<Link href="/settings/cf" />}
+                nativeButton={false}
+                variant="outline"
+                size="sm"
+                className="self-start"
+              >
+                Link Codeforces account
+              </Button>
+            )}
+          </div>
         )}
 
         <Button type="button" onClick={handleCreate} disabled={creating}>

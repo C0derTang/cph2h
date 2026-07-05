@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,14 +47,18 @@ export function CfLinkForm({
       });
       const data = (await response.json()) as CfLinkResponse;
       if (!response.ok || !data.ok) {
-        setError(data.error ?? "Could not link your account. Try again.");
+        const message = data.error ?? "Could not link your account. Try again.";
+        setError(message);
+        toast.error(message);
         return;
       }
       setPassword("");
       setRelinking(false);
+      toast.success(`Linked to ${data.cfHandle ?? handle}.`);
       router.refresh();
     } catch {
       setError("Network error — please try again.");
+      toast.error("Network error — please try again.");
     } finally {
       setSubmitting(false);
     }

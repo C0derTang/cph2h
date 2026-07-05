@@ -13,6 +13,7 @@
  */
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -57,14 +58,26 @@ export function RunPanel({ raceId, code, samples, className }: RunPanelProps) {
       const data: unknown = await res.json().catch(() => null);
 
       if (res.ok && data && typeof data === "object" && (data as RunResponse).ok) {
-        setResults((data as Extract<RunResponse, { ok: true }>).results);
+        const results = (data as Extract<RunResponse, { ok: true }>).results;
+        setResults(results);
+        const passed = results.filter((r) => r.passed).length;
+        if (results.length === 0) {
+          toast.info("Run finished — no sample tests to check.");
+        } else if (passed === results.length) {
+          toast.success(`Run finished — all ${results.length} samples passed.`);
+        } else {
+          toast.error(`Run finished — ${passed}/${results.length} samples passed.`);
+        }
       } else {
         setResults(null);
-        setError(errorMessageFrom(data, res.status));
+        const message = errorMessageFrom(data, res.status);
+        setError(message);
+        toast.error(message);
       }
     } catch {
       setResults(null);
       setError("Could not reach the run service. Try again.");
+      toast.error("Could not reach the run service. Try again.");
     } finally {
       setRunning(false);
     }

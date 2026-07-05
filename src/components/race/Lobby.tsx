@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Check, Copy, Loader2, Swords, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,7 @@ export function Lobby({
   const [, forceTick] = useState(0);
   const notifiedActiveRef = useRef(false);
   const fetchedOnceRef = useRef(Boolean(initialSnapshot));
+  const seenOpponentIdRef = useRef<string | null>(initialSnapshot?.p2?.id ?? null);
 
   const refresh = useCallback(async () => {
     try {
@@ -73,6 +75,10 @@ export function Lobby({
         return;
       }
       const data = (await res.json()) as RaceSnapshot;
+      if (data.p2 && !seenOpponentIdRef.current) {
+        toast.success(`${data.p2.username} joined — get ready!`);
+      }
+      seenOpponentIdRef.current = data.p2?.id ?? seenOpponentIdRef.current;
       setSnapshot(data);
       setError(null);
     } catch {
@@ -97,11 +103,18 @@ export function Lobby({
   }, [refresh, snapshot?.status]);
 
   // Local re-render tick while counting down so the "starts in Ns" label
-  // stays live between polls.
+  // stays live between polls. Self-clears the instant the countdown elapses
+  // rather than ticking uselessly for the rest of the (possibly long) race.
   useEffect(() => {
     if (snapshot?.status !== "active" || !snapshot.startedAt) return;
-    if (Date.now() >= new Date(snapshot.startedAt).getTime()) return;
-    const tick = setInterval(() => forceTick((n) => n + 1), 250);
+    const startedAtMs = new Date(snapshot.startedAt).getTime();
+    if (Date.now() >= startedAtMs) return;
+    const tick = setInterval(() => {
+      // Tick first so the final render reflects "started", then stop —
+      // otherwise this would keep firing uselessly for the rest of the race.
+      forceTick((n) => n + 1);
+      if (Date.now() >= startedAtMs) clearInterval(tick);
+    }, 250);
     return () => clearInterval(tick);
   }, [snapshot?.status, snapshot?.startedAt]);
 
@@ -121,13 +134,17 @@ export function Lobby({
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setError(readyErrorMessage(data?.error));
+        const message = readyErrorMessage(data?.error);
+        setError(message);
+        toast.error(message);
         if (data?.race) setSnapshot(data.race as RaceSnapshot);
         return;
       }
       setSnapshot(data as RaceSnapshot);
     } catch {
-      setError("Couldn't mark ready — check your connection and try again.");
+      const message = "Couldn't mark ready — check your connection and try again.";
+      setError(message);
+      toast.error(message);
     } finally {
       setReadying(false);
     }
@@ -140,9 +157,10 @@ export function Lobby({
         buildJoinUrl(window.location.origin, snapshot.challengeToken),
       );
       setCopied(true);
+      toast.success("Link copied to clipboard.");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard may be unavailable — fail silently.
+      toast.error("Couldn't copy — your browser may be blocking clipboard access.");
     }
   }
 
