@@ -10,6 +10,9 @@ import {
   canReady,
   canStart,
   canAbort,
+  canOfferDraw,
+  canAcceptDraw,
+  canDeclineDraw,
   isParticipant,
   isProblemVisible,
   nextOnBothReady,
@@ -29,6 +32,7 @@ function race(overrides: Partial<MachineRace> = {}): MachineRace {
     p1Ready: false,
     p2Ready: false,
     timeLimitSec: 2400,
+    drawOfferBy: null,
     ...overrides,
   };
 }
@@ -187,6 +191,119 @@ describe("canAbort", () => {
       ok: false,
       reason: "not_participant",
     });
+  });
+});
+
+describe("canOfferDraw", () => {
+  it("allows either participant in an active race with no offer yet", () => {
+    const r = race({ status: "active", p2Id: P2 });
+    expect(canOfferDraw(r, P1)).toEqual({ ok: true });
+    expect(canOfferDraw(r, P2)).toEqual({ ok: true });
+  });
+
+  it("is a no-op-ok for re-offering by the same player who already offered", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canOfferDraw(r, P1)).toEqual({ ok: true });
+  });
+
+  it("still allows the opponent to offer over an outstanding offer", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canOfferDraw(r, P2)).toEqual({ ok: true });
+  });
+
+  it("rejects outsiders", () => {
+    expect(
+      canOfferDraw(race({ status: "active", p2Id: P2 }), OUTSIDER),
+    ).toEqual({ ok: false, reason: "not_participant" });
+  });
+
+  it("rejects any non-active status", () => {
+    for (const status of ALL_STATUSES.filter((s) => s !== "active")) {
+      expect(canOfferDraw(race({ status, p2Id: P2 }), P1)).toEqual({
+        ok: false,
+        reason: "not_active",
+      });
+    }
+  });
+
+  it("checks participation before status", () => {
+    expect(canOfferDraw(race({ status: "finished", p2Id: P2 }), OUTSIDER)).toEqual({
+      ok: false,
+      reason: "not_participant",
+    });
+  });
+});
+
+describe("canAcceptDraw", () => {
+  it("allows the opponent of the offerer to accept", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canAcceptDraw(r, P2)).toEqual({ ok: true });
+  });
+
+  it("rejects the offerer accepting their own offer", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canAcceptDraw(r, P1)).toEqual({ ok: false, reason: "own_draw_offer" });
+  });
+
+  it("rejects when there is no outstanding offer", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: null });
+    expect(canAcceptDraw(r, P1)).toEqual({ ok: false, reason: "no_draw_offer" });
+    expect(canAcceptDraw(r, P2)).toEqual({ ok: false, reason: "no_draw_offer" });
+  });
+
+  it("rejects outsiders even with an outstanding offer", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canAcceptDraw(r, OUTSIDER)).toEqual({
+      ok: false,
+      reason: "not_participant",
+    });
+  });
+
+  it("rejects any non-active status", () => {
+    for (const status of ALL_STATUSES.filter((s) => s !== "active")) {
+      expect(
+        canAcceptDraw(race({ status, p2Id: P2, drawOfferBy: P1 }), P2),
+      ).toEqual({ ok: false, reason: "not_active" });
+    }
+  });
+
+  it("checks participation before status", () => {
+    expect(
+      canAcceptDraw(race({ status: "finished", p2Id: P2, drawOfferBy: P1 }), OUTSIDER),
+    ).toEqual({ ok: false, reason: "not_participant" });
+  });
+});
+
+describe("canDeclineDraw", () => {
+  it("allows the opponent to decline an outstanding offer", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canDeclineDraw(r, P2)).toEqual({ ok: true });
+  });
+
+  it("allows the offerer to withdraw their own offer", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canDeclineDraw(r, P1)).toEqual({ ok: true });
+  });
+
+  it("rejects when there is no outstanding offer", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: null });
+    expect(canDeclineDraw(r, P1)).toEqual({ ok: false, reason: "no_draw_offer" });
+  });
+
+  it("rejects outsiders", () => {
+    const r = race({ status: "active", p2Id: P2, drawOfferBy: P1 });
+    expect(canDeclineDraw(r, OUTSIDER)).toEqual({
+      ok: false,
+      reason: "not_participant",
+    });
+  });
+
+  it("rejects any non-active status", () => {
+    for (const status of ALL_STATUSES.filter((s) => s !== "active")) {
+      expect(
+        canDeclineDraw(race({ status, p2Id: P2, drawOfferBy: P1 }), P1),
+      ).toEqual({ ok: false, reason: "not_active" });
+    }
   });
 });
 
