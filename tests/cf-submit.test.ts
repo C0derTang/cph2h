@@ -108,7 +108,7 @@ describe("findLatestSubmissionId", () => {
       makeSubmission({ id: 2, creationTimeSeconds: 300 }),
       makeSubmission({ id: 3, creationTimeSeconds: 200 }),
     ];
-    expect(findLatestSubmissionId(subs, "1794C")).toBe(2);
+    expect(findLatestSubmissionId(subs, "1794C", 0)).toBe(2);
   });
 
   it("ignores submissions to other problems", async () => {
@@ -116,7 +116,7 @@ describe("findLatestSubmissionId", () => {
     const subs = [
       makeSubmission({ id: 9, creationTimeSeconds: 999, problem: { contestId: 1794, index: "D", name: "x" } }),
     ];
-    expect(findLatestSubmissionId(subs, "1794C")).toBeNull();
+    expect(findLatestSubmissionId(subs, "1794C", 0)).toBeNull();
   });
 
   it("breaks equal-timestamp ties by highest id", async () => {
@@ -125,7 +125,15 @@ describe("findLatestSubmissionId", () => {
       makeSubmission({ id: 10, creationTimeSeconds: 500 }),
       makeSubmission({ id: 12, creationTimeSeconds: 500 }),
     ];
-    expect(findLatestSubmissionId(subs, "1794C")).toBe(12);
+    expect(findLatestSubmissionId(subs, "1794C", 0)).toBe(12);
+  });
+
+  it("rejects submissions created before the not-before bound (stale readback)", async () => {
+    const { findLatestSubmissionId } = await import("@/lib/cf/submit");
+    // Only a prior attempt to the same problem is visible; the one we just made
+    // has not surfaced in user.status yet.
+    const subs = [makeSubmission({ id: 42, creationTimeSeconds: 1000 })];
+    expect(findLatestSubmissionId(subs, "1794C", 2000)).toBeNull();
   });
 });
 
@@ -136,7 +144,11 @@ describe("submitSolution", () => {
       return htmlResponse("", 302); // successful submit redirect
     });
     vi.stubGlobal("fetch", fetchMock);
-    getUserStatusMock.mockResolvedValue([makeSubmission({ id: 300000042 })]);
+    // Fresh submission surfaced by user.status (after the not-before bound).
+    const nowSec = Math.floor(Date.now() / 1000);
+    getUserStatusMock.mockResolvedValue([
+      makeSubmission({ id: 300000042, creationTimeSeconds: nowSec }),
+    ]);
 
     const { submitSolution } = await import("@/lib/cf/submit");
     const result = await submitSolution({
@@ -174,6 +186,24 @@ describe("submitSolution", () => {
     // No POST is attempted once we detect the session is not signed in.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getUserStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("throws submission_not_found (not a stale id) when only a prior attempt is visible", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET") return htmlResponse(submitPageHtml);
+      return htmlResponse("", 302); // submit accepted; id just hasn't surfaced
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    // user.status lags: it only shows an earlier submission to the same problem.
+    const staleSec = Math.floor(Date.now() / 1000) - 3600;
+    getUserStatusMock.mockResolvedValue([
+      makeSubmission({ id: 111, creationTimeSeconds: staleSec }),
+    ]);
+
+    const { submitSolution } = await import("@/lib/cf/submit");
+    await expect(
+      submitSolution({ userId: "user-1", contestId: 1794, index: "C", code: "x" }),
+    ).rejects.toMatchObject({ code: "submission_not_found" });
   });
 
   it("throws duplicate_code when CF rejects identical source", async () => {

@@ -40,6 +40,14 @@ const DUPLICATE_MARKER = "You have submitted exactly the same code before";
 /** How many recent submissions to scan when reading the id back. */
 const READBACK_COUNT = 10;
 
+/**
+ * Tolerance (seconds) subtracted from the local clock when computing the
+ * read-back lower bound, to absorb client/CF clock skew. Small on purpose —
+ * large enough to never reject the submission we just made, small enough not to
+ * re-admit a prior submission to the same problem seconds earlier.
+ */
+const CLOCK_SKEW_SEC = 5;
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -123,16 +131,25 @@ export function extractSubmitError(html: string): CfSubmitError | null {
 
 /**
  * From a `user.status` listing, pick the id of the most recent submission to
- * `problemId` (latest `creationTimeSeconds`, ties broken by highest id — the
- * one just made). Returns `null` when none match.
+ * `problemId` that was created at or after `notBeforeEpochSec` (latest
+ * `creationTimeSeconds`, ties broken by highest id — the one just made).
+ *
+ * The `notBeforeEpochSec` bound is essential: in the iterate-until-AC race flow
+ * a user resubmits the same problem repeatedly, and if CF's `user.status`
+ * listing lags behind the submission we just made, matching by problem alone
+ * would silently return the id of an *earlier* attempt. Rejecting anything
+ * older than this submit call forces a `submission_not_found` (→ safe manual
+ * fallback) instead of recording a stale id. Returns `null` when none qualify.
  */
 export function findLatestSubmissionId(
   submissions: { id: number; creationTimeSeconds: number; problem: { contestId: number; index: string } }[],
   problemId: ProblemId,
+  notBeforeEpochSec: number,
 ): number | null {
   let best: { id: number; creationTimeSeconds: number } | null = null;
   for (const s of submissions) {
     if (problemIdOf(s.problem) !== problemId) continue;
+    if (s.creationTimeSeconds < notBeforeEpochSec) continue;
     if (
       best === null ||
       s.creationTimeSeconds > best.creationTimeSeconds ||
@@ -209,6 +226,9 @@ export async function submitSolution(
 
   // 3. POST the submit form. csrf goes in both the query and the body, as
   //    cf-tool does; redirect is manual so a success 3xx yields an empty body.
+  //    Capture the read-back lower bound *before* the POST so a lagging
+  //    user.status listing can never match a prior attempt to this problem.
+  const notBefore = Math.floor(Date.now() / 1000) - CLOCK_SKEW_SEC;
   const form = buildSubmitForm({
     csrfToken,
     index,
@@ -236,7 +256,7 @@ export async function submitSolution(
 
   // 5. Read the submission id back off the public API.
   const submissions = await getUserStatus(handle, 1, READBACK_COUNT);
-  const cfSubmissionId = findLatestSubmissionId(submissions, problemId);
+  const cfSubmissionId = findLatestSubmissionId(submissions, problemId, notBefore);
   if (cfSubmissionId === null) {
     throw new CfSubmitError(
       "submission_not_found",
