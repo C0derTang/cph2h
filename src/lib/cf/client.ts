@@ -1,0 +1,162 @@
+/**
+ * Typed Codeforces public-API client.
+ *
+ * Wraps the unauthenticated `https://codeforces.com/api/*` endpoints with:
+ *  - Envelope parsing (`{status, result}` / `{status, comment}`) and a typed
+ *    `CfApiError` on `status: "FAILED"`.
+ *  - Courtesy rate limiting: a module-level promise chain that guarantees at
+ *    least `MIN_REQUEST_SPACING_MS` between request *starts* (CF's public API
+ *    allows ~1 request / 2s).
+ *  - A single retry with a fixed backoff when CF reports its own rate limit
+ *    has been exceeded (`comment` contains "limit exceeded").
+ */
+
+import type { CfProblem, CfSubmission } from "@/lib/types";
+
+const CF_API_BASE = "https://codeforces.com/api";
+
+/** Minimum spacing (ms) enforced between the *start* of successive requests. */
+export const MIN_REQUEST_SPACING_MS = 2000;
+
+/** Backoff (ms) before the single retry when CF itself reports rate limiting. */
+export const RETRY_BACKOFF_MS = 5000;
+
+export class CfApiError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CfApiError";
+  }
+}
+
+interface CfOkEnvelope<T> {
+  status: "OK";
+  result: T;
+}
+
+interface CfFailedEnvelope {
+  status: "FAILED";
+  comment: string;
+}
+
+type CfEnvelope<T> = CfOkEnvelope<T> | CfFailedEnvelope;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Courtesy rate limiter
+//
+// `requestQueue` is a promise chain: each call appends its work after the
+// previous one settles, and — before doing its own work — waits out whatever
+// remains of the `MIN_REQUEST_SPACING_MS` window since the last request
+// *started*. This serializes all cfFetch calls and guarantees the spacing
+// regardless of how long an individual request (or its retry) takes.
+// ---------------------------------------------------------------------------
+
+let requestQueue: Promise<void> = Promise.resolve();
+let lastRequestStartMs: number | null = null;
+
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const scheduled = requestQueue.then(async () => {
+    if (lastRequestStartMs !== null) {
+      const elapsed = Date.now() - lastRequestStartMs;
+      const remaining = MIN_REQUEST_SPACING_MS - elapsed;
+      if (remaining > 0) {
+        await sleep(remaining);
+      }
+    }
+    lastRequestStartMs = Date.now();
+    return task();
+  });
+
+  // Keep the queue alive even if this task rejects; swallow here, the real
+  // rejection is still delivered to the caller via `scheduled`.
+  requestQueue = scheduled.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return scheduled;
+}
+
+function buildUrl(method: string, params: Record<string, string>): string {
+  const url = new URL(`${CF_API_BASE}/${method}`);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+async function requestOnce<T>(method: string, params: Record<string, string>): Promise<T> {
+  const response = await fetch(buildUrl(method, params));
+  const envelope = (await response.json()) as CfEnvelope<T>;
+  if (envelope.status === "FAILED") {
+    throw new CfApiError(envelope.comment);
+  }
+  return envelope.result;
+}
+
+function isRateLimitComment(error: unknown): boolean {
+  return error instanceof CfApiError && error.message.toLowerCase().includes("limit exceeded");
+}
+
+/**
+ * GET `https://codeforces.com/api/{method}`, courtesy rate-limited and
+ * retried once (after a fixed backoff) if CF itself reports its rate limit
+ * was exceeded.
+ */
+export function cfFetch<T>(method: string, params: Record<string, string> = {}): Promise<T> {
+  return enqueue(async () => {
+    try {
+      return await requestOnce<T>(method, params);
+    } catch (error) {
+      if (!isRateLimitComment(error)) {
+        throw error;
+      }
+      await sleep(RETRY_BACKOFF_MS);
+      return requestOnce<T>(method, params);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Typed wrappers
+// ---------------------------------------------------------------------------
+
+export interface CfUserInfo {
+  handle: string;
+  rating?: number;
+  maxRating?: number;
+  rank?: string;
+  maxRank?: string;
+}
+
+export interface CfProblemsetResult {
+  problems: CfProblem[];
+}
+
+export function getUserInfo(handle: string): Promise<CfUserInfo[]> {
+  return cfFetch<CfUserInfo[]>("user.info", { handles: handle });
+}
+
+export function getUserStatus(
+  handle: string,
+  from?: number,
+  count?: number,
+): Promise<CfSubmission[]> {
+  const params: Record<string, string> = { handle };
+  if (from !== undefined) {
+    params.from = String(from);
+  }
+  if (count !== undefined) {
+    params.count = String(count);
+  }
+  return cfFetch<CfSubmission[]>("user.status", params);
+}
+
+export function getProblemset(): Promise<CfProblemsetResult> {
+  return cfFetch<CfProblemsetResult>("problemset.problems");
+}
