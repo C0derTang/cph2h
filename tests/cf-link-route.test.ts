@@ -100,12 +100,25 @@ function makeRequest(body: unknown): Request {
   });
 }
 
-/** Queue up successive `db.select()...where()` results in call order. */
+/**
+ * Queue up successive `db.select()...where()` results in call order.
+ *
+ * The route calls some selects as `...where(...)` (awaited directly) and
+ * others as `...where(...).limit(1)` (via `ensureUser`, see src/lib/user.ts)
+ * — the returned value is thenable *and* exposes `.limit()` so either call
+ * shape resolves to the same queued result.
+ */
 function mockSelectSequence(results: unknown[][]) {
   let i = 0;
   selectMock.mockImplementation(() => ({
     from: () => ({
-      where: () => Promise.resolve(results[i++] ?? []),
+      where: () => {
+        const result = results[i++] ?? [];
+        return {
+          limit: () => Promise.resolve(result),
+          then: (resolve: (value: unknown) => void) => resolve(result),
+        };
+      },
     }),
   }));
 }
