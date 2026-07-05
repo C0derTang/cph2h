@@ -216,6 +216,23 @@ export interface CfLinkResponse {
   error?: string;
 }
 
+/**
+ * Start of the compile-error handle-ownership challenge. The user is asked to
+ * submit a COMPILE_ERROR to `problemUrl` within the window, which the check
+ * step confirms via the public API (Codeforces Cloudflare-blocks server-side
+ * login, so no password is ever collected).
+ */
+export type CfVerifyStartResponse =
+  | {
+      ok: true;
+      handle: string;
+      problemId: ProblemId;
+      problemName: string;
+      problemUrl: string;
+      expiresAt: string; // ISO
+    }
+  | { ok: false; error: string };
+
 export interface LeaderboardEntry {
   rank: number;
   user: PublicUser;

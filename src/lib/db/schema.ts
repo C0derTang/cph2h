@@ -83,6 +83,22 @@ export const cfSessions = pgTable("cf_sessions", {
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
 });
 
+/**
+ * Pending compile-error handle-ownership challenge. Codeforces Cloudflare-blocks
+ * server-side login, so we verify ownership by asking the user to submit a
+ * COMPILE_ERROR to `problemId`, then confirm it via the public API. One pending
+ * challenge per user (upserted on each start).
+ */
+export const handleVerifications = pgTable("handle_verifications", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id),
+  handle: text("handle").notNull(),
+  problemId: text("problem_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
 // ---------------------------------------------------------------------------
 // Problems
 // ---------------------------------------------------------------------------
@@ -235,6 +251,9 @@ export type NewCfCredential = typeof cfCredentials.$inferInsert;
 
 export type CfSession = typeof cfSessions.$inferSelect;
 export type NewCfSession = typeof cfSessions.$inferInsert;
+
+export type HandleVerification = typeof handleVerifications.$inferSelect;
+export type NewHandleVerification = typeof handleVerifications.$inferInsert;
 
 export type Problem = typeof problems.$inferSelect;
 export type NewProblem = typeof problems.$inferInsert;
