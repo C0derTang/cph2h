@@ -28,8 +28,11 @@ interface ProblemPaneProps {
 export function ProblemPane({ statement, className }: ProblemPaneProps) {
   const safeHtml = useMemo(
     () =>
+      // `svg: true` keeps KaTeX's inline <svg> stretchy glyphs (\sqrt etc.);
+      // `svgFilters` stays OFF (KaTeX never emits filters, and that is the
+      // risky SVG surface). Mirrors the server-side sanitize in statements.ts.
       DOMPurify.sanitize(statement.html, {
-        USE_PROFILES: { html: true, mathMl: true },
+        USE_PROFILES: { html: true, mathMl: true, svg: true },
       }),
     [statement.html],
   );

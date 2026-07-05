@@ -48,6 +48,12 @@ describe("parseStatementHtml", () => {
     expect(parsed.html).not.toContain("$$$");
   });
 
+  it("keeps KaTeX inline <svg> output (\\sqrt) through sanitization", () => {
+    // \sqrt renders as an inline <svg><path/></svg>; the sanitizer must allow
+    // svg so stretchy constructs are not silently stripped.
+    expect(parsed.html).toContain("<svg");
+  });
+
   it("produces sanitized HTML with no script tags", () => {
     expect(parsed.html.toLowerCase()).not.toContain("<script");
   });

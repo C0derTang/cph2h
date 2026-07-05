@@ -145,7 +145,14 @@ export function parseStatementHtml(html: string): Omit<ProblemStatement, "proble
 
   const rawBody = $statement.html() ?? "";
   const rendered = renderMath(rawBody);
-  const clean = DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true, mathMl: true } });
+  // `svg: true` is required: KaTeX renders stretchy constructs (\sqrt,
+  // \overbrace, \widehat, ...) as inline <svg><path/></svg>, which the html /
+  // mathMl profiles alone would strip. `svgFilters` stays OFF — that surface
+  // (feImage/filter) is where DOMPurify's SVG XSS history concentrates and
+  // KaTeX never emits it.
+  const clean = DOMPurify.sanitize(rendered, {
+    USE_PROFILES: { html: true, mathMl: true, svg: true },
+  });
 
   return { html: clean, samples };
 }
@@ -180,7 +187,9 @@ export async function fetchStatement(problemId: ProblemId): Promise<ProblemState
   }
   const html = await response.text();
   const parsed = parseStatementHtml(html);
-  if (parsed.samples.length === 0 && parsed.html.trim() === "") {
+  // Fail loud on a half-scraped page: either an empty body or missing samples
+  // means the fetch is unusable, so never persist/return a partial statement.
+  if (parsed.samples.length === 0 || parsed.html.trim() === "") {
     throw new Error(`No problem statement found for ${problemId}`);
   }
   return { problemId, ...parsed };
