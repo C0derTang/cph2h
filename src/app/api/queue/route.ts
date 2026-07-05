@@ -60,7 +60,7 @@ export async function POST() {
 
   // Pair-on-enqueue at the base band. `me` is not in the queue yet, so a hit
   // deletes only the opponent's row.
-  const matchedId = await tryPair({ userId: me.id, elo: me.elo }, BAND_BASE);
+  const matchedId = await tryPair({ userId: me.id, elo: me.elo }, BAND_BASE, "enqueue");
   if (matchedId) {
     const raceId = await createReadyRace(me.id, matchedId);
     return NextResponse.json({ matched: true, raceId }, { status: 200 });
@@ -111,7 +111,7 @@ export async function GET() {
   );
   const currentBand = bandForWait(waitedSec);
 
-  const matchedId = await tryPair({ userId: me.id, elo: entry.elo }, currentBand);
+  const matchedId = await tryPair({ userId: me.id, elo: entry.elo }, currentBand, "poll");
   if (matchedId) {
     const raceId = await createReadyRace(me.id, matchedId);
     const body: QueueStatusResponse = {

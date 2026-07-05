@@ -68,42 +68,75 @@ describe("tryPair", () => {
     execute.mockReset();
   });
 
-  it("returns the opponent id when a row is deleted", async () => {
+  it("enqueue mode: returns the opponent id when the opponent row is deleted", async () => {
     execute.mockResolvedValueOnce({ rows: [{ user_id: "opp-1" }] });
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 100);
+    const matched = await tryPair({ userId: "me", elo: 1200 }, 100, "enqueue");
     expect(matched).toBe("opp-1");
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("returns null when no opponent was claimable", async () => {
+  it("poll mode: returns the opponent id only when BOTH rows were deleted", async () => {
+    execute.mockResolvedValueOnce({ rows: [{ user_id: "me" }, { user_id: "opp-1" }] });
+    const matched = await tryPair({ userId: "me", elo: 1200 }, 100, "poll");
+    expect(matched).toBe("opp-1");
+  });
+
+  it("poll mode: refuses a race when only the opponent row was deleted (self not locked)", async () => {
+    // Simulates the 3+ concurrent-poller hole: our own row was already claimed
+    // by another pairing, so it never made it into `pair`/`deleted`.
+    execute.mockResolvedValueOnce({ rows: [{ user_id: "opp-1" }] });
+    const matched = await tryPair({ userId: "me", elo: 1200 }, 100, "poll");
+    expect(matched).toBeNull();
+  });
+
+  it("poll mode: returns null when nothing was deleted", async () => {
     execute.mockResolvedValueOnce({ rows: [] });
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 200);
+    const matched = await tryPair({ userId: "me", elo: 1200 }, 200, "poll");
     expect(matched).toBeNull();
   });
 
   it("tolerates a result without a rows array", async () => {
     execute.mockResolvedValueOnce({});
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 200);
+    const matched = await tryPair({ userId: "me", elo: 1200 }, 200, "enqueue");
     expect(matched).toBeNull();
   });
 
   it("issues a single locking statement with the caller's params", async () => {
     execute.mockResolvedValueOnce({ rows: [] });
-    await tryPair({ userId: "me-42", elo: 1337 }, 250);
+    await tryPair({ userId: "me-42", elo: 1337 }, 250, "enqueue");
 
     expect(execute).toHaveBeenCalledTimes(1);
-    const query = execute.mock.calls[0][0] as {
-      queryChunks?: unknown[];
-      // drizzle SQL object — inspect its rendered params/sql via toQuery-like fields
-    };
+    const query = execute.mock.calls[0][0];
 
-    // The drizzle `sql` object carries the literal chunks and the bound params.
-    // Flatten any string chunks to assert on the raw SQL shape.
+    // The drizzle `sql` object carries the literal chunks and the bound params;
+    // JSON.stringify surfaces both so we can assert on the raw SQL shape.
     const text = JSON.stringify(query);
     expect(text).toContain("FOR UPDATE SKIP LOCKED");
     expect(text).toContain("queue_entries");
     expect(text).toContain("me-42");
     expect(text).toContain("1337");
     expect(text).toContain("250");
+  });
+
+  it("poll mode includes the self-guard (self CTE + `me IN pair`)", async () => {
+    execute.mockResolvedValueOnce({ rows: [] });
+    await tryPair({ userId: "me-99", elo: 1500 }, 300, "poll");
+
+    const text = JSON.stringify(execute.mock.calls[0][0]);
+    // The non-locking self presence CTE ...
+    expect(text).toContain("self AS");
+    expect(text).toContain("EXISTS (SELECT 1 FROM self)");
+    // ... and the "my own row must have been locked" gate on the delete.
+    expect(text).toContain("IN (SELECT user_id FROM pair)");
+    expect(text).toContain("me-99");
+  });
+
+  it("enqueue mode omits the self CTE (self is legitimately absent)", async () => {
+    execute.mockResolvedValueOnce({ rows: [] });
+    await tryPair({ userId: "me-7", elo: 1100 }, 100, "enqueue");
+
+    const text = JSON.stringify(execute.mock.calls[0][0]);
+    expect(text).not.toContain("self AS");
+    expect(text).toContain("FOR UPDATE SKIP LOCKED");
   });
 });
