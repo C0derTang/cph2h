@@ -27,7 +27,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -40,6 +40,7 @@ import {
   loginToCf,
   persistCfSession,
 } from "@/lib/cf/auth";
+import { ensureUser } from "@/lib/user";
 import type { CfLinkResponse } from "@/lib/types";
 
 /** Page size for history import; walked via `from` until exhausted or capped. */
@@ -182,8 +183,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!(err instanceof CfApiError)) throw err;
   }
 
-  // 3. Resolve (or create) the app user for this Clerk id.
-  const user = await getOrCreateUser(clerkId, canonicalHandle);
+  // 3. Resolve (or create) the app user for this Clerk id. `ensureUser` is
+  // the single implementation shared with the dashboard/settings pages
+  // (issue #48); it derives a default username from Clerk when creating the
+  // row, not the CF handle being linked here.
+  const user = await ensureUser();
+  if (!user) {
+    return json({ ok: false, error: "You must be signed in." }, 401);
+  }
 
   // 4. Reject if the handle is already linked to a different account.
   const [conflict] = await db
@@ -255,37 +262,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   return json({ ok: true, cfHandle: canonicalHandle, cfRating }, 200);
-}
-
-async function getOrCreateUser(clerkId: string, fallbackHandle: string) {
-  const [found] = await db.select().from(users).where(eq(users.clerkId, clerkId));
-  if (found) return found;
-
-  let username = fallbackHandle;
-  try {
-    const clerkUser = await currentUser();
-    username =
-      clerkUser?.username ??
-      clerkUser?.firstName ??
-      clerkUser?.emailAddresses[0]?.emailAddress ??
-      fallbackHandle;
-  } catch {
-    // Fall back to the handle if the Clerk backend user is unavailable.
-  }
-
-  const [created] = await db
-    .insert(users)
-    .values({ clerkId, username })
-    .onConflictDoNothing()
-    .returning();
-  if (created) return created;
-
-  // Lost a race with a concurrent insert — read the winner.
-  const [existing] = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId));
-  return existing;
 }
 
 /**

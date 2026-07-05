@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
@@ -8,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ExternalLink, TrendingUp, TrendingDown } from "lucide-react";
+import { ExternalLink, Link2, TrendingUp, TrendingDown } from "lucide-react";
 import { formatOutcome, formatEloDelta } from "@/lib/format";
+import { ensureUser } from "@/lib/user";
 import type { RaceOutcome } from "@/lib/types";
 
 async function getRecentRaces(userId: string) {
@@ -110,14 +110,26 @@ function ErrorDisplay() {
   );
 }
 
-function UserNotFoundDisplay() {
+function LinkCfBanner() {
   return (
-    <div className="shell py-12">
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <h1 className="font-heading text-2xl font-semibold">User not found</h1>
-        <p className="text-muted-foreground">Your account is not set up yet</p>
-      </div>
-    </div>
+    <Card className="mb-8 border-primary/40 bg-primary/5">
+      <CardContent className="flex flex-col items-start gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-primary">
+            <Link2 className="size-4" aria-hidden />
+          </div>
+          <div>
+            <p className="font-medium">Link your Codeforces account</p>
+            <p className="text-sm text-muted-foreground">
+              Connect Codeforces to start racing and track your rating.
+            </p>
+          </div>
+        </div>
+        <Button render={<Link href="/settings/cf" />} nativeButton={false}>
+          Link Account
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -154,6 +166,8 @@ function DashboardContent({
   return (
     <div className="shell py-8">
       <h1 className="font-heading text-3xl font-semibold mb-8">Dashboard</h1>
+
+      {!user.cfHandle && <LinkCfBanner />}
 
       {/* Profile Card */}
       <div className="grid gap-6 md:grid-cols-2 mb-8">
@@ -359,19 +373,22 @@ function DashboardContent({
 }
 
 export default async function DashboardPage() {
-  const { userId } = await auth();
-  if (!userId) {
+  // Provisions the `users` row on first authenticated access (issue #48);
+  // only a genuinely-signed-out visitor gets sent to sign-in.
+  const dbUser = await ensureUser();
+  if (!dbUser) {
     redirect("/sign-in");
   }
 
-  let user: {
-    id: string;
-    username: string;
-    cfHandle: string | null;
-    cfRating: number | null;
-    elo: number;
-    racesPlayed: number;
-  } | null = null;
+  const user = {
+    id: dbUser.id,
+    username: dbUser.username,
+    cfHandle: dbUser.cfHandle,
+    cfRating: dbUser.cfRating,
+    elo: dbUser.elo,
+    racesPlayed: dbUser.racesPlayed,
+  };
+
   let recentRaces: Array<{
     id: string;
     p1Id: string;
@@ -385,34 +402,11 @@ export default async function DashboardPage() {
   }> = [];
   let eloHistoryData: Array<{ eloAfter: number }> = [];
   let errorOccurred = false;
-  let userNotFound = false;
 
   try {
-    // Fetch current user
-    const currentUser = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, userId))
-      .limit(1);
-
-    if (!currentUser || currentUser.length === 0) {
-      userNotFound = true;
-    } else {
-      const dbUser = currentUser[0];
-      user = {
-        id: dbUser.id,
-        username: dbUser.username,
-        cfHandle: dbUser.cfHandle,
-        cfRating: dbUser.cfRating,
-        elo: dbUser.elo,
-        racesPlayed: dbUser.racesPlayed,
-      };
-
-      // Fetch recent races and elo history
-      recentRaces = await getRecentRaces(user.id);
-      const historyData = await getEloHistory(user.id);
-      eloHistoryData = historyData.map((h) => ({ eloAfter: h.eloAfter }));
-    }
+    recentRaces = await getRecentRaces(user.id);
+    const historyData = await getEloHistory(user.id);
+    eloHistoryData = historyData.map((h) => ({ eloAfter: h.eloAfter }));
   } catch (error) {
     console.error("Error loading dashboard:", error);
     errorOccurred = true;
@@ -420,10 +414,6 @@ export default async function DashboardPage() {
 
   if (errorOccurred) {
     return <ErrorDisplay />;
-  }
-
-  if (userNotFound || !user) {
-    return <UserNotFoundDisplay />;
   }
 
   return (

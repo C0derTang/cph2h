@@ -1,32 +1,15 @@
 import { Link2 } from "lucide-react";
-import { auth } from "@clerk/nextjs/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { ensureUser } from "@/lib/user";
 import { CfLinkForm } from "./cf-link-form";
 
 export default async function CfSettingsPage() {
-  const { userId: clerkId } = await auth();
+  // Provisions the `users` row on first authenticated access (issue #48) so
+  // the linked-state read below works pre-link, not just after CF linking.
+  const user = await ensureUser();
 
-  let linkedHandle: string | null = null;
-  let linkedRating: number | null = null;
-  let linkedAt: string | null = null;
-
-  if (clerkId) {
-    const [user] = await db
-      .select({
-        cfHandle: users.cfHandle,
-        cfRating: users.cfRating,
-        cfLinkedAt: users.cfLinkedAt,
-      })
-      .from(users)
-      .where(eq(users.clerkId, clerkId));
-    if (user) {
-      linkedHandle = user.cfHandle;
-      linkedRating = user.cfRating;
-      linkedAt = user.cfLinkedAt ? user.cfLinkedAt.toISOString() : null;
-    }
-  }
+  const linkedHandle = user?.cfHandle ?? null;
+  const linkedRating = user?.cfRating ?? null;
+  const linkedAt = user?.cfLinkedAt ? user.cfLinkedAt.toISOString() : null;
 
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
