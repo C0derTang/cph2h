@@ -10,8 +10,10 @@
  *    requests ~2s apart on its own).
  *  - `findRaceVerdicts` (#3) over the race problem since `startedAt`.
  *  - An OK submission finishes the race (earliest OK across both players wins).
- *  - Final non-OK verdicts update `race_submissions.verdict` and publish a
- *    `verdict` hint.
+ *  - Every observed final verdict (OK and non-OK) is UPSERTed into
+ *    `race_submissions` and the latest non-OK is published as a `verdict` hint.
+ *    Since users now submit on codeforces.com themselves (issue #55) there are
+ *    no pre-inserted rows, so the poll is the sole writer of the feed.
  *  - No OK and `now > endsAt` ⇒ draw.
  *
  * All finishes go through {@link finishRace}, which is idempotent, so a
@@ -88,7 +90,13 @@ export async function pollActiveRace(
     }
 
     const verdicts = findRaceVerdicts(submissions, problemId, sinceEpochSec);
-    await recordNonOkVerdicts(race, userId, verdicts.others);
+
+    // Surface every observed final verdict — including a manual OK — by
+    // upserting a row, then publish the latest non-OK as a hint.
+    const finals = verdicts.accepted
+      ? [...verdicts.others, verdicts.accepted]
+      : verdicts.others;
+    await recordVerdicts(race, userId, finals);
 
     if (verdicts.accepted) {
       accepted.push({ userId, submission: verdicts.accepted });
@@ -125,32 +133,28 @@ export async function pollActiveRace(
 }
 
 /**
- * Persist final non-OK verdicts onto known `race_submissions` rows and publish
- * the most recent one as a `verdict` hint. Manual submits (no stored row) get
- * no row update but still surface as an event, since the polled handle
- * identifies the player.
+ * Persist final verdicts (OK and non-OK) into `race_submissions`, upserting per
+ * CF submission id, then publish the most recent non-OK one as a `verdict`
+ * hint. Users submit on codeforces.com themselves now, so there is never a
+ * pre-inserted row — the poll inserts the row on first sighting (code is empty:
+ * the source lives on Codeforces) and updates the verdict on later polls.
  */
-async function recordNonOkVerdicts(
+async function recordVerdicts(
   race: Race,
   userId: string,
-  others: CfSubmission[],
+  submissions: CfSubmission[],
 ): Promise<void> {
-  if (others.length === 0) return;
+  if (submissions.length === 0) return;
 
-  for (const submission of others) {
+  for (const submission of submissions) {
     if (!submission.verdict) continue;
-    await db
-      .update(raceSubmissions)
-      .set({ verdict: submission.verdict })
-      .where(
-        and(
-          eq(raceSubmissions.raceId, race.id),
-          eq(raceSubmissions.cfSubmissionId, submission.id),
-        ),
-      );
+    await upsertRaceSubmission(race.id, userId, submission);
   }
 
-  const latest = others.reduce((a, b) =>
+  const nonOk = submissions.filter((s) => s.verdict && s.verdict !== "OK");
+  if (nonOk.length === 0) return;
+
+  const latest = nonOk.reduce((a, b) =>
     b.creationTimeSeconds > a.creationTimeSeconds ? b : a,
   );
   if (!latest.verdict) return;
@@ -161,5 +165,47 @@ async function recordNonOkVerdicts(
     verdict: latest.verdict,
     cfSubmissionId: latest.id,
     submittedAt: new Date(latest.creationTimeSeconds * 1000).toISOString(),
+  });
+}
+
+/**
+ * Insert-or-update the `race_submissions` row for one CF submission. There is
+ * no unique constraint on `(race_id, cf_submission_id)` (schema is frozen), so
+ * we check-then-write; the caller holds the poll mutex, so a racing double
+ * insert is not a concern here.
+ */
+async function upsertRaceSubmission(
+  raceId: string,
+  userId: string,
+  submission: CfSubmission,
+): Promise<void> {
+  const verdict = submission.verdict ?? null;
+
+  const [existing] = await db
+    .select({ id: raceSubmissions.id })
+    .from(raceSubmissions)
+    .where(
+      and(
+        eq(raceSubmissions.raceId, raceId),
+        eq(raceSubmissions.cfSubmissionId, submission.id),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(raceSubmissions)
+      .set({ verdict })
+      .where(eq(raceSubmissions.id, existing.id));
+    return;
+  }
+
+  await db.insert(raceSubmissions).values({
+    raceId,
+    userId,
+    cfSubmissionId: submission.id,
+    code: "",
+    verdict,
+    submittedAt: new Date(submission.creationTimeSeconds * 1000),
   });
 }

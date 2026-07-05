@@ -1,7 +1,7 @@
 /**
  * Ensure the Clerk-authenticated caller has a corresponding `users` row.
  *
- * Historically the `users` row was only created inside `POST /api/cf/link`,
+ * Historically the `users` row was only created inside the old CF-link route,
  * so a brand-new signup (any auth method) had a Clerk identity but no DB row
  * until they linked Codeforces — dead-ending them on `/dashboard` with
  * "User not found" (issue #48). `ensureUser` provisions the row on first

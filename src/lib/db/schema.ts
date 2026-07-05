@@ -61,27 +61,13 @@ export const users = pgTable("users", {
 
 // ---------------------------------------------------------------------------
 // Codeforces account linking
+//
+// The old password-login flow (cf_credentials / cf_sessions, encrypted at rest)
+// was removed in issue #55: Codeforces Cloudflare-blocks server-side login, so
+// ownership is now proven with a compile-error submission confirmed via the
+// public API (see handle_verifications below). Those two tables are dropped by
+// migration 0003.
 // ---------------------------------------------------------------------------
-
-export const cfCredentials = pgTable("cf_credentials", {
-  userId: uuid("user_id")
-    .primaryKey()
-    .references(() => users.id),
-  /** Base64-encoded AES-256-GCM ciphertext of the CF password. */
-  encryptedPassword: text("encrypted_password").notNull(),
-  iv: text("iv").notNull(),
-  authTag: text("auth_tag").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
-});
-
-export const cfSessions = pgTable("cf_sessions", {
-  userId: uuid("user_id")
-    .primaryKey()
-    .references(() => users.id),
-  cookieJar: jsonb("cookie_jar").notNull(),
-  csrfToken: text("csrf_token"),
-  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
-});
 
 /**
  * Pending compile-error handle-ownership challenge. Codeforces Cloudflare-blocks
@@ -245,12 +231,6 @@ export const eloHistory = pgTable(
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-
-export type CfCredential = typeof cfCredentials.$inferSelect;
-export type NewCfCredential = typeof cfCredentials.$inferInsert;
-
-export type CfSession = typeof cfSessions.$inferSelect;
-export type NewCfSession = typeof cfSessions.$inferInsert;
 
 export type HandleVerification = typeof handleVerifications.$inferSelect;
 export type NewHandleVerification = typeof handleVerifications.$inferInsert;

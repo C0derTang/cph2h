@@ -14,8 +14,6 @@
 export const DEFAULT_TIME_LIMIT_SEC = 2400; // 40 minutes
 export const COUNTDOWN_SEC = 10;
 export const LIVEKIT_DATA_TOPIC = "race";
-export const CF_LANGUAGE_ID = 54; // GNU G++17 7.3.0 on Codeforces
-export const JUDGE0_CPP_LANGUAGE_ID = 54; // C++ (GCC 9.2.0) on Judge0 CE
 export const POLL_MIN_INTERVAL_SEC = 5;
 export const CLIENT_POLL_INTERVAL_MS = 6000;
 export const QUEUE_POLL_INTERVAL_MS = 3000;
@@ -185,15 +183,6 @@ export interface CreateRaceResponse {
   challengeToken: string;
   joinUrl: string;
 }
-
-export type SubmitResponse =
-  | { ok: true; cfSubmissionId: number }
-  | {
-      ok: false;
-      /** Structured failure — client shows manual-submit fallback on cf_error. */
-      error: "cf_error" | "not_active" | "rate_limited" | "not_participant";
-      message: string;
-    };
 
 export interface RunSampleResult {
   sampleIndex: number;

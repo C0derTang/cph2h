@@ -3,8 +3,8 @@
  * (issue #12).
  *
  * GET returns `users.cppTemplate` for the signed-in user, falling back to
- * `DEFAULT_CPP_TEMPLATE` if no `users` row exists yet (rows are created
- * lazily when a Codeforces account is linked — see `/api/cf/link`).
+ * `DEFAULT_CPP_TEMPLATE` if no `users` row exists yet (rows are provisioned on
+ * first authenticated access by `ensureUser`, src/lib/user.ts).
  *
  * PUT validates `{ template }` (size-capped, see `templateSchema`) and
  * updates the row. This route intentionally does not create a `users` row:

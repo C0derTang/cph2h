@@ -9,23 +9,36 @@ import type { Race, User } from "../src/lib/db/schema";
 import type { CfSubmission } from "../src/lib/types";
 import fixture from "./fixtures/user-status.json";
 
-const { dbState, getUserStatusMock, finishRaceMock, publishMock } = vi.hoisted(
-  () => {
-    const dbState = { userRows: [] as unknown[] };
+const { dbState, getUserStatusMock, finishRaceMock, publishMock, insertValuesMock } =
+  vi.hoisted(() => {
+    const dbState = { userRows: [] as unknown[], selectCall: 0 };
     return {
       dbState,
       getUserStatusMock: vi.fn(),
       finishRaceMock: vi.fn().mockResolvedValue(undefined),
       publishMock: vi.fn().mockResolvedValue(undefined),
+      insertValuesMock: vi.fn().mockResolvedValue(undefined),
     };
-  },
-);
+  });
 
+// The poll issues exactly one `select` for the player rows, then one existence
+// `select` per observed submission (against `race_submissions`). Return the
+// user rows for the first select and an empty result (no pre-existing row →
+// insert path) for every subsequent one.
 vi.mock("@/lib/db", () => ({
   db: {
     select: () => ({
-      from: () => ({ where: () => Promise.resolve(dbState.userRows) }),
+      from: () => ({
+        where: () => {
+          dbState.selectCall += 1;
+          const rows = dbState.selectCall === 1 ? dbState.userRows : [];
+          return Object.assign(Promise.resolve(rows), {
+            limit: () => Promise.resolve(rows),
+          });
+        },
+      }),
     }),
+    insert: () => ({ values: insertValuesMock }),
     update: () => ({
       set: () => ({ where: () => Promise.resolve(undefined) }),
     }),
@@ -91,9 +104,11 @@ beforeEach(() => {
     makeUser({ id: "user-p1", cfHandle: "handle-p1" }),
     makeUser({ id: "user-p2", cfHandle: null }),
   ];
+  dbState.selectCall = 0;
   getUserStatusMock.mockReset();
   finishRaceMock.mockClear();
   publishMock.mockClear();
+  insertValuesMock.mockClear();
 });
 
 describe("pollActiveRace", () => {
@@ -124,6 +139,25 @@ describe("pollActiveRace", () => {
       "room-1",
       expect.objectContaining({ type: "verdict", userId: "user-p1" }),
     );
+  });
+
+  it("upserts a race_submissions row for each observed manual submission", async () => {
+    const nonOk = submissions.filter((s) => s.verdict !== "OK");
+    getUserStatusMock.mockResolvedValueOnce(nonOk);
+
+    await pollActiveRace(makeRace(), new Date(STARTED_AT.getTime() + 60 * 1000));
+
+    // No pre-inserted rows exist (users submit on CF themselves), so each
+    // sighted *final* non-OK verdict is inserted with empty code and its
+    // verdict. Still-testing submissions are skipped by findRaceVerdicts.
+    expect(insertValuesMock).toHaveBeenCalled();
+    const inserted = insertValuesMock.mock.calls.map((c) => c[0]);
+    const insertedIds = inserted.map((r) => r.cfSubmissionId).sort();
+    expect(insertedIds).toEqual([200000002, 200000004, 200000005]);
+    for (const row of inserted) {
+      expect(row).toMatchObject({ raceId: "race-1", userId: "user-p1", code: "" });
+      expect(row.verdict).toBeTruthy();
+    }
   });
 
   it("draws when the time limit has passed and nobody solved", async () => {

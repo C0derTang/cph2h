@@ -27,6 +27,7 @@ import {
   useRemoteParticipants,
 } from "@livekit/components-react";
 import {
+  Check,
   Copy,
   ExternalLink,
   Flag,
@@ -35,7 +36,6 @@ import {
   MonitorSmartphone,
   RefreshCw,
   RotateCcw,
-  Send,
   WifiOff,
 } from "lucide-react";
 
@@ -53,7 +53,6 @@ import {
   LIVEKIT_DATA_TOPIC,
   decodeRaceEvent,
   type RaceSnapshot,
-  type SubmitResponse,
 } from "@/lib/types";
 
 interface RaceRoomProps {
@@ -77,35 +76,9 @@ const DISCONNECT_GRACE_MS = 20_000;
  *  with a manual retry — a single blip is normal and shouldn't alarm anyone. */
 const POLL_FAILURE_THRESHOLD = 3;
 
-const SUBMIT_ERROR_CODES = new Set<string>([
-  "cf_error",
-  "not_active",
-  "rate_limited",
-  "not_participant",
-]);
-
-/**
- * Coerce whatever `/api/races/[id]/submit` returned into a well-formed
- * {@link SubmitResponse}, so the UI never renders an empty error box when a
- * guard failure (e.g. `{ error: "not_found" }`, no `message`) short-circuits
- * before the route can build a full `SubmitResponse` body.
- */
-function normalizeSubmitResponse(raw: unknown): SubmitResponse {
-  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
-  if (obj && obj.ok === true && typeof obj.cfSubmissionId === "number") {
-    return { ok: true, cfSubmissionId: obj.cfSubmissionId };
-  }
-  type SubmitErrorCode = Extract<SubmitResponse, { ok: false }>["error"];
-  const rawError = obj && typeof obj.error === "string" ? obj.error : undefined;
-  const error: SubmitErrorCode =
-    rawError && SUBMIT_ERROR_CODES.has(rawError)
-      ? (rawError as SubmitErrorCode)
-      : "cf_error";
-  const message =
-    obj && typeof obj.message === "string" && obj.message.trim() !== ""
-      ? obj.message
-      : "Submission failed — try the manual fallback.";
-  return { ok: false, error, message };
+/** Build the Codeforces submit page URL for a contest problem. */
+function cfSubmitUrl(contestId: number): string {
+  return `https://codeforces.com/contest/${contestId}/submit`;
 }
 
 export function RaceRoom({
@@ -117,8 +90,7 @@ export function RaceRoom({
   const [snapshot, setSnapshot] = useState<RaceSnapshot>(initialSnapshot);
   const [code, setCode] = useState<string>(cppTemplate);
   const [lk, setLk] = useState<LivekitConn | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState<SubmitResponse | null>(null);
+  const [checking, setChecking] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [opponentLive, setOpponentLive] = useState(true);
@@ -254,35 +226,36 @@ export function RaceRoom({
     };
   }, [status, raceId]);
 
-  // --- Submit -------------------------------------------------------------
-  const handleSubmit = useCallback(async () => {
-    if (submitting || code.trim() === "") return;
-    setSubmitting(true);
-    setSubmitResult(null);
+  // --- Manual submission: check now ---------------------------------------
+  // Users submit on codeforces.com themselves (their real browser passes
+  // Cloudflare); an immediate poll picks the verdict up without waiting for the
+  // next jittered poll tick. The poll route detects any submission to the race
+  // problem after startedAt and upserts it into the feed.
+  const handleCheckNow = useCallback(async () => {
+    if (checking) return;
+    setChecking(true);
     try {
-      const res = await fetch(`/api/races/${raceId}/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const raw: unknown = await res.json().catch(() => null);
-      const result = normalizeSubmitResponse(raw);
-      setSubmitResult(result);
-      if (result.ok) {
-        toast.success(`Submitted to Codeforces (#${result.cfSubmissionId}).`);
+      const res = await fetch(`/api/races/${raceId}/poll`, { method: "POST" });
+      const data: unknown = await res.json().catch(() => null);
+      if (
+        res.ok &&
+        data &&
+        typeof data === "object" &&
+        typeof (data as RaceSnapshot).status === "string"
+      ) {
+        setSnapshot(data as RaceSnapshot);
+        toast.success("Checked Codeforces for your latest verdict.");
       } else {
-        toast.error(result.message);
+        // Poll may have been skipped (mutex/cooldown) — fall back to a snapshot.
+        await refetch();
+        toast.info("Checked — no new verdict yet.");
       }
-      // Reflect the new (pending) submission in the feed promptly.
-      void refetch();
     } catch {
-      const message = "Could not reach the server. Submit manually on Codeforces.";
-      setSubmitResult({ ok: false, error: "cf_error", message });
-      toast.error(message);
+      toast.error("Couldn't reach the server. Try again.");
     } finally {
-      setSubmitting(false);
+      setChecking(false);
     }
-  }, [submitting, code, raceId, refetch]);
+  }, [checking, raceId, refetch]);
 
   const copyCode = useCallback(async () => {
     try {
@@ -441,18 +414,45 @@ export function RaceRoom({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {problem && (
+          <Button
+            type="button"
+            data-testid="submit-btn"
+            nativeButton={false}
+            render={
+              <a
+                href={cfSubmitUrl(problem.contestId)}
+                target="_blank"
+                rel="noreferrer"
+              />
+            }
+          >
+            <ExternalLink aria-hidden />
+            Submit on Codeforces
+          </Button>
+        )}
         <Button
           type="button"
-          data-testid="submit-btn"
-          onClick={handleSubmit}
-          disabled={submitting || code.trim() === "" || !problem}
+          variant="outline"
+          data-testid="check-now-btn"
+          onClick={handleCheckNow}
+          disabled={checking}
         >
-          {submitting ? (
+          {checking ? (
             <Loader2 className="animate-spin" aria-hidden />
           ) : (
-            <Send aria-hidden />
+            <Check aria-hidden />
           )}
-          {submitting ? "Submitting…" : "Submit to Codeforces"}
+          {checking ? "Checking…" : "I submitted — check now"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={copyCode}
+          data-testid="copy-code-btn"
+        >
+          <Copy aria-hidden />
+          {codeCopied ? "Copied" : "Copy code"}
         </Button>
         <Button
           type="button"
@@ -504,65 +504,15 @@ export function RaceRoom({
           )}
           {forfeiting ? "Forfeiting…" : "Forfeit"}
         </Button>
-        {submitResult?.ok && (
-          <span
-            data-testid="submit-success"
-            className="text-sm text-emerald-500"
-          >
-            Submitted (#{submitResult.cfSubmissionId}).
-          </span>
-        )}
       </div>
 
-      {submitResult && !submitResult.ok && (
-        <div
-          data-testid="submit-error"
-          className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-        >
-          <p>{submitResult.message}</p>
-          {submitResult.error === "cf_error" && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-destructive/90">
-                Automatic submit failed — submit manually:
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={copyCode}
-                data-testid="copy-code-btn"
-              >
-                <Copy aria-hidden />
-                {codeCopied ? "Copied" : "Copy code"}
-              </Button>
-              {problem && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  nativeButton={false}
-                  render={
-                    <a href={problem.url} target="_blank" rel="noreferrer" />
-                  }
-                  data-testid="open-cf-btn"
-                >
-                  <ExternalLink aria-hidden />
-                  Open on Codeforces
-                </Button>
-              )}
-              {submitResult.message.toLowerCase().includes("not signed in") && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  nativeButton={false}
-                  render={<a href="/settings/cf" />}
-                >
-                  Re-link Codeforces account
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <p className="text-xs leading-5 text-muted-foreground">
+        Submit your solution on Codeforces (your browser passes their
+        Cloudflare check), then hit{" "}
+        <span className="font-medium">&ldquo;I submitted — check now&rdquo;</span>{" "}
+        — we detect the verdict automatically. Use <span className="font-medium">Copy code</span>{" "}
+        to paste your editor draft into the Codeforces submit form.
+      </p>
 
       {statement && (
         <RunPanel raceId={raceId} code={code} samples={statement.samples} />

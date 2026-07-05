@@ -26,8 +26,9 @@ export default async function CfSettingsPage() {
             Codeforces account
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
-            Link your Codeforces handle so we can pull verdicts automatically
-            during races and submit your solutions on your behalf.
+            Link your Codeforces handle so we can pull your race verdicts
+            automatically. No password needed — you prove ownership with a
+            one-time compile-error submission.
           </p>
         </div>
       </div>
