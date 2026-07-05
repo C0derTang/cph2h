@@ -2,33 +2,135 @@
 
 Head-to-head Codeforces races: challenge a friend or quick-match by Elo, then race to solve the same problem first — with voice and video chat, an in-platform C++ editor, and direct submission to Codeforces.
 
+## Features
+
+- **Challenge or Quick-Match**: Invite a friend directly or get matched by Elo rating for a fair fight
+- **Real-time Voice & Video**: Integrated LiveKit for voice and video chat during races
+- **In-Browser C++ Editor**: Monaco editor with syntax highlighting, inline compilation via Judge0, and personal C++ templates
+- **Direct Codeforces Integration**: Submit solutions directly to Codeforces and see verdicts in real-time
+- **Elo Rating System**: Provisional (10 races) and standard K-factors track your skill over time
+- **Race Leaderboard**: See top racers and your own progress
+
 ## Stack
 
-- Next.js (App Router) on Vercel
-- Neon Postgres + Drizzle ORM
-- Clerk (auth)
-- LiveKit Cloud (voice/video + realtime race events)
-- Judge0 CE (sample-test runs)
-- Monaco editor (C++, per-user template)
+- **Frontend**: Next.js 16 (App Router) on Vercel
+- **Database**: Neon Postgres with Drizzle ORM
+- **Auth**: Clerk
+- **Real-time**: LiveKit Cloud (voice/video + race event broadcasts)
+- **Code Execution**: Judge0 CE (sample test compilation & runs)
+- **Code Editor**: Monaco (C++ syntax, per-user template)
 
-## Development
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ and pnpm
+- A Clerk account
+- A Neon Postgres database
+- LiveKit Cloud credentials
+- A Codeforces account (to link in the app)
+- Judge0 RapidAPI key (for sample test compilation)
+
+### Local Development
+
+1. **Clone and install:**
 
 ```bash
+git clone https://github.com/C0derTang/cph2h.git
+cd cph2h
 pnpm install
-cp .env.example .env.local   # fill in values (or `vercel env pull .env.local`)
+```
+
+2. **Set up environment variables:**
+
+```bash
+cp .env.example .env.local
+```
+
+Then fill in the values. See [`docs/deployment.md`](./docs/deployment.md#environment-variables) for details on each variable and where to obtain it. Alternatively, pull from Vercel:
+
+```bash
+vercel link   # link to your Vercel project
+vercel env pull .env.local
+```
+
+3. **Run migrations:**
+
+```bash
+pnpm exec drizzle-kit migrate
+```
+
+4. **Start the development server:**
+
+```bash
 pnpm dev
 ```
 
-## Checks
+Visit `http://localhost:3000` and sign in with Clerk.
+
+5. **Optional: Seed test data**
+
+If you want to populate the database with test problems and races, run:
 
 ```bash
-pnpm exec eslint .
-pnpm exec tsc --noEmit
-pnpm exec vitest run
+pnpm exec tsx scripts/seed.ts   # if a seed script exists
 ```
 
-## Architecture notes
+## Commands
 
-- All decision logic lives in pure functions under `src/lib/`; API routes are thin I/O shells.
-- `src/lib/types.ts` holds the shared contracts (race lifecycle, LiveKit event union, DTOs) that every module codes against.
-- Race state is pushed to clients over LiveKit data channels; `GET /api/races/[id]` is the source of truth.
+### Development
+
+```bash
+pnpm dev                    # Start dev server on :3000
+```
+
+### Testing & Linting
+
+```bash
+pnpm exec eslint .          # Lint the codebase
+pnpm exec tsc --noEmit      # Type check without emitting
+pnpm exec vitest run        # Run tests once
+pnpm exec vitest            # Run tests in watch mode
+```
+
+### Database
+
+```bash
+pnpm exec drizzle-kit migrate          # Run pending migrations
+pnpm exec drizzle-kit generate         # Generate migration files from schema changes
+pnpm exec drizzle-kit studio           # Open Drizzle Studio (DB explorer)
+```
+
+## Architecture Overview
+
+The app is organized by **pure logic + thin routes**:
+
+- **`src/lib/`**: All business logic is pure (no I/O, no side effects)
+  - `src/lib/race/`: Race lifecycle (create, finish, poll verdicts)
+  - `src/lib/matchmaking.ts`: Quick-match pairing with SKIP LOCKED
+  - `src/lib/cf/`: Codeforces integration (login, submit, fetch problems)
+  - `src/lib/livekit.ts`: LiveKit room + event publishing
+- **`src/app/api/`**: Thin I/O shells that apply pure results atomically
+- **`src/lib/types.ts`**: Shared contracts (RaceSnapshot, LiveKit events, DTOs)
+
+Key principle: **Events are hints; `GET /api/races/[id]` is the source of truth.** Clients refetch the race snapshot whenever they receive a LiveKit event and cannot apply it cleanly.
+
+See [`docs/architecture.md`](./docs/architecture.md) for more detail on the race lifecycle, verdict polling, and matchmaking.
+
+## Deployment
+
+Full deployment instructions (Vercel, Neon, Clerk, LiveKit, Judge0 setup, cron config) are in [`docs/deployment.md`](./docs/deployment.md).
+
+Before deploying to production, review the [production checklist](./docs/deployment.md#production-checklist).
+
+## Screenshots & GIFs
+
+[Placeholders for screenshots showing the race interface, chat, editor, etc.]
+
+## Contributing
+
+This is a personal project; feel free to fork and extend!
+
+## License
+
+MIT
