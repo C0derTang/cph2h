@@ -71,3 +71,25 @@ export function findRaceVerdicts(
 
   return { accepted, others };
 }
+
+/**
+ * Whether `submissions` contains a COMPILE_ERROR verdict for `problemId`
+ * created at or after `sinceEpochSec`. Pure; used to confirm a handle-ownership
+ * challenge, where the user submits a deliberately non-compiling solution to a
+ * known problem and we confirm it via the public API (Codeforces
+ * Cloudflare-blocks server-side login, so ownership can't be proven by logging
+ * in). Matching COMPILE_ERROR specifically avoids crediting an ordinary
+ * (possibly pre-existing) attempt at the problem.
+ */
+export function hasCompileErrorSince(
+  submissions: CfSubmission[],
+  problemId: ProblemId,
+  sinceEpochSec: number,
+): boolean {
+  return submissions.some(
+    (submission) =>
+      problemIdOf(submission.problem) === problemId &&
+      submission.verdict === "COMPILE_ERROR" &&
+      submission.creationTimeSeconds >= sinceEpochSec,
+  );
+}

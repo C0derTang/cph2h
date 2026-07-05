@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CfSubmission } from "@/lib/types";
-import { findRaceVerdicts, isFinalVerdict } from "@/lib/cf/verdicts";
+import { findRaceVerdicts, hasCompileErrorSince, isFinalVerdict } from "@/lib/cf/verdicts";
 import fixture from "./fixtures/user-status.json";
 
 const submissions = fixture.result as CfSubmission[];
@@ -84,5 +84,30 @@ describe("findRaceVerdicts", () => {
     const tieB: CfSubmission = { ...tieA, id: 3 };
     const { accepted } = findRaceVerdicts([tieA, tieB], "1A", SINCE);
     expect(accepted?.id).toBe(3);
+  });
+});
+
+describe("hasCompileErrorSince", () => {
+  // Fixture has a COMPILE_ERROR (id 200000004) to 1794C at t=1700000150.
+  it("is true when a COMPILE_ERROR for the problem exists at/after the cutoff", () => {
+    expect(hasCompileErrorSince(submissions, PROBLEM_ID, SINCE)).toBe(true);
+    expect(hasCompileErrorSince(submissions, PROBLEM_ID, 1700000150)).toBe(true);
+  });
+
+  it("is false when the only COMPILE_ERROR predates the cutoff", () => {
+    expect(hasCompileErrorSince(submissions, PROBLEM_ID, 1700000151)).toBe(false);
+  });
+
+  it("is false for a different problem", () => {
+    expect(hasCompileErrorSince(submissions, "1794D", SINCE)).toBe(false);
+  });
+
+  it("ignores non-COMPILE_ERROR verdicts (e.g. WRONG_ANSWER, OK)", () => {
+    const noCompileError = submissions.filter((s) => s.verdict !== "COMPILE_ERROR");
+    expect(hasCompileErrorSince(noCompileError, PROBLEM_ID, SINCE)).toBe(false);
+  });
+
+  it("is false for an empty submission list", () => {
+    expect(hasCompileErrorSince([], PROBLEM_ID, SINCE)).toBe(false);
   });
 });

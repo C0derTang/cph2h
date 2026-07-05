@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, ShieldAlert } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,13 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { CfLinkResponse } from "@/lib/types";
+import type { CfLinkResponse, CfVerifyStartResponse } from "@/lib/types";
 
 interface CfLinkFormProps {
   linkedHandle: string | null;
   linkedRating: number | null;
   linkedAt: string | null;
 }
+
+/** The `ok: true` branch of {@link CfVerifyStartResponse} — the active challenge. */
+type ActiveChallenge = Extract<CfVerifyStartResponse, { ok: true }>;
 
 export function CfLinkForm({
   linkedHandle,
@@ -28,39 +31,76 @@ export function CfLinkForm({
   const router = useRouter();
   const [relinking, setRelinking] = useState(false);
   const [handle, setHandle] = useState(linkedHandle ?? "");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [challenge, setChallenge] = useState<ActiveChallenge | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isLinked = Boolean(linkedHandle);
   const showForm = !isLinked || relinking;
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function resetFlow() {
+    setChallenge(null);
+    setError(null);
+  }
+
+  async function handleStart(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitting(true);
+    setStarting(true);
     setError(null);
     try {
-      const response = await fetch("/api/cf/link", {
+      const response = await fetch("/api/cf/verify/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ handle, password }),
+        body: JSON.stringify({ handle }),
       });
-      const data = (await response.json()) as CfLinkResponse;
+      const data = (await response.json()) as CfVerifyStartResponse;
       if (!response.ok || !data.ok) {
-        const message = data.error ?? "Could not link your account. Try again.";
+        const message =
+          (!data.ok && data.error) || "Could not start verification. Try again.";
         setError(message);
         toast.error(message);
         return;
       }
-      setPassword("");
-      setRelinking(false);
-      toast.success(`Linked to ${data.cfHandle ?? handle}.`);
-      router.refresh();
+      setChallenge(data);
+      toast.success(`Verifying ${data.handle} — submit a compile error to continue.`);
     } catch {
       setError("Network error — please try again.");
       toast.error("Network error — please try again.");
     } finally {
-      setSubmitting(false);
+      setStarting(false);
+    }
+  }
+
+  async function handleCheck() {
+    if (!challenge) return;
+    setChecking(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/cf/verify/check", { method: "POST" });
+      const data = (await response.json()) as CfLinkResponse;
+      if (data.ok) {
+        setChallenge(null);
+        setRelinking(false);
+        toast.success(`Linked to ${data.cfHandle ?? challenge.handle}.`);
+        router.refresh();
+        return;
+      }
+      if (data.error === "not_found_yet") {
+        const message =
+          "No compile-error submission found yet. Submit one to the problem above, then check again.";
+        setError(message);
+        toast.info(message);
+        return;
+      }
+      const message = data.error ?? "Verification failed. Try starting again.";
+      setError(message);
+      toast.error(message);
+    } catch {
+      setError("Network error — please try again.");
+      toast.error("Network error — please try again.");
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -70,16 +110,11 @@ export function CfLinkForm({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle2
-                className="size-4 text-emerald-500"
-                aria-hidden
-              />
+              <CheckCircle2 className="size-4 text-emerald-500" aria-hidden />
               Linked to {linkedHandle}
             </CardTitle>
             <CardDescription>
-              {linkedRating != null
-                ? `Rating ${linkedRating}`
-                : "Rating unavailable"}
+              {linkedRating != null ? `Rating ${linkedRating}` : "Rating unavailable"}
               {linkedAt
                 ? ` · linked ${new Date(linkedAt).toLocaleDateString()}`
                 : ""}
@@ -92,8 +127,7 @@ export function CfLinkForm({
                 size="sm"
                 onClick={() => {
                   setRelinking(true);
-                  setPassword("");
-                  setError(null);
+                  resetFlow();
                 }}
               >
                 Re-link account
@@ -103,9 +137,9 @@ export function CfLinkForm({
         </Card>
       )}
 
-      {showForm && (
+      {showForm && !challenge && (
         <form
-          onSubmit={handleSubmit}
+          onSubmit={handleStart}
           className="flex flex-col gap-4 rounded-xl border border-border bg-card/40 p-6"
         >
           <div className="flex flex-col gap-1.5">
@@ -113,7 +147,7 @@ export function CfLinkForm({
               htmlFor="cf-handle"
               className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase"
             >
-              Codeforces handle or email
+              Codeforces handle
             </label>
             <input
               id="cf-handle"
@@ -127,31 +161,11 @@ export function CfLinkForm({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="cf-password"
-              className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase"
-            >
-              Codeforces password
-            </label>
-            <input
-              id="cf-password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </div>
-
           <div className="flex items-start gap-2 rounded-lg border border-dashed border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
             <p>
-              Your password is stored encrypted (AES-256-GCM) so cph2h can
-              submit your solutions to Codeforces during a race. It is never
-              shown to anyone and never logged.
+              No password needed. We verify you own this handle by asking you to
+              submit a solution that fails to compile — nothing else is stored.
             </p>
           </div>
 
@@ -162,23 +176,24 @@ export function CfLinkForm({
           )}
 
           <div className="flex items-center gap-2">
-            <Button type="submit" size="sm" disabled={submitting}>
-              {submitting
-                ? "Linking…"
-                : isLinked
-                  ? "Update link"
-                  : "Link account"}
+            <Button
+              type="submit"
+              size="sm"
+              disabled={starting}
+              data-testid="verify-start-btn"
+            >
+              {starting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+              {starting ? "Starting…" : "Start verification"}
             </Button>
             {relinking && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                disabled={submitting}
+                disabled={starting}
                 onClick={() => {
                   setRelinking(false);
-                  setPassword("");
-                  setError(null);
+                  resetFlow();
                 }}
               >
                 Cancel
@@ -186,6 +201,77 @@ export function CfLinkForm({
             )}
           </div>
         </form>
+      )}
+
+      {showForm && challenge && (
+        <div
+          data-testid="cf-verify-instructions"
+          className="flex flex-col gap-4 rounded-xl border border-border bg-card/40 p-6"
+        >
+          <div className="flex flex-col gap-1">
+            <h2 className="font-heading text-lg font-semibold tracking-tight">
+              Verify {challenge.handle}
+            </h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Submit a solution that <strong>fails to compile</strong> (e.g. a
+              single line like <code className="font-mono">this is not code</code>
+              ) to the problem below on Codeforces, then click Check. Your real
+              browser passes Codeforces&rsquo; Cloudflare check.
+            </p>
+          </div>
+
+          <ol className="flex flex-col gap-2 text-sm leading-6 text-muted-foreground">
+            <li>
+              1. Open{" "}
+              <a
+                href={challenge.problemUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
+                {challenge.problemId} · {challenge.problemName}
+                <ExternalLink className="size-3.5" aria-hidden />
+              </a>
+            </li>
+            <li>2. Submit any source that will not compile.</li>
+            <li>
+              3. Wait for the <strong>Compilation error</strong> verdict, then
+              click Check below.
+            </li>
+          </ol>
+
+          <p className="text-xs text-muted-foreground">
+            Challenge expires {new Date(challenge.expiresAt).toLocaleTimeString()}.
+          </p>
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleCheck}
+              disabled={checking}
+              data-testid="verify-check-btn"
+            >
+              {checking ? <Loader2 className="animate-spin" aria-hidden /> : null}
+              {checking ? "Checking…" : "Check"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={checking}
+              onClick={resetFlow}
+            >
+              Start over
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

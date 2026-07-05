@@ -1,12 +1,13 @@
 /**
  * Test-only DB seeding for the e2e race smoke test (issue #18).
  *
- * The real Codeforces-link flow (`POST /api/cf/link`) verifies real CF
- * credentials against codeforces.com, which e2e has none of. Every race
- * route gates on `requireLinkedUser()` (src/lib/race/session.ts), which only
- * checks `users.cf_linked_at` — so we seed that column (and a fake
- * `cf_handle`) directly instead of routing through a live CF login, matching
- * the "seed directly in DB" option called out in the issue #18 spec.
+ * The real Codeforces-link flow (the compile-error verify routes under
+ * `/api/cf/verify/*`) confirms ownership against codeforces.com, which e2e
+ * cannot drive. Every race route gates on `requireLinkedUser()`
+ * (src/lib/race/session.ts), which only checks `users.cf_linked_at` — so we
+ * seed that column (and a fake `cf_handle`) directly instead of routing
+ * through a live CF verification, matching the "seed directly in DB" option
+ * called out in the issue #18 spec.
  *
  * Requires `DATABASE_URL` to point at the same (migrated) Postgres instance
  * the app under test uses, and `CLERK_SECRET_KEY` for the Clerk *development*
