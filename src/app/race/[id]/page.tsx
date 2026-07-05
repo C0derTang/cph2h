@@ -5,16 +5,17 @@ import { races } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { isParticipant } from "@/lib/race/machine";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
-import { Lobby } from "@/components/race/Lobby";
+import { RaceRoom } from "@/components/race/RaceRoom";
 
 /**
- * Race room (issue #16 wiring for the standalone `Lobby`).
+ * Race room (issue #17 — full assembly).
  *
- * This is intentionally minimal: it resolves the race server-side and drops
- * `Lobby` in for the pending/ready/countdown phases so create -> copy link ->
- * join -> "both land in the race room lobby" works end-to-end today. The full
- * race-room assembly (editor, problem pane, LiveKit) is issue #17's job and
- * can replace/extend this page without touching `Lobby` itself.
+ * Server component: resolve + participant-guard the race, build the initial
+ * {@link buildRaceSnapshot} (the source of truth), then hand off to the client
+ * {@link RaceRoom} orchestrator which handles every status (lobby / active /
+ * result), LiveKit video + data-channel hints, verdict polling, and submit.
+ * The viewer's saved `cppTemplate` is passed through so it preloads into the
+ * editor at race start.
  */
 export default async function RacePage({
   params,
@@ -46,13 +47,11 @@ export default async function RacePage({
   const snapshot = await buildRaceSnapshot(race);
 
   return (
-    <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
-      <p className="font-mono text-xs text-muted-foreground">
-        <span className="text-primary">$</span> cd ~/cph2h/race/{id}
-      </p>
-      <div className="mt-8">
-        <Lobby raceId={race.id} currentUserId={session.user.id} initialSnapshot={snapshot} />
-      </div>
-    </main>
+    <RaceRoom
+      raceId={race.id}
+      currentUserId={session.user.id}
+      initialSnapshot={snapshot}
+      cppTemplate={session.user.cppTemplate}
+    />
   );
 }

@@ -11,6 +11,7 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@clerk/nextjs": "^7.5.12",
+    "@livekit/components-react": "^2.9.21",
     "@monaco-editor/react": "^4.7.0",
     "@neondatabase/serverless": "^1.1.0",
     "cheerio": "^1.2.0",
@@ -19,6 +20,7 @@
     "drizzle-orm": "^0.45.2",
     "isomorphic-dompurify": "^3.18.0",
     "katex": "^0.17.0",
+    "livekit-client": "^2.20.0",
     "livekit-server-sdk": "^2.16.0",
     "lucide-react": "^1.23.0",
     "nanoid": "^5.1.16",
