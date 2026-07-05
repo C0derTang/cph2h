@@ -8,7 +8,10 @@
  * SECURITY: the plaintext password only ever exists as a function argument
  * here. It is never logged and never persisted — only its AES-256-GCM
  * ciphertext (produced by `@/lib/crypto`) is stored. `decryptSecret` is called
- * exclusively inside this module (`ensureSession`).
+ * exclusively inside this module (`ensureSession`). The CF session cookie
+ * jar is a live bearer credential while valid, so it is encrypted the same
+ * way before being written to `cf_sessions.cookie_jar` (`encryptCookieJar` /
+ * `decryptCookieJar`) — the jar is never logged either.
  *
  * The DB (`@/lib/db`) is imported lazily inside the persistence helpers so the
  * pure login/parse functions can be unit-tested against recorded HTML fixtures
@@ -16,7 +19,7 @@
  */
 
 import { eq } from "drizzle-orm";
-import { decryptSecret } from "@/lib/crypto";
+import { decryptSecret, encryptSecret, type DecryptionPayload } from "@/lib/crypto";
 import { cfCredentials, cfSessions, users } from "@/lib/db/schema";
 
 const CF_BASE = "https://codeforces.com";
@@ -60,9 +63,12 @@ export class CfAuthError extends Error {
 // ---------------------------------------------------------------------------
 // Cookie jar helpers
 //
-// The jar is a plain `{ name: value }` map — exactly the shape stored in the
-// `cf_sessions.cookie_jar` jsonb column, so no extra (de)serialization is
-// needed beyond reading it back with `parseCookieJar`.
+// The jar is a plain `{ name: value }` map at runtime. It holds a live CF
+// session cookie (a bearer credential while valid), so at rest it is
+// AES-256-GCM encrypted the same way as the CF password: `cf_sessions.
+// cookie_jar` stores `{ ciphertext, iv, authTag }` (see `encryptCookieJar` /
+// `decryptCookieJar`), not the plaintext map. `parseCookieJar` coerces an
+// already-decrypted value back into a `CookieJar`.
 // ---------------------------------------------------------------------------
 
 export type CookieJar = Record<string, string>;
@@ -103,6 +109,37 @@ export function parseCookieJar(value: unknown): CookieJar {
     return jar;
   }
   return {};
+}
+
+/** True when `value` has the `{ ciphertext, iv, authTag }` shape `encryptSecret` produces. */
+function isEncryptionResult(value: unknown): value is DecryptionPayload {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.ciphertext === "string" &&
+    typeof v.iv === "string" &&
+    typeof v.authTag === "string"
+  );
+}
+
+/** Encrypt a cookie jar for storage in `cf_sessions.cookie_jar`. */
+export function encryptCookieJar(jar: CookieJar): DecryptionPayload {
+  return encryptSecret(JSON.stringify(jar), getCredKey());
+}
+
+/**
+ * Decrypt a `cf_sessions.cookie_jar` jsonb value back into a `CookieJar`.
+ *
+ * Tolerates a legacy plaintext jar (pre-encryption rows) as a minimal
+ * backward-compat fallback — there is no such data in production, but this
+ * avoids a hard crash if it is ever encountered.
+ */
+export function decryptCookieJar(value: unknown): CookieJar {
+  if (isEncryptionResult(value)) {
+    const json = decryptSecret(value, getCredKey());
+    return parseCookieJar(JSON.parse(json));
+  }
+  return parseCookieJar(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -262,18 +299,19 @@ export async function persistCfSession(
   result: CfLoginResult,
 ): Promise<void> {
   const db = await getDb();
+  const encryptedJar = encryptCookieJar(result.cookieJar);
   await db
     .insert(cfSessions)
     .values({
       userId,
-      cookieJar: result.cookieJar,
+      cookieJar: encryptedJar,
       csrfToken: result.csrfToken,
       lastLoginAt: new Date(),
     })
     .onConflictDoUpdate({
       target: cfSessions.userId,
       set: {
-        cookieJar: result.cookieJar,
+        cookieJar: encryptedJar,
         csrfToken: result.csrfToken,
         lastLoginAt: new Date(),
       },
@@ -306,7 +344,7 @@ export async function ensureSession(userId: string): Promise<CfSessionData> {
     Date.now() - existing.lastLoginAt.getTime() < SESSION_TTL_MS
   ) {
     return {
-      cookieJar: parseCookieJar(existing.cookieJar),
+      cookieJar: decryptCookieJar(existing.cookieJar),
       csrfToken: existing.csrfToken,
     };
   }

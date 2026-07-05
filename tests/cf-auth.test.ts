@@ -97,6 +97,55 @@ describe("cookie jar helpers", () => {
   });
 });
 
+describe("cookie jar encryption", () => {
+  const validKey = "0".repeat(64);
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("round-trips a jar through encryptCookieJar/decryptCookieJar", async () => {
+    vi.stubEnv("CF_CRED_KEY", validKey);
+    const { encryptCookieJar, decryptCookieJar } = await importAuth();
+    const jar = { JSESSIONID: "sess1", "39ce7": "xyz" };
+
+    const encrypted = encryptCookieJar(jar);
+    expect(encrypted).toHaveProperty("ciphertext");
+    expect(encrypted).toHaveProperty("iv");
+    expect(encrypted).toHaveProperty("authTag");
+    // The stored blob never contains the raw cookie values in the clear.
+    expect(JSON.stringify(encrypted)).not.toContain("sess1");
+
+    expect(decryptCookieJar(encrypted)).toEqual(jar);
+  });
+
+  it("produces a different ciphertext for the same jar on each call (random IV)", async () => {
+    vi.stubEnv("CF_CRED_KEY", validKey);
+    const { encryptCookieJar } = await importAuth();
+    const jar = { JSESSIONID: "sess1" };
+
+    const first = encryptCookieJar(jar);
+    const second = encryptCookieJar(jar);
+
+    expect(first.ciphertext).not.toBe(second.ciphertext);
+  });
+
+  it("throws missing_key when CF_CRED_KEY is not configured", async () => {
+    vi.stubEnv("CF_CRED_KEY", "");
+    const { encryptCookieJar, CfAuthError } = await importAuth();
+
+    expect(() => encryptCookieJar({ a: "b" })).toThrow(CfAuthError);
+  });
+
+  it("tolerates a legacy plaintext jar as a minimal backward-compat fallback", async () => {
+    vi.stubEnv("CF_CRED_KEY", validKey);
+    const { decryptCookieJar } = await importAuth();
+    const legacyPlaintextJar = { JSESSIONID: "sess1" };
+
+    expect(decryptCookieJar(legacyPlaintextJar)).toEqual(legacyPlaintextJar);
+  });
+});
+
 describe("generateFtaa", () => {
   it("produces an 18-char lowercase alphanumeric string", async () => {
     const { generateFtaa } = await importAuth();
