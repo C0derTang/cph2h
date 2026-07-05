@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { SQL } from "drizzle-orm";
 import type { Race, User } from "../src/lib/db/schema";
 
 const { dbState, publishMock, deleteRoomMock } = vi.hoisted(() => {
@@ -16,6 +17,7 @@ const { dbState, publishMock, deleteRoomMock } = vi.hoisted(() => {
     userRows: [] as unknown[],
     updateCalls: [] as { table: unknown; values: Record<string, unknown> }[],
     insertCalls: [] as { table: unknown; values: unknown }[],
+    batchCalls: [] as unknown[][],
     selectCount: 0,
   };
   const publishMock = vi.fn().mockResolvedValue(undefined);
@@ -24,18 +26,17 @@ const { dbState, publishMock, deleteRoomMock } = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/db", () => {
-  const makeWhere = () => {
-    const p: Promise<undefined> & { returning?: () => Promise<unknown[]> } =
-      Promise.resolve(undefined);
-    p.returning = () => Promise.resolve(dbState.claimResult);
-    return p;
-  };
+  // A query stub: recorded at build time (via set()/values()); usable both as a
+  // batch item and as the claim's `.where().returning()` chain.
+  const makeQuery = () => ({
+    returning: () => Promise.resolve(dbState.claimResult),
+  });
   return {
     db: {
       update: (table: unknown) => ({
         set: (values: Record<string, unknown>) => {
           dbState.updateCalls.push({ table, values });
-          return { where: () => makeWhere() };
+          return { where: () => makeQuery() };
         },
       }),
       select: () => ({
@@ -49,9 +50,13 @@ vi.mock("@/lib/db", () => {
       insert: (table: unknown) => ({
         values: (values: unknown) => {
           dbState.insertCalls.push({ table, values });
-          return Promise.resolve(undefined);
+          return makeQuery();
         },
       }),
+      batch: (queries: unknown[]) => {
+        dbState.batchCalls.push(queries);
+        return Promise.resolve([]);
+      },
     },
   };
 });
@@ -112,6 +117,7 @@ beforeEach(() => {
   dbState.userRows = [];
   dbState.updateCalls = [];
   dbState.insertCalls = [];
+  dbState.batchCalls = [];
   dbState.selectCount = 0;
   publishMock.mockClear();
   deleteRoomMock.mockClear();
@@ -140,13 +146,22 @@ describe("finishRace", () => {
       winnerId: "user-p1",
       winningSubmissionId: 42,
     });
+    // User Elo/racesPlayed use atomic SQL increments, not absolute values, so
+    // concurrent finishes sharing a player can't lose an update.
+    expect(dbState.updateCalls[1].values.elo).toBeInstanceOf(SQL);
+    expect(dbState.updateCalls[1].values.racesPlayed).toBeInstanceOf(SQL);
+    expect(dbState.updateCalls[2].values.elo).toBeInstanceOf(SQL);
+    expect(dbState.updateCalls[2].values.racesPlayed).toBeInstanceOf(SQL);
     // Provisional K=64, equal ratings ⇒ +32 / -32.
-    expect(dbState.updateCalls[1].values).toEqual({ elo: 1232, racesPlayed: 1 });
-    expect(dbState.updateCalls[2].values).toEqual({ elo: 1168, racesPlayed: 1 });
     expect(dbState.updateCalls[3].values).toEqual({
       eloDeltaP1: 32,
       eloDeltaP2: -32,
     });
+
+    // The post-claim writes are one atomic batch: 2 user updates + history
+    // insert + race-delta update.
+    expect(dbState.batchCalls).toHaveLength(1);
+    expect(dbState.batchCalls[0]).toHaveLength(4);
 
     // Two elo_history rows in one insert.
     expect(dbState.insertCalls).toHaveLength(1);
@@ -213,8 +228,9 @@ describe("finishRace", () => {
       reason: "solved",
     });
 
-    // Only the claim update ran; no user/history/delta writes, no publish.
+    // Only the claim update ran; no batch, no user/history/delta writes, no publish.
     expect(dbState.updateCalls).toHaveLength(1);
+    expect(dbState.batchCalls).toHaveLength(0);
     expect(dbState.insertCalls).toHaveLength(0);
     expect(dbState.selectCount).toBe(0);
     expect(publishMock).not.toHaveBeenCalled();

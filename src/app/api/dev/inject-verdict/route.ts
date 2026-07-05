@@ -20,6 +20,7 @@ import { raceSubmissions, races } from "@/lib/db/schema";
 import { finishRace } from "@/lib/race/finish";
 import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
+import { isParticipant } from "@/lib/race/machine";
 
 const bodySchema = z.object({
   raceId: z.uuid(),
@@ -45,6 +46,12 @@ export async function POST(req: Request) {
     .limit(1);
   if (!race) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  // The target user must actually be in the race — otherwise an OK verdict would
+  // finish it with a bogus winner.
+  if (!isParticipant(race, userId)) {
+    return NextResponse.json({ error: "not_participant" }, { status: 400 });
   }
 
   if (verdict === "OK") {

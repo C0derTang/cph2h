@@ -15,16 +15,23 @@
  *
  * ## Transaction note (neon-http)
  *
- * The Drizzle `neon-http` driver executes each statement as its own HTTP round
- * trip and does not support interactive transactions (reads feeding conditional
- * writes inside a single `BEGIN`/`COMMIT`). We therefore rely on the atomic
- * claim above as the concurrency boundary: once a call has won the claim it is
- * the sole owner of the finish and performs the remaining writes (user Elo,
- * `elo_history`, race deltas) sequentially. The claim guarantees no double
- * application; the follow-up writes are owner-exclusive.
+ * The Drizzle `neon-http` driver does not support interactive transactions
+ * (reads feeding conditional writes inside a single `BEGIN`/`COMMIT`), so we
+ * split the finish in two:
+ *  1. The atomic claim above — the concurrency boundary that guarantees no
+ *     double application.
+ *  2. Everything after it (both users' Elo, the two `elo_history` rows, and the
+ *     race deltas) runs in a single `db.batch(...)`, which neon-http executes as
+ *     one transactional request. That makes the Elo mutation all-or-nothing: a
+ *     failure mid-way rolls the batch back rather than leaving a `finished` race
+ *     with only one player's Elo applied.
+ *
+ * The user Elo/racesPlayed writes use atomic SQL increments (`elo = elo + $d`)
+ * rather than absolute values from the earlier read, so two races that finish
+ * concurrently and share a player can never lose an update.
  */
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { eloHistory, races, users } from "@/lib/db/schema";
 import { applyResult } from "@/lib/elo";
@@ -94,39 +101,45 @@ export async function finishRace(input: FinishRaceInput): Promise<void> {
       d1 = deltas.d1;
       d2 = deltas.d2;
 
-      // Update both users' Elo + races played.
-      await db
-        .update(users)
-        .set({ elo: p1.elo + d1, racesPlayed: p1.racesPlayed + 1 })
-        .where(eq(users.id, p1Id));
-      await db
-        .update(users)
-        .set({ elo: p2.elo + d2, racesPlayed: p2.racesPlayed + 1 })
-        .where(eq(users.id, p2Id));
-
-      // Two elo_history rows (before/after/delta).
-      await db.insert(eloHistory).values([
-        {
-          userId: p1Id,
-          raceId,
-          eloBefore: p1.elo,
-          eloAfter: p1.elo + d1,
-          delta: d1,
-        },
-        {
-          userId: p2Id,
-          raceId,
-          eloBefore: p2.elo,
-          eloAfter: p2.elo + d2,
-          delta: d2,
-        },
+      // All post-claim writes run as one neon-http batch (transactional) so the
+      // Elo mutation is all-or-nothing. Elo/racesPlayed use atomic increments so
+      // concurrent finishes sharing a player never clobber each other.
+      await db.batch([
+        db
+          .update(users)
+          .set({
+            elo: sql`${users.elo} + ${d1}`,
+            racesPlayed: sql`${users.racesPlayed} + 1`,
+          })
+          .where(eq(users.id, p1Id)),
+        db
+          .update(users)
+          .set({
+            elo: sql`${users.elo} + ${d2}`,
+            racesPlayed: sql`${users.racesPlayed} + 1`,
+          })
+          .where(eq(users.id, p2Id)),
+        db.insert(eloHistory).values([
+          {
+            userId: p1Id,
+            raceId,
+            eloBefore: p1.elo,
+            eloAfter: p1.elo + d1,
+            delta: d1,
+          },
+          {
+            userId: p2Id,
+            raceId,
+            eloBefore: p2.elo,
+            eloAfter: p2.elo + d2,
+            delta: d2,
+          },
+        ]),
+        db
+          .update(races)
+          .set({ eloDeltaP1: d1, eloDeltaP2: d2 })
+          .where(eq(races.id, raceId)),
       ]);
-
-      // Persist the deltas on the race row.
-      await db
-        .update(races)
-        .set({ eloDeltaP1: d1, eloDeltaP2: d2 })
-        .where(eq(races.id, raceId));
     }
   }
 

@@ -58,13 +58,23 @@ export async function GET(request: Request) {
     );
 
   let resolved = 0;
+  let failed = 0;
   for (const race of stale) {
-    await db
-      .update(races)
-      .set({ lastPolledAt: sql`now()` })
-      .where(eq(races.id, race.id));
-    await pollActiveRace(race, now);
-    resolved++;
+    try {
+      // Poll first, then bump last_polled_at only on success — a throwing race
+      // must not be marked "recently polled" (which would skip it for 60s).
+      await pollActiveRace(race, now);
+      await db
+        .update(races)
+        .set({ lastPolledAt: sql`now()` })
+        .where(eq(races.id, race.id));
+      resolved++;
+    } catch (err) {
+      // One race's failure must not abort the sweep — the pending-abort and
+      // queue-purge steps below still need to run.
+      console.error(`[sweep] poll failed for race ${race.id}`, err);
+      failed++;
+    }
   }
 
   // 2. Abort pending races that were never accepted within 24h.
@@ -88,6 +98,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     polled: resolved,
+    pollFailed: failed,
     abortedPending: abortedRows.length,
     purgedQueue: purgedRows.length,
   });

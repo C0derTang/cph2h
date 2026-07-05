@@ -76,63 +76,27 @@ export async function POST(
 }
 
 /**
- * Resolve an abort against an active race (forfeit). Delegates to the #15 finish
- * hook when present, otherwise applies a local finish without Elo.
+ * Resolve an abort against an active race (forfeit). The #15 finish hook owns
+ * the authoritative finish + Elo (idempotent — it self-guards on `status`), so
+ * we delegate and re-read the resulting snapshot.
  */
 async function handleActiveOrCurrent(id: string, userId: string, prev: Race) {
   const opponentId = userId === prev.p1Id ? prev.p2Id : prev.p1Id;
   const outcome: RaceOutcome = userId === prev.p1Id ? "p2_win" : "p1_win";
-  const now = new Date();
 
-  if (finishRace) {
-    // #15 owns the authoritative finish + Elo.
-    await finishRace({
-      raceId: id,
-      outcome,
-      winnerId: opponentId,
-      reason: "forfeit",
-    });
-    const [current] = await db
-      .select()
-      .from(races)
-      .where(eq(races.id, id))
-      .limit(1);
-    return NextResponse.json(await buildRaceSnapshot(current ?? prev), {
-      status: 200,
-    });
-  }
-
-  // Fallback finish — no Elo (left to #15).
-  const [finished] = await db
-    .update(races)
-    .set({
-      status: "finished",
-      outcome,
-      winnerId: opponentId,
-      finishedAt: now,
-    })
-    .where(and(eq(races.id, id), eq(races.status, "active")))
-    .returning();
-
-  if (!finished) {
-    // Already terminal (finished/aborted by someone else) — return current.
-    const [current] = await db
-      .select()
-      .from(races)
-      .where(eq(races.id, id))
-      .limit(1);
-    return NextResponse.json(await buildRaceSnapshot(current ?? prev), {
-      status: 200,
-    });
-  }
-
-  await publishRaceEvent(finished.id, { type: "aborted", byUserId: userId });
-  await publishRaceEvent(finished.id, {
-    type: "race_finished",
+  await finishRace({
+    raceId: id,
     outcome,
     winnerId: opponentId,
-    eloDeltas: {},
+    reason: "forfeit",
   });
 
-  return NextResponse.json(await buildRaceSnapshot(finished), { status: 200 });
+  const [current] = await db
+    .select()
+    .from(races)
+    .where(eq(races.id, id))
+    .limit(1);
+  return NextResponse.json(await buildRaceSnapshot(current ?? prev), {
+    status: 200,
+  });
 }
