@@ -1,64 +1,132 @@
 /**
- * Cross-issue coupling seams (issue #7).
+ * Cross-issue coupling seams (issue #7), now wired to their real
+ * implementations (issue #15 + the merged #6/#8/#9 modules).
  *
- * The race lifecycle backbone deliberately does NOT hard-depend on the
- * problem-pool (#6), finish/Elo (#15), or LiveKit-publish (#8/#17) work. Each
- * of those integrates through one of the hooks below. Until those issues land,
- * the defaults here are safe no-ops / stubs so this compiles, tests, and merges
- * on its own. When a downstream issue merges, it replaces the stub in place —
- * the route code that consumes these hooks stays untouched.
+ * The race lifecycle backbone (routes in `src/app/api/races/*`) calls these
+ * three hooks and nothing else, so integrating the problem pool, LiveKit
+ * publishing, and finish/Elo happened here — the route code stayed untouched.
  */
 
-import type { RaceEvent } from "@/lib/types";
-import type { Race } from "@/lib/db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { races, users, type Race } from "@/lib/db/schema";
+import {
+  getCandidatesInBand,
+  getSeenProblemIds,
+} from "@/lib/cf/problem-repo";
+import { pickProblem, targetRating } from "@/lib/cf/problem-picker";
+import { getOrScrapeStatement } from "@/lib/cf/statements";
+import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
+import { finishRace as finishRaceImpl } from "@/lib/race/finish";
+import type { ProblemId, RaceEvent } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// #6 — problem selection
+// #6 / #9 — problem selection (+ statement pre-cache)
 // ---------------------------------------------------------------------------
 
-/**
- * Pick the problem for a race at the ready → active transition. Returns the
- * `problems.id` to assign, or `null` when no problem can be chosen yet.
- *
- * STUB: #6 (problem pool + `pickProblem` + candidate selection) is not merged.
- * Returns `null` so the transition still succeeds with `problemId = null`.
- * When #6 lands, replace this body with the real picker.
- */
 export type SelectRaceProblem = (race: Race) => Promise<string | null>;
 
-export const selectRaceProblem: SelectRaceProblem = async () => null;
-
-// ---------------------------------------------------------------------------
-// #8 / #17 — LiveKit event publishing
-// ---------------------------------------------------------------------------
+/**
+ * The picker widens its rating band by up to `MAX_WIDEN_ATTEMPTS * WIDEN_STEP`
+ * on each side beyond the initial `[-100, +200]` window. Fetch candidates over
+ * that maximal band so the widening always has rows to consider.
+ */
+const CANDIDATE_BAND_LOW = 600;
+const CANDIDATE_BAND_HIGH = 700;
 
 /**
- * Publish a race event to the room's data channel. Events are hints; clients
- * always refetch the snapshot as the source of truth (see `src/lib/types.ts`).
- *
- * NO-OP: #8 (LiveKit) is not merged. Routes call this after every transition;
- * the default swallows the event. When #8/#17 land, replace with the real
- * publisher. Kept as a mutable binding so a downstream issue can inject one.
+ * Deterministic 32-bit seed derived from the race id (a uuid). No `Math.random`
+ * so a given race always resolves to the same problem.
  */
+function seedFromRaceId(raceId: string): number {
+  let hash = 0;
+  for (let i = 0; i < raceId.length; i++) {
+    hash = (Math.imul(hash, 31) + raceId.charCodeAt(i)) | 0;
+  }
+  return hash >>> 0;
+}
+
+/**
+ * Pick an unseen, in-band problem for the two players and pre-cache its
+ * statement before the race goes active. Returns the `problems.id` to assign,
+ * or `null` when no candidate fits (races then start with `problemId = null`
+ * and can only end by timeout/forfeit).
+ */
+export const selectRaceProblem: SelectRaceProblem = async (race) => {
+  const playerIds = [race.p1Id, race.p2Id].filter(
+    (id): id is string => id !== null,
+  );
+  const playerRows = await db
+    .select({ id: users.id, cfRating: users.cfRating })
+    .from(users)
+    .where(inArray(users.id, playerIds));
+  const ratingById = new Map(playerRows.map((u) => [u.id, u.cfRating]));
+
+  const p1Rating = ratingById.get(race.p1Id) ?? null;
+  const p2Rating = race.p2Id ? ratingById.get(race.p2Id) ?? null : null;
+
+  const target = targetRating(p1Rating, p2Rating);
+  const candidates = await getCandidatesInBand(
+    target - CANDIDATE_BAND_LOW,
+    target + CANDIDATE_BAND_HIGH,
+  );
+
+  const seenIds = new Set<ProblemId>();
+  for (const userId of playerIds) {
+    const seen = await getSeenProblemIds(userId);
+    for (const id of seen) seenIds.add(id);
+  }
+
+  const picked = pickProblem({
+    candidates,
+    seenIds,
+    p1Rating,
+    p2Rating,
+    seed: seedFromRaceId(race.id),
+  });
+  if (!picked) return null;
+
+  // Pre-cache the statement so it is available the moment the countdown ends.
+  // Best-effort: if the scrape fails we still assign the problem (the snapshot
+  // simply omits the statement until a later scrape succeeds).
+  try {
+    await getOrScrapeStatement(picked.id);
+  } catch (err) {
+    console.error(`[race] statement pre-cache failed for ${picked.id}`, err);
+  }
+
+  return picked.id;
+};
+
+// ---------------------------------------------------------------------------
+// #8 — LiveKit event publishing
+// ---------------------------------------------------------------------------
+
 export type PublishRaceEvent = (
   raceId: string,
   event: RaceEvent,
 ) => Promise<void>;
 
-export const publishRaceEvent: PublishRaceEvent = async () => {};
+/**
+ * Look up the race's LiveKit room and publish `event` on its data channel.
+ * Best-effort: a missing race or LiveKit error never surfaces (the underlying
+ * `publishRaceEvent` swallows transport errors; events are hints and clients
+ * refetch the snapshot as the source of truth).
+ */
+export const publishRaceEvent: PublishRaceEvent = async (raceId, event) => {
+  const [race] = await db
+    .select({ room: races.livekitRoom })
+    .from(races)
+    .where(eq(races.id, raceId))
+    .limit(1);
+  if (!race) return;
+  await publishToRoom(race.room, event);
+};
 
 // ---------------------------------------------------------------------------
 // #15 — finish + Elo application
 // ---------------------------------------------------------------------------
 
-/**
- * Finish a race authoritatively, applying Elo. Owned by #15.
- *
- * `null` until #15 merges. The abort route checks for `null`: when present it
- * delegates forfeit resolution (and Elo) here; when absent it falls back to a
- * local finish that sets outcome/winner/finishedAt but leaves Elo deltas
- * unset (Elo is exclusively #15's responsibility).
- */
 export type FinishRace = (input: {
   raceId: string;
   outcome: "p1_win" | "p2_win" | "draw";
@@ -66,4 +134,5 @@ export type FinishRace = (input: {
   reason: "forfeit" | "solved" | "timeout";
 }) => Promise<void>;
 
-export const finishRace: FinishRace | null = null;
+/** Authoritative, idempotent finish — see `src/lib/race/finish.ts`. */
+export const finishRace: FinishRace = finishRaceImpl;
