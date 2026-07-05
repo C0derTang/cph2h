@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Isolation worktrees created for parallel agent work; each holds a full
+    // repo copy + node_modules and must not be linted from the parent repo.
+    ".claude/**",
   ]),
 ]);
 
