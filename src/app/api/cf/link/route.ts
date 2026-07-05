@@ -8,6 +8,22 @@
  * SECURITY: the password is read from the request body, passed straight into
  * `loginToCf`, and encrypted with `encryptSecret` before storage. It is never
  * logged.
+ *
+ * RATE LIMITING: without a cap this endpoint forwards any POSTed
+ * handle+password straight to codeforces.com, making it an unthrottled
+ * credential-testing proxy. `checkLinkRateLimit` enforces a per-Clerk-user
+ * cooldown and rolling-window attempt cap, tracked in an in-memory Map —
+ * the same per-instance-only pattern used by the run-route rate limiter
+ * (src/app/api/races/[id]/run/route.ts). This resets on redeploy/restart and
+ * does not coordinate across serverless instances; a durable store (Redis or
+ * a DB-backed counter) would be needed for cross-instance enforcement, but is
+ * out of scope here (see issue #32).
+ *
+ * OUT OF SCOPE (tracked on issue #32, deferred — need infra/schema changes):
+ *  - Moving `importSolveHistory` off the request path onto a background
+ *    job/queue so a function timeout can't abort mid-import.
+ *  - Allowing provisional `user_problems` rows for problems not yet in the
+ *    `problems` catalogue (the unseen-problem FK limitation).
  */
 
 import { NextResponse } from "next/server";
@@ -33,6 +49,18 @@ const MAX_HISTORY_PAGES = 20;
 /** Batch size for `user_problems` upserts. */
 const UPSERT_BATCH_SIZE = 500;
 
+/** Minimum spacing between two attempts from the same Clerk user. */
+const LINK_ATTEMPT_COOLDOWN_MS = 5 * 1000;
+/** Rolling window over which attempts are capped. */
+const LINK_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+/** Max attempts allowed within the rolling window. */
+const LINK_ATTEMPT_MAX = 5;
+
+/** Postgres error code for a unique-constraint violation. */
+const PG_UNIQUE_VIOLATION = "23505";
+/** Name of the unique constraint on `users.cf_handle` (see 0000_init.sql). */
+const CF_HANDLE_UNIQUE_CONSTRAINT = "users_cf_handle_unique";
+
 const linkSchema = z.object({
   handle: z.string().trim().min(1, "Handle is required.").max(64),
   password: z.string().min(1, "Password is required.").max(256),
@@ -40,6 +68,61 @@ const linkSchema = z.object({
 
 function json(body: CfLinkResponse, status: number): NextResponse {
   return NextResponse.json(body, { status });
+}
+
+/**
+ * Per-Clerk-user attempt history for `/api/cf/link`, keyed by Clerk id.
+ *
+ * In-memory Map — per-instance only, resets on redeploy/restart, and does
+ * not coordinate across serverless instances. Acceptable for this
+ * hardening pass; see the RATE LIMITING note above.
+ */
+const linkAttempts = new Map<string, number[]>();
+
+type RateLimitResult = { limited: false } | { limited: true; retryAfterSec: number };
+
+/**
+ * Enforce a per-user cooldown and rolling-window attempt cap.
+ *
+ * Only call this once a request is about to actually spend a Codeforces
+ * login attempt (i.e. after body validation), and only record an attempt
+ * when it is allowed through — malformed requests should not burn the cap.
+ */
+function checkLinkRateLimit(clerkId: string): RateLimitResult {
+  const now = Date.now();
+  const timestamps = (linkAttempts.get(clerkId) ?? []).filter(
+    (t) => now - t < LINK_ATTEMPT_WINDOW_MS,
+  );
+
+  const last = timestamps[timestamps.length - 1];
+  if (last !== undefined && now - last < LINK_ATTEMPT_COOLDOWN_MS) {
+    linkAttempts.set(clerkId, timestamps);
+    return {
+      limited: true,
+      retryAfterSec: Math.ceil((LINK_ATTEMPT_COOLDOWN_MS - (now - last)) / 1000),
+    };
+  }
+
+  if (timestamps.length >= LINK_ATTEMPT_MAX) {
+    linkAttempts.set(clerkId, timestamps);
+    return {
+      limited: true,
+      retryAfterSec: Math.ceil((LINK_ATTEMPT_WINDOW_MS - (now - timestamps[0])) / 1000),
+    };
+  }
+
+  timestamps.push(now);
+  linkAttempts.set(clerkId, timestamps);
+  return { limited: false };
+}
+
+/** True when `err` is a Postgres unique-violation, optionally for a specific constraint. */
+function isUniqueViolation(err: unknown, constraint?: string): boolean {
+  if (!err || typeof err !== "object") return false;
+  const code = (err as { code?: unknown }).code;
+  if (code !== PG_UNIQUE_VIOLATION) return false;
+  if (!constraint) return true;
+  return (err as { constraint?: unknown }).constraint === constraint;
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -59,6 +142,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     return json({ ok: false, error: message }, 400);
   }
   const { handle, password } = parsed;
+
+  // Rate-limit before spending a Codeforces login attempt: a bad body above
+  // does not count against the cap, but every real attempt from here on does.
+  const rateLimit = checkLinkRateLimit(clerkId);
+  if (rateLimit.limited) {
+    return json(
+      {
+        ok: false,
+        error: `Too many link attempts. Try again in ${rateLimit.retryAfterSec}s.`,
+      },
+      429,
+    );
+  }
 
   // 1. Verify ownership by logging in to Codeforces.
   let login;
@@ -105,10 +201,29 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   // 5. Persist the link: user row, encrypted credentials, session.
-  await db
-    .update(users)
-    .set({ cfHandle: canonicalHandle, cfRating, cfLinkedAt: new Date() })
-    .where(eq(users.id, user.id));
+  //
+  // The pre-check above (step 4) narrows the common case, but it and this
+  // update are not in one transaction: two concurrent links for the same
+  // handle can both pass the pre-check. The `users.cf_handle` unique
+  // constraint is still the source of truth — map its violation to the same
+  // friendly 409 rather than letting it surface as a 500.
+  try {
+    await db
+      .update(users)
+      .set({ cfHandle: canonicalHandle, cfRating, cfLinkedAt: new Date() })
+      .where(eq(users.id, user.id));
+  } catch (err) {
+    if (isUniqueViolation(err, CF_HANDLE_UNIQUE_CONSTRAINT)) {
+      return json(
+        {
+          ok: false,
+          error: "That Codeforces handle is already linked to another account.",
+        },
+        409,
+      );
+    }
+    throw err;
+  }
 
   const encrypted = encryptSecret(password, getCredKey());
   await db
