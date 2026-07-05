@@ -172,6 +172,37 @@ export function RaceRoom({
     };
   }, [raceId]);
 
+  // --- Lobby snapshot poll (pending/ready only, jittered) -----------------
+  // `Lobby` polls its own copy of the snapshot to drive its own UI, but that
+  // state never flows back up — RaceRoom's `snapshot` (which selects this
+  // pending/ready branch and drives `race-status`) was previously only
+  // refreshed by the one-time mount refetch and LiveKit hints, which aren't
+  // mounted until the active branch. Without a LiveKit event, RaceRoom could
+  // stay stuck showing `pending` even after the opponent readies up. Poll
+  // `refetch()` here too so RaceRoom advances pending → ready → active on its
+  // own, consistent with "events are hints, GET is truth."
+  useEffect(() => {
+    if (status !== "pending" && status !== "ready") return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async () => {
+      await refetch();
+      if (!cancelled) schedule();
+    };
+
+    const schedule = () => {
+      const jitter = Math.floor(Math.random() * 1500);
+      timer = setTimeout(() => void tick(), CLIENT_POLL_INTERVAL_MS + jitter);
+    };
+
+    schedule();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [status, refetch]);
+
   // --- Verdict poll loop (active only, jittered) --------------------------
   useEffect(() => {
     if (status !== "active") return;
