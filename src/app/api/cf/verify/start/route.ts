@@ -13,23 +13,32 @@
  */
 
 import { NextResponse } from "next/server";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { handleVerifications, problems, users } from "@/lib/db/schema";
+import { handleVerifications, users } from "@/lib/db/schema";
 import { getUserInfo, CfApiError } from "@/lib/cf/client";
 import { ensureUser } from "@/lib/user";
 import { problemUrl, type CfVerifyStartResponse } from "@/lib/types";
 
 /** How long a pending challenge is valid before the user must restart. */
-const VERIFY_WINDOW_MS = 10 * 60 * 1000;
+const VERIFY_WINDOW_MS = 60 * 1000;
 
 /**
- * Fallback verification target when the `problems` catalogue is empty (e.g. a
- * fresh DB before the sync job runs). "4A — Watermelon" is a stable, famously
- * easy Codeforces problem.
+ * Curated, stable, famously-easy real Codeforces problems used as the
+ * compile-error target. We deliberately do NOT pick an arbitrary row from the
+ * `problems` catalogue: it can contain gym/seed/stale entries whose
+ * `/problemset/problem/{contestId}/{index}` URL 404s ("invalid link"). Every id
+ * here resolves to a real problem page.
  */
-const FALLBACK_PROBLEM = { id: "4A", contestId: 4, index: "A", name: "Watermelon" };
+const VERIFY_PROBLEMS = [
+  { id: "4A", contestId: 4, index: "A", name: "Watermelon" },
+  { id: "1A", contestId: 1, index: "A", name: "Theatre Square" },
+  { id: "71A", contestId: 71, index: "A", name: "Way Too Long Words" },
+  { id: "158A", contestId: 158, index: "A", name: "Next Round" },
+  { id: "231A", contestId: 231, index: "A", name: "Team" },
+  { id: "282A", contestId: 282, index: "A", name: "Bit++" },
+] as const;
 
 const startSchema = z.object({
   handle: z.string().trim().min(1, "Handle is required.").max(64),
@@ -83,18 +92,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  // 3. Pick an easy target problem from the catalogue (fallback to 4A).
-  const [easy] = await db
-    .select({
-      id: problems.id,
-      contestId: problems.contestId,
-      index: problems.index,
-      name: problems.name,
-    })
-    .from(problems)
-    .orderBy(asc(problems.rating))
-    .limit(1);
-  const target = easy ?? FALLBACK_PROBLEM;
+  // 3. Pick a curated, known-valid easy problem as the compile-error target.
+  const target = VERIFY_PROBLEMS[Math.floor(Math.random() * VERIFY_PROBLEMS.length)];
 
   // 4. Store the pending challenge (one per user; upserted, window reset).
   const now = new Date();
