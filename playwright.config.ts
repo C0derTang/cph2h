@@ -1,4 +1,9 @@
+import { config } from "dotenv";
 import { defineConfig, devices } from "@playwright/test";
+
+// Load the same local env the dev server uses so the test process (Clerk
+// setup, DB seeding, E2E_* vars) sees DATABASE_URL / CLERK keys / test users.
+config({ path: ".env.local" });
 
 /**
  * Playwright e2e smoke test config (issue #18).
