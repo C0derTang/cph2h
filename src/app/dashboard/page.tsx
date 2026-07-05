@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ExternalLink, TrendingUp, TrendingDown } from "lucide-react";
+import { formatOutcome, formatEloDelta } from "@/lib/format";
+import type { RaceOutcome } from "@/lib/types";
 
 async function getRecentRaces(userId: string) {
   const recentRaces = await db
@@ -136,7 +138,7 @@ function DashboardContent({
     id: string;
     p1Id: string;
     p2Id: string | null;
-    outcome: string | null;
+    outcome: RaceOutcome | null;
     eloDeltaP1: number | null;
     eloDeltaP2: number | null;
     finishedAt: Date | null;
@@ -148,18 +150,6 @@ function DashboardContent({
   }>;
 }) {
   const isProvisional = user.racesPlayed < 10;
-
-  const formatOutcome = (outcome: string | null): string => {
-    if (!outcome) return "Pending";
-    if (outcome === "draw") return "Draw";
-    if (outcome === "p1_win" && user.id) return "Win";
-    return "Loss";
-  };
-
-  const formatEloDelta = (delta: number | null): string => {
-    if (delta === null) return "—";
-    return delta >= 0 ? `+${delta}` : `${delta}`;
-  };
 
   return (
     <div className="shell py-8">
@@ -299,7 +289,7 @@ function DashboardContent({
                   const isP1 = race.p1Id === user.id;
                   const opponent = isP1 ? race.p2User : race.p1User;
                   const eloDelta = isP1 ? race.eloDeltaP1 : race.eloDeltaP2;
-                  const outcome = formatOutcome(race.outcome);
+                  const outcome = formatOutcome(race.outcome, isP1);
                   const isDelta = eloDelta && eloDelta > 0;
 
                   return (
@@ -386,7 +376,7 @@ export default async function DashboardPage() {
     id: string;
     p1Id: string;
     p2Id: string | null;
-    outcome: string | null;
+    outcome: RaceOutcome | null;
     eloDeltaP1: number | null;
     eloDeltaP2: number | null;
     finishedAt: Date | null;

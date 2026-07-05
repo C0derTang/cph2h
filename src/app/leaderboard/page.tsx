@@ -1,29 +1,17 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Trophy } from "lucide-react";
-
-interface LeaderboardEntry {
-  rank: number;
-  user: {
-    id: string;
-    username: string;
-    cfHandle: string | null;
-    cfRating: number | null;
-    elo: number;
-    racesPlayed: number;
-  };
-}
-
-interface LeaderboardResponse {
-  entries: LeaderboardEntry[];
-  total: number;
-  page: number;
-  limit: number;
-  pages: number;
-}
+import {
+  getLeaderboardPage,
+  parsePositiveInt,
+  type LeaderboardPage,
+} from "@/lib/leaderboard";
 
 function EmptyLeaderboard() {
   return (
@@ -67,7 +55,7 @@ function LeaderboardTable({
   data,
   currentUserId,
 }: {
-  data: LeaderboardResponse;
+  data: LeaderboardPage;
   currentUserId: string | null | undefined;
 }) {
   const currentPage = data.page;
@@ -200,26 +188,27 @@ function LeaderboardTable({
 export default async function LeaderboardPage(props: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  let data: LeaderboardResponse | null = null;
+  let data: LeaderboardPage | null = null;
+  let currentUserDbId: string | null = null;
   let errorOccurred = false;
 
   const searchParams = await props.searchParams;
-  const currentPage = Math.max(1, parseInt(searchParams.page || "1"));
+  const currentPage = parsePositiveInt(searchParams.page, 1);
 
   try {
-    // Fetch leaderboard data
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const response = await fetch(
-      `${baseUrl}/api/leaderboard?page=${currentPage}&limit=50`,
-      { cache: "no-store" }
-    );
+    data = await getLeaderboardPage(currentPage, 50);
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch leaderboard");
+    // Resolve the signed-in user's DB id (uuid) from their Clerk id so we
+    // can highlight their row. auth().userId is the Clerk id, not the DB id.
+    const { userId } = await auth();
+    if (userId) {
+      const rows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.clerkId, userId))
+        .limit(1);
+      currentUserDbId = rows[0]?.id ?? null;
     }
-
-    data = await response.json();
   } catch (error) {
     console.error("Error loading leaderboard:", error);
     errorOccurred = true;
@@ -233,7 +222,5 @@ export default async function LeaderboardPage(props: {
     return <EmptyLeaderboard />;
   }
 
-  const { userId } = await auth();
-
-  return <LeaderboardTable data={data} currentUserId={userId} />;
+  return <LeaderboardTable data={data} currentUserId={currentUserDbId} />;
 }
