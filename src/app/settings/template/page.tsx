@@ -10,13 +10,20 @@ export default async function TemplateSettingsPage() {
   const { userId: clerkId } = await auth();
 
   let initialTemplate = DEFAULT_CPP_TEMPLATE;
+  // Scope the local draft to the signed-in account (falls back to the Clerk id
+  // if the DB row can't be resolved) so a shared browser never leaks one
+  // user's in-progress template edits into another's editor.
+  let draftScopeId = clerkId ?? "anon";
   if (clerkId) {
     const [user] = await db
-      .select({ cppTemplate: users.cppTemplate })
+      .select({ id: users.id, cppTemplate: users.cppTemplate })
       .from(users)
       .where(eq(users.clerkId, clerkId))
       .limit(1);
-    if (user) initialTemplate = user.cppTemplate;
+    if (user) {
+      initialTemplate = user.cppTemplate;
+      draftScopeId = user.id;
+    }
   }
 
   return (
@@ -41,7 +48,7 @@ export default async function TemplateSettingsPage() {
       </div>
 
       <div className="mt-10">
-        <TemplateEditor initialTemplate={initialTemplate} />
+        <TemplateEditor initialTemplate={initialTemplate} userId={draftScopeId} />
       </div>
     </main>
   );

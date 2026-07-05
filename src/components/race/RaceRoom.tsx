@@ -18,13 +18,25 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ConnectionState } from "livekit-client";
 import {
   LiveKitRoom,
   useConnectionState,
   useDataChannel,
+  useRemoteParticipants,
 } from "@livekit/components-react";
-import { Copy, ExternalLink, Loader2, RotateCcw, Send } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  Flag,
+  Loader2,
+  MonitorSmartphone,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  WifiOff,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CppEditor, type CppEditorHandle } from "@/components/editor/CppEditor";
@@ -56,6 +68,45 @@ interface LivekitConn {
   url: string;
 }
 
+/** How long the opponent's video track must be absent before we surface a
+ *  disconnect banner (avoids flapping on brief network blips / reconnects). */
+const DISCONNECT_GRACE_MS = 20_000;
+
+/** Consecutive failed verdict polls before we show a "having trouble" banner
+ *  with a manual retry — a single blip is normal and shouldn't alarm anyone. */
+const POLL_FAILURE_THRESHOLD = 3;
+
+const SUBMIT_ERROR_CODES = new Set<string>([
+  "cf_error",
+  "not_active",
+  "rate_limited",
+  "not_participant",
+]);
+
+/**
+ * Coerce whatever `/api/races/[id]/submit` returned into a well-formed
+ * {@link SubmitResponse}, so the UI never renders an empty error box when a
+ * guard failure (e.g. `{ error: "not_found" }`, no `message`) short-circuits
+ * before the route can build a full `SubmitResponse` body.
+ */
+function normalizeSubmitResponse(raw: unknown): SubmitResponse {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  if (obj && obj.ok === true && typeof obj.cfSubmissionId === "number") {
+    return { ok: true, cfSubmissionId: obj.cfSubmissionId };
+  }
+  type SubmitErrorCode = Extract<SubmitResponse, { ok: false }>["error"];
+  const rawError = obj && typeof obj.error === "string" ? obj.error : undefined;
+  const error: SubmitErrorCode =
+    rawError && SUBMIT_ERROR_CODES.has(rawError)
+      ? (rawError as SubmitErrorCode)
+      : "cf_error";
+  const message =
+    obj && typeof obj.message === "string" && obj.message.trim() !== ""
+      ? obj.message
+      : "Submission failed — try the manual fallback.";
+  return { ok: false, error, message };
+}
+
 export function RaceRoom({
   raceId,
   currentUserId,
@@ -68,7 +119,13 @@ export function RaceRoom({
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<SubmitResponse | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [opponentDisconnected, setOpponentDisconnected] = useState(false);
+  const [opponentLive, setOpponentLive] = useState(true);
+  const [forfeiting, setForfeiting] = useState(false);
+  const [pollDegraded, setPollDegraded] = useState(false);
   const editorRef = useRef<CppEditorHandle>(null);
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollFailuresRef = useRef(0);
 
   const status = snapshot.status;
 
@@ -124,6 +181,7 @@ export function RaceRoom({
     const tick = async () => {
       try {
         const res = await fetch(`/api/races/${raceId}/poll`, { method: "POST" });
+        if (!res.ok) throw new Error(`poll failed (${res.status})`);
         const data: unknown = await res.json().catch(() => null);
         if (
           !cancelled &&
@@ -133,8 +191,17 @@ export function RaceRoom({
         ) {
           setSnapshot(data as RaceSnapshot);
         }
+        // A response (even `{ skipped: true }`) means the connection to our
+        // own API is healthy — clear any "having trouble" banner.
+        pollFailuresRef.current = 0;
+        if (!cancelled) setPollDegraded(false);
       } catch {
-        // Ignore — snapshot refetch on the next event/tick covers us.
+        // Snapshot refetch on the next event/tick covers a single blip; only
+        // surface UI after several consecutive failures.
+        pollFailuresRef.current += 1;
+        if (!cancelled && pollFailuresRef.current >= POLL_FAILURE_THRESHOLD) {
+          setPollDegraded(true);
+        }
       } finally {
         if (!cancelled) schedule();
       }
@@ -149,6 +216,8 @@ export function RaceRoom({
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      pollFailuresRef.current = 0;
+      setPollDegraded(false);
     };
   }, [status, raceId]);
 
@@ -163,22 +232,20 @@ export function RaceRoom({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
       });
-      const data = (await res.json().catch(() => null)) as SubmitResponse | null;
-      setSubmitResult(
-        data ?? {
-          ok: false,
-          error: "cf_error",
-          message: "Submission failed — try the manual fallback.",
-        },
-      );
+      const raw: unknown = await res.json().catch(() => null);
+      const result = normalizeSubmitResponse(raw);
+      setSubmitResult(result);
+      if (result.ok) {
+        toast.success(`Submitted to Codeforces (#${result.cfSubmissionId}).`);
+      } else {
+        toast.error(result.message);
+      }
       // Reflect the new (pending) submission in the feed promptly.
       void refetch();
     } catch {
-      setSubmitResult({
-        ok: false,
-        error: "cf_error",
-        message: "Could not reach the server. Submit manually on Codeforces.",
-      });
+      const message = "Could not reach the server. Submit manually on Codeforces.";
+      setSubmitResult({ ok: false, error: "cf_error", message });
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -188,11 +255,65 @@ export function RaceRoom({
     try {
       await navigator.clipboard.writeText(code);
       setCodeCopied(true);
+      toast.success("Code copied to clipboard.");
       setTimeout(() => setCodeCopied(false), 1500);
     } catch {
-      // Clipboard unavailable — fail silently.
+      toast.error("Couldn't copy — your browser may be blocking clipboard access.");
     }
   }, [code]);
+
+  // --- Forfeit (existing abort route; caller forfeits, opponent wins) ----
+  const handleForfeit = useCallback(async () => {
+    if (forfeiting) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Forfeit this race? Your opponent will be awarded the win.",
+      )
+    ) {
+      return;
+    }
+    setForfeiting(true);
+    try {
+      const res = await fetch(`/api/races/${raceId}/abort`, { method: "POST" });
+      const data = (await res.json().catch(() => null)) as RaceSnapshot | null;
+      if (res.ok && data && typeof data.status === "string") {
+        setSnapshot(data);
+        toast.info("You forfeited the race.");
+      } else {
+        toast.error("Couldn't forfeit — try again.");
+      }
+    } catch {
+      toast.error("Couldn't reach the server. Try again.");
+    } finally {
+      setForfeiting(false);
+    }
+  }, [forfeiting, raceId]);
+
+  // --- Opponent disconnect grace: only counts a *sustained* absence, so a
+  // brief reconnect blip never flashes the banner. -------------------------
+  const handlePresenceChange = useCallback((present: boolean) => {
+    setOpponentLive(present);
+    if (present) {
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
+      setOpponentDisconnected(false);
+      return;
+    }
+    if (disconnectTimerRef.current) return;
+    disconnectTimerRef.current = setTimeout(() => {
+      disconnectTimerRef.current = null;
+      setOpponentDisconnected(true);
+    }, DISCONNECT_GRACE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (disconnectTimerRef.current) clearTimeout(disconnectTimerRef.current);
+    };
+  }, []);
 
   const isP1 = currentUserId === snapshot.p1.id;
   const you = isP1 ? snapshot.p1 : snapshot.p2 ?? snapshot.p1;
@@ -265,6 +386,21 @@ export function RaceRoom({
           <RotateCcw aria-hidden />
           Reset
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="ml-auto text-destructive hover:text-destructive"
+          onClick={handleForfeit}
+          disabled={forfeiting}
+          data-testid="forfeit-btn"
+        >
+          {forfeiting ? (
+            <Loader2 className="animate-spin" aria-hidden />
+          ) : (
+            <Flag aria-hidden />
+          )}
+          {forfeiting ? "Forfeiting…" : "Forfeit"}
+        </Button>
         {submitResult?.ok && (
           <span
             data-testid="submit-success"
@@ -310,6 +446,16 @@ export function RaceRoom({
                   Open on Codeforces
                 </Button>
               )}
+              {submitResult.message.toLowerCase().includes("not signed in") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  nativeButton={false}
+                  render={<a href="/settings/cf" />}
+                >
+                  Re-link Codeforces account
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -323,7 +469,42 @@ export function RaceRoom({
 
   const rightRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-      <RaceHUD snapshot={snapshot} you={you} opponent={opponent} />
+      {opponentDisconnected && (
+        <div
+          data-testid="opponent-disconnected-banner"
+          role="alert"
+          className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400"
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <WifiOff className="size-4 shrink-0" aria-hidden />
+            Your opponent appears to have disconnected.
+          </div>
+          <p className="text-amber-600/90 dark:text-amber-400/90">
+            They may reconnect at any time. If they don&apos;t come back,
+            you can forfeit to end the race — your opponent would be awarded
+            the win.
+          </p>
+        </div>
+      )}
+      {pollDegraded && (
+        <div
+          data-testid="poll-degraded-banner"
+          role="alert"
+          className="flex items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
+        >
+          <span>Having trouble syncing verdicts.</span>
+          <Button type="button" variant="outline" size="xs" onClick={() => void refetch()}>
+            <RefreshCw aria-hidden />
+            Retry
+          </Button>
+        </div>
+      )}
+      <RaceHUD
+        snapshot={snapshot}
+        you={you}
+        opponent={opponent}
+        opponentPresent={withVideo ? opponentLive : undefined}
+      />
       {withVideo ? (
         <VideoTiles />
       ) : (
@@ -394,6 +575,15 @@ export function RaceRoom({
       <span data-testid="race-status" className="sr-only">
         {status}
       </span>
+      <div
+        role="status"
+        className="mb-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 lg:hidden dark:text-amber-400"
+      >
+        <MonitorSmartphone className="size-4 shrink-0" aria-hidden />
+        The race room is designed for larger screens — some panes may be
+        cramped here. Rotate or switch to a laptop/desktop for the best
+        experience.
+      </div>
       {lk ? (
         <LiveKitRoom
           serverUrl={lk.url}
@@ -404,6 +594,12 @@ export function RaceRoom({
           className="flex min-h-0 flex-1 flex-col"
         >
           <RaceEvents onEvent={refetch} onReconnected={refetch} />
+          {opponent && (
+            <PresenceWatcher
+              opponentId={opponent.id}
+              onPresenceChange={handlePresenceChange}
+            />
+          )}
           {panes(true)}
         </LiveKitRoom>
       ) : (
@@ -440,6 +636,29 @@ function RaceEvents({
     }
     prevState.current = connState;
   }, [connState, onReconnected]);
+
+  return null;
+}
+
+/**
+ * In-room listener: reports whether the opponent (matched by LiveKit identity
+ * === `users.id`, see `/api/livekit/token`) currently has a live connection.
+ * The parent debounces this into a grace-period disconnect banner. Renders
+ * nothing.
+ */
+function PresenceWatcher({
+  opponentId,
+  onPresenceChange,
+}: {
+  opponentId: string;
+  onPresenceChange: (present: boolean) => void;
+}) {
+  const remoteParticipants = useRemoteParticipants();
+  const present = remoteParticipants.some((p) => p.identity === opponentId);
+
+  useEffect(() => {
+    onPresenceChange(present);
+  }, [present, onPresenceChange]);
 
   return null;
 }

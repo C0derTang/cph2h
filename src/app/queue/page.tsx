@@ -10,7 +10,9 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Swords, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +41,7 @@ export default function QueuePage() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [needsCfLink, setNeedsCfLink] = useState(false);
   const [waitedSec, setWaitedSec] = useState(0);
   const [band, setBand] = useState<number | null>(null);
   const [enqueuedAt, setEnqueuedAt] = useState<number | null>(null);
@@ -46,6 +49,7 @@ export default function QueuePage() {
   const goToRace = useCallback(
     (raceId: string) => {
       setPhase("matched");
+      toast.success("Match found! Heading to the race…");
       router.push(`/race/${raceId}`);
     },
     [router],
@@ -59,6 +63,7 @@ export default function QueuePage() {
 
   const findRace = useCallback(async () => {
     setError(null);
+    setNeedsCfLink(false);
     setPhase("searching");
     setWaitedSec(0);
     setBand(null);
@@ -66,8 +71,11 @@ export default function QueuePage() {
     try {
       const res = await fetch("/api/queue", { method: "POST" });
       if (!res.ok) {
-        setError(errorFor(res));
+        const message = errorFor(res);
+        setError(message);
+        setNeedsCfLink(res.status === 403);
         setPhase("error");
+        toast.error(message);
         return;
       }
       const data = (await res.json()) as EnqueueResponse;
@@ -77,6 +85,7 @@ export default function QueuePage() {
     } catch {
       setError("Network error. Please try again.");
       setPhase("error");
+      toast.error("Network error. Please try again.");
     }
   }, [errorFor, goToRace]);
 
@@ -190,9 +199,22 @@ export default function QueuePage() {
           )}
 
           {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
+            <div className="flex flex-col gap-2">
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+              {needsCfLink && (
+                <Button
+                  render={<Link href="/settings/cf" />}
+                  nativeButton={false}
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                >
+                  Link Codeforces account
+                </Button>
+              )}
+            </div>
           )}
 
           <div className="flex items-center gap-3">

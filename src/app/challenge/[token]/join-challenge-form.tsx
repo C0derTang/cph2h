@@ -7,7 +7,9 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,10 +36,12 @@ export function JoinChallengeForm({
   const router = useRouter();
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   async function handleJoin() {
     setJoining(true);
     setError(null);
+    setErrorCode(null);
     try {
       const res = await fetch("/api/races/join", {
         method: "POST",
@@ -46,13 +50,18 @@ export function JoinChallengeForm({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(joinErrorMessage(data?.error));
+        const message = joinErrorMessage(data?.error);
+        setError(message);
+        setErrorCode(data?.error ?? null);
+        toast.error(message);
         return;
       }
       const snapshot = data as RaceSnapshot;
+      toast.success("Joined the race!");
       router.push(`/race/${snapshot.id}`);
     } catch {
       setError("Network error — please try again.");
+      toast.error("Network error — please try again.");
     } finally {
       setJoining(false);
     }
@@ -73,23 +82,53 @@ export function JoinChallengeForm({
         </Badge>
 
         {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+            {errorCode === "cf_not_linked" && (
+              <Button
+                render={<Link href="/settings/cf" />}
+                nativeButton={false}
+                variant="outline"
+                size="sm"
+                className="self-start"
+              >
+                Link Codeforces account
+              </Button>
+            )}
+          </div>
         )}
 
-        <Button type="button" onClick={handleJoin} disabled={joining}>
-          {joining ? (
-            <>
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-              Joining…
-            </>
-          ) : (
-            "Join race"
-          )}
-        </Button>
+        {isTerminalJoinError(errorCode) ? (
+          <Button render={<Link href="/queue" />} nativeButton={false} variant="outline">
+            Find another race
+          </Button>
+        ) : (
+          <Button type="button" onClick={handleJoin} disabled={joining}>
+            {joining ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                Joining…
+              </>
+            ) : (
+              "Join race"
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Errors where retrying the same join is never going to succeed. */
+function isTerminalJoinError(error: string | null): boolean {
+  return (
+    error === "self_join" ||
+    error === "already_has_opponent" ||
+    error === "conflict" ||
+    error === "not_pending" ||
+    error === "not_found"
   );
 }
 

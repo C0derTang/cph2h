@@ -51,13 +51,13 @@ export function VerdictFeed({
         <p className="text-xs text-muted-foreground">No submissions yet.</p>
       ) : (
         <ul className="flex flex-col gap-1.5 overflow-y-auto">
-          {ordered.map((s, i) => {
+          {ordered.map((s) => {
             const who = s.userId === currentUserId ? "You" : "Opponent";
             const pending = s.verdict == null;
             const accepted = isAccepted(s.verdict);
             return (
               <li
-                key={`${s.userId}-${s.submittedAt}-${i}`}
+                key={`${s.userId}-${s.submittedAt}`}
                 data-testid="verdict-item"
                 className={cn(
                   "flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs",
