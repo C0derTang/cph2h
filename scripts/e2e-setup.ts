@@ -9,7 +9,7 @@ import { config } from "dotenv";
 
 config({ path: ".env.local" });
 
-import { createClerkClient } from "@clerk/backend";
+import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { problems, problemStatements } from "@/lib/db/schema";
 
@@ -20,7 +20,7 @@ const EMAILS = [
 const PASSWORD = "cph2h-e2e-Test-424242!";
 
 async function main() {
-  const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
+  const clerk = await clerkClient();
 
   for (const email of EMAILS) {
     const { data } = await clerk.users.getUserList({ emailAddress: [email] });

@@ -126,6 +126,7 @@ export async function buildRaceSnapshot(
     submissions,
     livekitRoom: race.livekitRoom,
     challengeToken: race.challengeToken,
+    drawOfferBy: race.drawOfferBy ?? null,
   };
 }
 

@@ -121,6 +121,12 @@ export interface RaceSnapshot {
   submissions: RaceSubmissionInfo[];
   livekitRoom: string;
   challengeToken: string | null;
+  /**
+   * User id of the player with an outstanding draw offer, or null. A draw
+   * requires mutual consent: one player offers, the opponent accepts. Cleared
+   * on decline, withdraw, or when the race ends.
+   */
+  drawOfferBy: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +153,9 @@ export type RaceEvent =
       winnerId: string | null;
       eloDeltas: Record<string, number>;
     }
-  | { type: "aborted"; byUserId: string };
+  | { type: "aborted"; byUserId: string }
+  | { type: "draw_offered"; byUserId: string }
+  | { type: "draw_declined"; byUserId: string };
 
 export function encodeRaceEvent(event: RaceEvent): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(event));

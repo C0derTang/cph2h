@@ -152,6 +152,8 @@ export const races = pgTable(
     eloDeltaP2: integer("elo_delta_p2"),
     lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
     livekitRoom: text("livekit_room").notNull(),
+    /** Player with an outstanding draw offer (mutual-consent draw); null when none. */
+    drawOfferBy: uuid("draw_offer_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [
