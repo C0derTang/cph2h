@@ -8,14 +8,17 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* Fonts: Chakra Petch is the broadcast/scoreboard display + heading face;
-     Geist Sans carries body copy; Geist Mono is the data/label face. */
+  /* Fonts: Anton is the tall condensed poster display + heading face (hero
+     lockups, wordmark, VS names, stamps); Geist Sans carries body copy; Geist
+     Mono is the data/label face AND every live-updating number (Anton numerals
+     are not tabular — see docs/design.md "numeral rule"). */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-chakra);
-  --font-heading: var(--font-chakra);
+  --font-display: var(--font-anton);
+  --font-heading: var(--font-anton);
 
-  /* Player identity — the versus axis. Self is Ember, opponent is Signal cyan. */
+  /* Player identity — the versus axis. Self is the champion (gold/champagne),
+     opponent is the challenger (crimson). These never swap. */
   --color-player-self: var(--player-self);
   --color-player-self-foreground: var(--player-self-foreground);
   --color-player-opponent: var(--player-opponent);
@@ -61,118 +64,128 @@
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2.6);
+  --radius-4xl: calc(var(--radius) * 3.2);
 }
 
 /* ----------------------------------------------------------------------------
-   LIGHT — "studio daylight". Defined and accessible, but the dark arena is hero.
+   DARK — "the stage". The hero theme: near-black warm stage, a warm spotlight
+   on hero surfaces, gold champion vs crimson challenger, hairline gold trim.
+   This is what we design and screenshot against. `:root.dark` (not `.dark`)
+   so the stage wins the cascade over `:root` regardless of source order.
 ---------------------------------------------------------------------------- */
-:root {
-  --background: oklch(0.98 0.004 250);
-  --foreground: oklch(0.18 0.02 258);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 258);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 258);
-  /* Ember: primary CTA / focus / self-identity. */
-  --primary: #d14a1b;
-  --primary-foreground: #fff8f3;
-  --secondary: oklch(0.96 0.006 250);
-  --secondary-foreground: oklch(0.24 0.02 258);
-  --muted: oklch(0.96 0.006 250);
-  --muted-foreground: oklch(0.47 0.02 258);
-  --accent: oklch(0.95 0.008 250);
-  --accent-foreground: oklch(0.24 0.02 258);
-  --destructive: oklch(0.55 0.22 25);
-  --border: oklch(0.9 0.008 258);
-  --input: oklch(0.9 0.008 258);
-  --ring: #d14a1b;
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.4rem;
-
-  /* Player identity */
-  --player-self: #d14a1b;
-  --player-self-foreground: #fff8f3;
-  --player-opponent: oklch(0.52 0.13 224);
-  --player-opponent-foreground: oklch(0.99 0.01 224);
-
-  /* Verdict semantics */
-  --verdict-ok: oklch(0.58 0.15 155);
-  --verdict-ok-foreground: oklch(0.99 0.02 155);
-  --verdict-fail: oklch(0.55 0.22 25);
-  --verdict-fail-foreground: oklch(0.99 0.02 25);
-  --verdict-pending: oklch(0.68 0.14 70);
-  --verdict-pending-foreground: oklch(0.2 0.05 70);
-
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-/* ----------------------------------------------------------------------------
-   DARK — "match arena". The hero surface: deep ink navy, dramatic contrast,
-   two clashing identity colors, saturated verdict signals.
----------------------------------------------------------------------------- */
-.dark {
-  --background: oklch(0.16 0.018 262);
-  --foreground: oklch(0.97 0.006 250);
-  --card: oklch(0.212 0.02 262);
-  --card-foreground: oklch(0.97 0.006 250);
-  --popover: oklch(0.2 0.02 262);
-  --popover-foreground: oklch(0.97 0.006 250);
-  /* Ember, brightened for the near-black canvas. */
-  --primary: #ff6a3d;
-  --primary-foreground: #1a0b04;
-  --secondary: oklch(0.28 0.018 262);
-  --secondary-foreground: oklch(0.97 0.006 250);
-  --muted: oklch(0.26 0.016 262);
-  --muted-foreground: oklch(0.73 0.02 255);
-  --accent: oklch(0.3 0.02 262);
-  --accent-foreground: oklch(0.97 0.006 250);
-  --destructive: oklch(0.66 0.2 22);
+:root.dark {
+  --background: oklch(0.145 0.006 60); /* near-black warm stage */
+  --foreground: oklch(0.95 0.01 85);
+  --card: oklch(0.19 0.008 60); /* matte panel, barely lifted off the stage */
+  --card-foreground: oklch(0.95 0.01 85);
+  --popover: oklch(0.18 0.008 60);
+  --popover-foreground: oklch(0.95 0.01 85);
+  /* Champion gold — primary CTA / focus / self-identity. */
+  --primary: oklch(0.82 0.12 90);
+  --primary-foreground: oklch(0.17 0.02 80);
+  --secondary: oklch(0.24 0.008 60);
+  --secondary-foreground: oklch(0.95 0.01 85);
+  --muted: oklch(0.24 0.008 60);
+  --muted-foreground: oklch(0.68 0.014 75);
+  --accent: oklch(0.27 0.01 60);
+  --accent-foreground: oklch(0.95 0.01 85);
+  --destructive: oklch(0.62 0.22 27);
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 14%);
-  --ring: #ff6a3d;
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --ring: oklch(0.82 0.12 90);
+  --chart-1: oklch(0.82 0.12 90);
+  --chart-2: oklch(0.64 0.19 18);
+  --chart-3: oklch(0.75 0.16 150);
+  --chart-4: oklch(0.76 0.15 65);
+  --chart-5: oklch(0.6 0.02 75);
+  --radius: 0.25rem; /* hard edges — minimal rounding */
 
-  /* Player identity — the versus axis. */
-  --player-self: #ff6a3d;
-  --player-self-foreground: #1a0b04;
-  --player-opponent: oklch(0.79 0.13 214);
-  --player-opponent-foreground: oklch(0.17 0.04 240);
+  /* Player identity — champion gold vs challenger crimson. Both identity inks
+     are bright enough to clear WCAG AA 4.5:1 as text on --background AND
+     --card (crimson: 5.36 / 5.00), and both -foreground pairs are dark inks on
+     the bright fills (5.28 on crimson, 10.94 on gold). Don't darken these for
+     text use — see docs/design.md "identity contrast rule". */
+  --player-self: oklch(0.82 0.12 90);
+  --player-self-foreground: oklch(0.17 0.02 80);
+  --player-opponent: oklch(0.64 0.19 18);
+  --player-opponent-foreground: oklch(0.16 0.03 20);
+
+  /* Verdict semantics. Fail red is hotter (hue ~27, orange-lean) and more
+     saturated than the rosier challenger crimson (hue ~18) so a failing
+     verdict never reads as the opponent's identity. */
+  --verdict-ok: oklch(0.75 0.16 150);
+  --verdict-ok-foreground: oklch(0.16 0.04 155);
+  --verdict-fail: oklch(0.62 0.22 27);
+  --verdict-fail-foreground: oklch(0.99 0.02 27);
+  --verdict-pending: oklch(0.76 0.15 65);
+  --verdict-pending-foreground: oklch(0.2 0.05 65);
+
+  --sidebar: oklch(0.18 0.008 60);
+  --sidebar-foreground: oklch(0.95 0.01 85);
+  --sidebar-primary: oklch(0.82 0.12 90);
+  --sidebar-primary-foreground: oklch(0.17 0.02 80);
+  --sidebar-accent: oklch(0.27 0.01 60);
+  --sidebar-accent-foreground: oklch(0.95 0.01 85);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.82 0.12 90);
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT — "daytime cypher". Warm paper, the same inks; fully defined but
+   secondary — the stage is the hero. Kept accessible for a future toggle.
+---------------------------------------------------------------------------- */
+:root {
+  --background: oklch(0.95 0.014 85); /* warm paper */
+  --foreground: oklch(0.2 0.014 60);
+  --card: oklch(0.98 0.008 85);
+  --card-foreground: oklch(0.2 0.014 60);
+  --popover: oklch(0.98 0.008 85);
+  --popover-foreground: oklch(0.2 0.014 60);
+  /* Gold reads dark on paper for CTA contrast. */
+  --primary: oklch(0.62 0.11 80);
+  --primary-foreground: oklch(0.98 0.02 85);
+  --secondary: oklch(0.92 0.014 85);
+  --secondary-foreground: oklch(0.24 0.014 60);
+  --muted: oklch(0.92 0.014 85);
+  --muted-foreground: oklch(0.46 0.014 60);
+  --accent: oklch(0.9 0.02 85);
+  --accent-foreground: oklch(0.24 0.014 60);
+  --destructive: oklch(0.55 0.22 27);
+  --border: oklch(0 0 0 / 10%);
+  --input: oklch(0 0 0 / 12%);
+  --ring: oklch(0.62 0.11 80);
+  --chart-1: oklch(0.62 0.11 80);
+  --chart-2: oklch(0.5 0.2 18);
+  --chart-3: oklch(0.58 0.15 150);
+  --chart-4: oklch(0.7 0.14 65);
+  --chart-5: oklch(0.5 0.02 75);
+  --radius: 0.25rem;
+
+  /* Player identity. */
+  --player-self: oklch(0.66 0.12 82);
+  --player-self-foreground: oklch(0.18 0.02 80);
+  --player-opponent: oklch(0.5 0.2 18);
+  --player-opponent-foreground: oklch(0.98 0.02 20);
 
   /* Verdict semantics. */
-  --verdict-ok: oklch(0.8 0.17 155);
-  --verdict-ok-foreground: oklch(0.17 0.05 160);
-  --verdict-fail: oklch(0.68 0.2 20);
-  --verdict-fail-foreground: oklch(0.14 0.04 20);
-  --verdict-pending: oklch(0.83 0.15 78);
-  --verdict-pending-foreground: oklch(0.2 0.06 70);
+  --verdict-ok: oklch(0.58 0.15 150);
+  --verdict-ok-foreground: oklch(0.99 0.02 150);
+  --verdict-fail: oklch(0.55 0.22 27);
+  --verdict-fail-foreground: oklch(0.99 0.02 27);
+  --verdict-pending: oklch(0.7 0.14 65);
+  --verdict-pending-foreground: oklch(0.2 0.05 65);
 
-  --sidebar: oklch(0.2 0.02 262);
-  --sidebar-foreground: oklch(0.97 0.006 250);
-  --sidebar-primary: #ff6a3d;
-  --sidebar-primary-foreground: oklch(0.17 0.04 40);
-  --sidebar-accent: oklch(0.3 0.02 262);
-  --sidebar-accent-foreground: oklch(0.97 0.006 250);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: #ff6a3d;
+  --sidebar: oklch(0.98 0.008 85);
+  --sidebar-foreground: oklch(0.2 0.014 60);
+  --sidebar-primary: oklch(0.62 0.11 80);
+  --sidebar-primary-foreground: oklch(0.98 0.02 85);
+  --sidebar-accent: oklch(0.9 0.02 85);
+  --sidebar-accent-foreground: oklch(0.24 0.014 60);
+  --sidebar-border: oklch(0 0 0 / 10%);
+  --sidebar-ring: oklch(0.62 0.11 80);
 }
 
 @layer base {
@@ -185,10 +198,12 @@
   html {
     @apply font-sans;
   }
-  /* Display face is tightened at large sizes so headlines read as one block. */
+  /* Anton is a tall condensed poster face; a hair of negative tracking closes
+     up big uppercase lockups. Set headings uppercase at the component level. */
   h1,
-  h2 {
-    letter-spacing: -0.01em;
+  h2,
+  h3 {
+    letter-spacing: -0.005em;
   }
 }
 
@@ -202,48 +217,79 @@
 }
 
 /* ----------------------------------------------------------------------------
-   Named surface recipes. Prefer these over ad-hoc `rounded-xl border bg-card`.
+   Named surface recipes. Battle-stage: matte near-black panels, hairline gold
+   trim, hard edges, minimal radius. Prefer these over ad-hoc cards.
 ---------------------------------------------------------------------------- */
 
-/* broadcast panel — the primary content surface. Elevated, hairline-framed,
-   with an interior top highlight so it reads like lit studio equipment. */
+/* panel — the primary content surface: a matte stage panel with a hairline
+   gold border, a whisper of gold top-light, and a deep soft floor shadow so it
+   reads as lit set dressing, not a soft app card. */
 @utility panel {
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in oklch, var(--player-self) 40%, transparent);
   background: linear-gradient(
     180deg,
-    color-mix(in oklch, var(--card), white 4%),
+    color-mix(in oklch, var(--card), white 3%),
     var(--card)
   );
   box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 7%, transparent),
-    0 24px 48px -30px rgb(0 0 0 / 0.75);
+    inset 0 1px 0 0 color-mix(in oklch, var(--player-self) 16%, transparent),
+    0 30px 60px -40px rgb(0 0 0 / 0.85);
 }
 
-/* stat plate — recessed scoreboard tile for a single number + label. */
+/* stat-plate — a recessed matte plate for a single number + label. */
 @utility stat-plate {
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: color-mix(in oklch, var(--card), black 22%);
-  box-shadow: inset 0 1px 3px 0 rgb(0 0 0 / 0.35);
+  background: color-mix(in oklch, var(--card), black 25%);
+  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.4);
 }
 
-/* ticker — a full-width live status strip; mono, uppercase, wide-tracked. */
+/* ticker — a broadcast lower-third bar: mono, uppercase, wide-tracked, with a
+   thin gold rule along its top edge. Header/footer status strip for a HUD. */
 @utility ticker {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted-foreground);
-  background: color-mix(in oklch, var(--card), black 14%);
+  background: color-mix(in oklch, var(--card), black 22%);
   border-block: 1px solid var(--border);
+  border-top-color: color-mix(in oklch, var(--player-self) 42%, transparent);
 }
 
-/* Signature chamfer — clips the top-right and bottom-left corners so panels
-   read like broadcast HUD plates. Use sparingly, on hero/scoreboard surfaces. */
+/* spotlight — a warm overhead stage light. Layer behind hero content (-z-10);
+   the gold wash pools from the top-center and falls off into the stage dark. */
+@utility spotlight {
+  background: radial-gradient(
+    62% 52% at 50% -8%,
+    color-mix(in oklch, var(--player-self) 16%, transparent),
+    transparent 70%
+  );
+}
+
+/* stamp — a rubber-stamp / stencil frame for verdict moments ("BODIED.", an
+   AC/WA stencil). Upright, boxed, uppercase; caller sets the ink via text
+   color (e.g. `text-player-self`, `text-verdict-fail`). */
+@utility stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  border: 3px solid currentColor;
+  border-radius: var(--radius);
+  padding: 0.14em 0.4em;
+}
+
+/* Signature chamfer — clips two corners for the occasional poster plate.
+   Retained for existing race surfaces; use sparingly. */
 @utility clip-notch {
   clip-path: polygon(
     0 0,
