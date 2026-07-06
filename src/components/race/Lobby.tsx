@@ -61,6 +61,7 @@ export function Lobby({
   const [loading, setLoading] = useState(!initialSnapshot);
   const [error, setError] = useState<string | null>(null);
   const [readying, setReadying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [copied, setCopied] = useState(false);
   const [, forceTick] = useState(0);
   const notifiedActiveRef = useRef(false);
@@ -147,6 +148,31 @@ export function Lobby({
       toast.error(message);
     } finally {
       setReadying(false);
+    }
+  }
+
+  async function handleCancel() {
+    setCancelling(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/races/${raceId}/abort`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message = abortErrorMessage(data?.error);
+        setError(message);
+        toast.error(message);
+        if (data?.race) setSnapshot(data.race as RaceSnapshot);
+        return;
+      }
+      setSnapshot(data as RaceSnapshot);
+    } catch {
+      const message = "Couldn't cancel the race — check your connection and try again.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -245,6 +271,26 @@ export function Lobby({
               "Waiting for opponent…"
             ) : (
               "I'm ready"
+            )}
+          </Button>
+        )}
+
+        {(snapshot.status === "pending" || snapshot.status === "ready") && (
+          <Button
+            type="button"
+            variant="outline"
+            className="text-destructive"
+            onClick={handleCancel}
+            disabled={cancelling || readying}
+            data-testid="cancel-challenge-btn"
+          >
+            {cancelling ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                Cancelling…
+              </>
+            ) : (
+              "Cancel challenge"
             )}
           </Button>
         )}
@@ -367,5 +413,16 @@ function readyErrorMessage(error?: string): string {
       return "You are not a participant in this race.";
     default:
       return "Couldn't mark ready. Try again.";
+  }
+}
+
+function abortErrorMessage(error?: string): string {
+  switch (error) {
+    case "already_finished":
+      return "This race has already ended.";
+    case "not_participant":
+      return "You are not a participant in this race.";
+    default:
+      return "Couldn't cancel the race. Try again.";
   }
 }
