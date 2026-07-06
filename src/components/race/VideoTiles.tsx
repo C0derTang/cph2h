@@ -18,6 +18,12 @@
  * distinction needs history the pure classifier's instant-in-time view
  * can't see. This is purely a tile-level visual; race-level presence still
  * lives in RaceRoom's `PresenceWatcher` / disconnect-grace banner.
+ *
+ * Taunt bubble anchoring (issue #84): `selfTaunt`/`opponentTaunt` are
+ * optional so callers without the taunt feature wired up (or a race with no
+ * active taunt) render exactly as before. Each bubble is keyed on its
+ * `sentAt` so a same-sender replacement remounts `TauntBubble` fresh,
+ * restarting its pop-in + auto-dismiss timer.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -34,8 +40,28 @@ import {
 
 import { cn } from "@/lib/utils";
 import { classifyVideoLayout } from "@/lib/race/video-layout";
+import { TauntBubble } from "@/components/race/TauntBubble";
+import type { TauntBubbleState } from "@/lib/race/taunts";
 
-export function VideoTiles({ className }: { className?: string }) {
+export interface VideoTilesProps {
+  className?: string;
+  /** Active taunt bubble anchored to the local player's PiP tile, if any. */
+  selfTaunt?: TauntBubbleState | null;
+  /** Active taunt bubble anchored to the opponent's spotlight tile, if any. */
+  opponentTaunt?: TauntBubbleState | null;
+  /** Fired when the self bubble's display window elapses. */
+  onSelfTauntExpire?: () => void;
+  /** Fired when the opponent bubble's display window elapses. */
+  onOpponentTauntExpire?: () => void;
+}
+
+export function VideoTiles({
+  className,
+  selfTaunt,
+  opponentTaunt,
+  onSelfTauntExpire,
+  onOpponentTauntExpire,
+}: VideoTilesProps) {
   const tracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: true }],
     { onlySubscribed: false },
@@ -120,23 +146,46 @@ export function VideoTiles({ className }: { className?: string }) {
           </span>
         )}
 
+        {opponentTaunt && (
+          <TauntBubble
+            key={opponentTaunt.sentAt}
+            tauntId={opponentTaunt.tauntId}
+            anchor="opponent"
+            onExpire={() => onOpponentTauntExpire?.()}
+          />
+        )}
+
         <div
           data-testid="self-tile"
           // bottom-7 (not bottom-2) so the PiP corner clears the opponent name
           // chip's full-width bottom band (~22px tall) instead of clipping its
           // colored bar underneath (PR #77 review polish note, issue #70).
-          className="absolute right-2 bottom-7 aspect-video w-[30%] min-w-20 overflow-hidden rounded-md bg-muted/60 shadow-lg ring-2 ring-player-self"
+          // Not itself `overflow-hidden` (unlike the visual tile inside it) so
+          // the self taunt bubble — positioned `bottom-full` relative to this
+          // wrapper — can pop up above the PiP without being clipped.
+          className="absolute right-2 bottom-7 w-[30%] min-w-20"
         >
-          {pip?.live && isTrackReference(pip.track) ? (
-            <VideoTrack trackRef={pip.track} className="size-full object-cover" />
-          ) : (
-            <div className="flex size-full items-center justify-center text-muted-foreground">
-              <UserRound className="size-6" aria-hidden />
-            </div>
+          <div className="relative aspect-video size-full overflow-hidden rounded-md bg-muted/60 shadow-lg ring-2 ring-player-self">
+            {pip?.live && isTrackReference(pip.track) ? (
+              <VideoTrack trackRef={pip.track} className="size-full object-cover" />
+            ) : (
+              <div className="flex size-full items-center justify-center text-muted-foreground">
+                <UserRound className="size-6" aria-hidden />
+              </div>
+            )}
+            <span className="absolute inset-x-0 bottom-0 truncate bg-player-self/85 px-1 py-0.5 text-[9px] font-medium text-player-self-foreground">
+              You
+            </span>
+          </div>
+
+          {selfTaunt && (
+            <TauntBubble
+              key={selfTaunt.sentAt}
+              tauntId={selfTaunt.tauntId}
+              anchor="self"
+              onExpire={() => onSelfTauntExpire?.()}
+            />
           )}
-          <span className="absolute inset-x-0 bottom-0 truncate bg-player-self/85 px-1 py-0.5 text-[9px] font-medium text-player-self-foreground">
-            You
-          </span>
         </div>
       </div>
 

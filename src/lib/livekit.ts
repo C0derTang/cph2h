@@ -2,9 +2,22 @@
  * LiveKit server integration.
  *
  * Mints room-join tokens for race participants and publishes `RaceEvent`s
- * on the shared room data channel. Clients always get `canPublishData:
- * false` — only this server ever calls `RoomServiceClient.sendData`, so
- * clients cannot spoof race events (see `src/lib/types.ts`).
+ * on the shared room data channel. For every event type except `taunt`,
+ * this server is the sole publisher (`RoomServiceClient.sendData` below) —
+ * clients only ever *receive* them as refetch hints, they never author one.
+ *
+ * `taunt` events are the deliberate exception (issue #84): they're
+ * ephemeral, presentational, and sent directly client-to-client, so clients
+ * need `canPublishData: true` to publish them. This does mean a client
+ * *could* publish a forged non-taunt `RaceEvent`, but that's harmless by
+ * construction — every other event is only ever treated as a hint that
+ * triggers a `GET /api/races/[id]` refetch, which is read-only and
+ * idempotent (worst case: some wasted refetches). The one place a forged
+ * payload could matter is impersonating another player's taunt; the
+ * consumer (`RaceEvents` in `src/components/race/RaceRoom.tsx`) guards
+ * against that by trusting LiveKit's own `msg.from.identity` — assigned at
+ * token mint here, unforgeable by the client — over the payload's own
+ * `byUserId` field.
  */
 
 import { AccessToken, DataPacket_Kind, RoomServiceClient } from "livekit-server-sdk";
@@ -37,8 +50,9 @@ export interface MintTokenParams {
 
 /**
  * Mint a join token for a race participant. Grants audio/video
- * publish+subscribe but never data publish — the server is the sole
- * publisher of `RaceEvent`s on the room's data channel.
+ * publish+subscribe. Also grants data publish (`canPublishData: true`) so
+ * clients can send `taunt` `RaceEvent`s directly to each other (issue #84)
+ * — see the module doc above for why that's safe.
  */
 export async function mintToken({ room, identity, name }: MintTokenParams): Promise<string> {
   const at = new AccessToken(requireEnv("LIVEKIT_API_KEY"), requireEnv("LIVEKIT_API_SECRET"), {
@@ -50,7 +64,7 @@ export async function mintToken({ room, identity, name }: MintTokenParams): Prom
     room,
     canPublish: true,
     canSubscribe: true,
-    canPublishData: false,
+    canPublishData: true,
   });
   return at.toJwt();
 }

@@ -130,7 +130,7 @@ describe("POST /api/livekit/token", () => {
       room: "room-1",
       canPublish: true,
       canSubscribe: true,
-      canPublishData: false,
+      canPublishData: true,
     });
   });
 

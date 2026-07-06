@@ -48,6 +48,7 @@ import { RaceHUD } from "@/components/race/RaceHUD";
 import { VerdictFeed } from "@/components/race/VerdictFeed";
 import { ResultCard } from "@/components/race/ResultCard";
 import { VideoTiles } from "@/components/race/VideoTiles";
+import { TauntPicker } from "@/components/race/TauntPicker";
 import {
   CLIENT_POLL_INTERVAL_MS,
   LIVEKIT_DATA_TOPIC,
@@ -60,6 +61,7 @@ import {
   msUntilUnlock,
   nextRetryDelay,
 } from "@/lib/race/countdown";
+import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
 
 interface RaceRoomProps {
   raceId: string;
@@ -103,6 +105,7 @@ export function RaceRoom({
   const [forfeiting, setForfeiting] = useState(false);
   const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
+  const [taunts, setTaunts] = useState<TauntBubbles>({});
   const editorRef = useRef<CppEditorHandle>(null);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailuresRef = useRef(0);
@@ -408,6 +411,28 @@ export function RaceRoom({
     [drawActionPending, raceId, refetch, applySnapshot],
   );
 
+  // --- Taunts (issue #84) — purely presentational, never refetch-driven ---
+  // `handleTauntReceived` applies an opponent's (or, harmlessly, an echoed
+  // self-) taunt arriving over the LiveKit data channel; `handleTauntSent`
+  // applies this client's own bubble optimistically the instant it sends,
+  // since LiveKit never echoes a publisher's own data message back to it.
+  // `handleTauntExpire` clears a bubble once its display window elapses,
+  // guarded by `sentAt` so a stale timer can't clobber a newer replacement.
+  const handleTauntReceived = useCallback((byUserId: string, tauntId: string) => {
+    setTaunts((prev) => addTaunt(prev, byUserId, tauntId, Date.now()));
+  }, []);
+
+  const handleTauntSent = useCallback(
+    (tauntId: string) => {
+      setTaunts((prev) => addTaunt(prev, currentUserId, tauntId, Date.now()));
+    },
+    [currentUserId],
+  );
+
+  const handleTauntExpire = useCallback((byUserId: string, sentAt: number) => {
+    setTaunts((prev) => expireTaunt(prev, byUserId, sentAt));
+  }, []);
+
   // --- Opponent disconnect grace: only counts a *sustained* absence, so a
   // brief reconnect blip never flashes the banner. -------------------------
   const handlePresenceChange = useCallback((present: boolean) => {
@@ -595,6 +620,9 @@ export function RaceRoom({
     </section>
   );
 
+  const selfTaunt = taunts[currentUserId] ?? null;
+  const opponentTaunt = opponent ? taunts[opponent.id] ?? null : null;
+
   const rightRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
       {opponentOfferedDraw && (
@@ -668,11 +696,27 @@ export function RaceRoom({
         skewMs={skewMs}
       />
       {withVideo ? (
-        <VideoTiles />
+        <VideoTiles
+          selfTaunt={selfTaunt}
+          opponentTaunt={opponentTaunt}
+          onSelfTauntExpire={
+            selfTaunt
+              ? () => handleTauntExpire(currentUserId, selfTaunt.sentAt)
+              : undefined
+          }
+          onOpponentTauntExpire={
+            opponentTaunt && opponent
+              ? () => handleTauntExpire(opponent.id, opponentTaunt.sentAt)
+              : undefined
+          }
+        />
       ) : (
         <div className="panel p-4 text-xs text-muted-foreground">
           Video is unavailable.
         </div>
+      )}
+      {withVideo && (
+        <TauntPicker currentUserId={currentUserId} onSent={handleTauntSent} />
       )}
       <VerdictFeed
         submissions={snapshot.submissions}
@@ -755,7 +799,11 @@ export function RaceRoom({
           video
           className="flex min-h-0 flex-1 flex-col"
         >
-          <RaceEvents onEvent={refetch} onReconnected={refetch} />
+          <RaceEvents
+            onEvent={refetch}
+            onReconnected={refetch}
+            onTaunt={handleTauntReceived}
+          />
           {opponent && (
             <PresenceWatcher
               opponentId={opponent.id}
@@ -774,17 +822,40 @@ export function RaceRoom({
 /**
  * In-room listener: forwards LiveKit data-channel `RaceEvent`s (hints) and
  * (re)connections to the parent as snapshot-refetch triggers. Renders nothing.
+ *
+ * `taunt` events are the one exception (issue #84): they are purely
+ * presentational and MUST NOT trigger a snapshot refetch (spamming taunts
+ * would otherwise hammer `GET /api/races/[id]`), so they're filtered into
+ * `onTaunt` before the `onEvent` refetch path ever sees them. The sender
+ * identity is taken from LiveKit's own `msg.from` (assigned at token mint,
+ * unforgeable by the client) rather than trusted from the payload's
+ * `byUserId` field — clients can publish arbitrary data on this channel
+ * (see `mintToken` in `src/lib/livekit.ts`), so a forged `byUserId` must not
+ * be able to impersonate another player's bubble. A mismatch is dropped
+ * silently, same as any other malformed/unknown taunt payload.
  */
 function RaceEvents({
   onEvent,
   onReconnected,
+  onTaunt,
 }: {
   onEvent: () => void;
   onReconnected: () => void;
+  onTaunt: (byUserId: string, tauntId: string) => void;
 }) {
   useDataChannel(LIVEKIT_DATA_TOPIC, (msg) => {
-    // We only need to know an event arrived — the snapshot is authoritative.
-    if (decodeRaceEvent(msg.payload)) onEvent();
+    const event = decodeRaceEvent(msg.payload);
+    if (!event) return;
+    if (event.type === "taunt") {
+      const senderId = msg.from?.identity;
+      if (senderId && senderId === event.byUserId) {
+        onTaunt(event.byUserId, event.tauntId);
+      }
+      return;
+    }
+    // We only need to know a (non-taunt) event arrived — the snapshot is
+    // authoritative.
+    onEvent();
   });
 
   const connState = useConnectionState();
