@@ -34,8 +34,8 @@ function resultFor(snapshot: RaceSnapshot, userId: string): Result {
 }
 
 const HEADING: Record<Result, string> = {
-  win: "You won!",
-  loss: "You lost",
+  win: "Bodied.",
+  loss: "You got bodied.",
   draw: "Draw",
   aborted: "Race cancelled",
 };
@@ -86,13 +86,25 @@ export function ResultCard({
         </span>
       </div>
 
-      <div className="flex flex-col items-center gap-1.5 p-6 text-center">
-        <h2
-          data-testid="result-heading"
-          className="font-display text-2xl font-semibold tracking-tight"
-        >
-          {HEADING[result]}
-        </h2>
+      <div className="flex flex-col items-center gap-3 p-6 text-center">
+        {result === "win" || result === "loss" ? (
+          <h2
+            data-testid="result-heading"
+            className={cn(
+              "stamp text-3xl sm:text-4xl",
+              result === "win" ? "text-player-self" : "text-foreground",
+            )}
+          >
+            {HEADING[result]}
+          </h2>
+        ) : (
+          <h2
+            data-testid="result-heading"
+            className="font-display text-2xl tracking-tight uppercase"
+          >
+            {HEADING[result]}
+          </h2>
+        )}
         <p className="text-sm text-muted-foreground">{SUBHEADING[result]}</p>
       </div>
 
@@ -134,7 +146,7 @@ export function ResultCard({
           <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
             Winning submission
           </span>
-          <span className="font-display text-sm font-semibold tabular-nums">
+          <span className="font-mono text-sm font-semibold tabular-nums">
             {cfSubmissionUrl ? (
               <a
                 href={cfSubmissionUrl}
@@ -196,7 +208,7 @@ function PlayerResultTile({
     >
       <span
         className={cn(
-          "flex size-9 items-center justify-center rounded-md font-display text-sm font-bold",
+          "flex size-9 items-center justify-center font-display text-sm font-bold",
           isSelf
             ? "bg-player-self text-player-self-foreground"
             : "bg-player-opponent text-player-opponent-foreground",
@@ -209,7 +221,7 @@ function PlayerResultTile({
       </p>
       <p
         className={cn(
-          "font-display text-lg font-semibold tabular-nums",
+          "font-mono text-lg font-semibold tabular-nums",
           eloDelta != null && eloDelta > 0 && "text-verdict-ok",
           eloDelta != null && eloDelta < 0 && "text-verdict-fail",
         )}

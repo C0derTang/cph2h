@@ -165,7 +165,7 @@ export function VideoTiles({
           // wrapper — can pop up above the PiP without being clipped.
           className="absolute right-2 bottom-7 w-[30%] min-w-20"
         >
-          <div className="relative aspect-video size-full overflow-hidden rounded-md bg-muted/60 shadow-lg ring-2 ring-player-self">
+          <div className="relative aspect-video size-full overflow-hidden rounded-[var(--radius-sm)] bg-muted/60 shadow-lg ring-2 ring-player-self">
             {pip?.live && isTrackReference(pip.track) ? (
               <VideoTrack trackRef={pip.track} className="size-full object-cover" />
             ) : (
@@ -195,7 +195,7 @@ export function VideoTiles({
           showIcon={false}
           data-testid="toggle-mic"
           className={cn(
-            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background text-sm font-medium transition-colors hover:bg-muted",
+            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium transition-colors hover:bg-muted",
             !isMicrophoneEnabled && "text-destructive",
           )}
         >
@@ -211,7 +211,7 @@ export function VideoTiles({
           showIcon={false}
           data-testid="toggle-cam"
           className={cn(
-            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background text-sm font-medium transition-colors hover:bg-muted",
+            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium transition-colors hover:bg-muted",
             !isCameraEnabled && "text-destructive",
           )}
         >

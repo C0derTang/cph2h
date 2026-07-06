@@ -301,7 +301,7 @@ export function Lobby({
       </div>
 
       <div className="flex flex-col gap-1 p-5 pb-4">
-        <h2 className="flex items-center gap-2 font-display text-xl font-semibold tracking-tight">
+        <h2 className="flex items-center gap-2 font-display text-xl tracking-tight uppercase">
           <Swords className="size-4 text-player-self" aria-hidden />
           {statusHeading(snapshot, nowMs)}
         </h2>
@@ -315,24 +315,30 @@ export function Lobby({
           <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
             Starts in
           </span>
-          <span className="font-display text-6xl font-semibold tabular-nums">
+          <span className="font-mono text-6xl font-semibold tabular-nums">
             {secondsLeft}
           </span>
         </div>
       )}
 
-      <div className="relative grid gap-3 border-t border-border p-5 sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-border sm:p-0">
+      {/* VS poster lockup: champion (gold) vs challenger (crimson) corners
+          split by a thin gold rule, per docs/design.md. */}
+      <div className="relative grid gap-3 border-t border-border p-5 sm:grid-cols-2 sm:gap-0 sm:p-0">
         <div
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-1/2 z-10 hidden size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background font-display text-[11px] font-bold tracking-tight sm:flex"
+          className="absolute inset-y-6 left-1/2 hidden w-px -translate-x-1/2 bg-player-self/40 sm:block"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-1/2 z-10 hidden size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center border border-player-self/50 bg-background font-display text-sm tracking-wide text-player-self sm:flex"
         >
           VS
         </div>
-        <PlayerRow user={you} ready={youReady} label="You" variant="self" />
+        <PlayerRow user={you} ready={youReady} label="Champion" variant="self" />
         <PlayerRow
           user={opponent}
           ready={opponentReady}
-          label="Opponent"
+          label="Challenger"
           variant="opponent"
         />
       </div>
@@ -386,7 +392,7 @@ export function Lobby({
                 Marking ready…
               </>
             ) : youReady ? (
-              "Waiting for opponent…"
+              "They're stalling…"
             ) : (
               "I'm ready"
             )}
@@ -405,10 +411,10 @@ export function Lobby({
             {cancelling ? (
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Cancelling…
+                Throwing in the towel…
               </>
             ) : (
-              "Cancel challenge"
+              "Throw in the towel"
             )}
           </Button>
         )}
@@ -449,11 +455,12 @@ function PlayerRow({
   variant: "self" | "opponent";
 }) {
   const isSelf = variant === "self";
+  const identityText = isSelf ? "text-player-self" : "text-player-opponent";
   return (
     <div className="flex items-center gap-3 p-3 sm:p-5">
       <div
         className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-md font-display text-sm font-bold",
+          "flex size-9 shrink-0 items-center justify-center font-display text-sm font-bold",
           isSelf
             ? "bg-player-self text-player-self-foreground"
             : "bg-player-opponent text-player-opponent-foreground",
@@ -466,16 +473,23 @@ function PlayerRow({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+        <p
+          className={cn(
+            "font-mono text-[11px] font-semibold tracking-[0.18em] uppercase",
+            identityText,
+          )}
+        >
           {label}
         </p>
         {user ? (
-          <p className="truncate text-sm font-medium">
-            {user.username}{" "}
-            <span className="font-normal text-muted-foreground">
-              · {user.elo} elo
-            </span>
-          </p>
+          <>
+            <p className="truncate font-display text-lg tracking-tight uppercase">
+              {user.username}
+            </p>
+            <p className={cn("font-mono text-[13px] font-semibold tabular-nums", identityText)}>
+              {user.elo} elo
+            </p>
+          </>
         ) : (
           <p className="text-sm text-muted-foreground">Waiting to join…</p>
         )}
@@ -492,7 +506,7 @@ function PlayerRow({
 function statusHeading(snapshot: RaceSnapshot, nowMs: number): string {
   switch (snapshot.status) {
     case "pending":
-      return "Waiting for opponent";
+      return "They're stalling.";
     case "ready":
       return "Get ready";
     case "active": {
@@ -588,7 +602,7 @@ function selectionFailureMessage(
   switch (reason) {
     case "no_problems_in_filters":
       return hasFilters
-        ? "No problems match the current filters."
+        ? "No problems match. Widen the filters or keep hiding."
         : "Couldn't find a suitable problem — try again.";
     case "all_problems_seen":
       return hasFilters

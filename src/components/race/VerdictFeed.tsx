@@ -12,7 +12,6 @@
 
 import { CheckCircle2, Clock3, XCircle } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { RaceSubmissionInfo } from "@/lib/types";
 
@@ -58,16 +57,16 @@ export function VerdictFeed({
               const who = s.userId === currentUserId ? "You" : "Opponent";
               const pending = s.verdict == null;
               const accepted = isAccepted(s.verdict);
-              const variant = pending
-                ? "verdict-pending"
+              const tone = pending
+                ? "text-verdict-pending"
                 : accepted
-                  ? "verdict-ok"
-                  : "verdict-fail";
+                  ? "text-verdict-ok"
+                  : "text-verdict-fail";
               return (
                 <li
                   key={`${s.userId}-${s.submittedAt}`}
                   data-testid="verdict-item"
-                  className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-border bg-muted/20 px-2.5 py-1.5 text-xs"
+                  className="flex items-center justify-between gap-2 border border-border bg-muted/20 px-2.5 py-1.5 text-xs"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     {pending ? (
@@ -79,9 +78,11 @@ export function VerdictFeed({
                     )}
                     <span className="font-medium">{who}</span>
                   </span>
-                  <Badge variant={variant} className="font-mono">
+                  {/* Stencil/stamp verdict moment — data stays data (raw CF
+                      verdict string), only the frame is stamped. */}
+                  <span className={cn("stamp text-[10px]", tone)}>
                     {pending ? "judging…" : s.verdict}
-                  </Badge>
+                  </span>
                 </li>
               );
             })}

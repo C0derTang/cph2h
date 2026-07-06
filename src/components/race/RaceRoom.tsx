@@ -353,7 +353,7 @@ export function RaceRoom({
     if (
       typeof window !== "undefined" &&
       !window.confirm(
-        "Forfeit this race? Your opponent will be awarded the win.",
+        "Throw in the towel? Your opponent takes the win.",
       )
     ) {
       return;
@@ -364,7 +364,7 @@ export function RaceRoom({
       const data = (await res.json().catch(() => null)) as RaceSnapshot | null;
       if (res.ok && data && typeof data.status === "string") {
         applySnapshot(data);
-        toast.info("You forfeited the race.");
+        toast.info("You threw in the towel.");
       } else {
         toast.error("Couldn't forfeit — try again.");
       }
@@ -603,7 +603,7 @@ export function RaceRoom({
           ) : (
             <Flag aria-hidden />
           )}
-          {forfeiting ? "Forfeiting…" : "Forfeit"}
+          {forfeiting ? "Throwing in the towel…" : "Throw in the towel"}
         </Button>
       </div>
 
@@ -735,7 +735,7 @@ export function RaceRoom({
         </span>
         <h1
           data-testid="problem-title"
-          className="font-display text-lg font-semibold tracking-tight"
+          className="font-display text-lg tracking-tight uppercase"
         >
           {problem ? (
             <a
