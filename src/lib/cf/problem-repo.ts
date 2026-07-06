@@ -82,6 +82,13 @@ export async function upsertProblems(rows: NewProblem[]): Promise<number> {
           rating: sql`excluded.rating`,
           tags: sql`excluded.tags`,
           fetchedAt: sql`excluded.fetched_at`,
+          // COALESCE: a null incoming date must never clobber a known-good
+          // one. The cron/backfill rebuild rows from the FULL problemset each
+          // run and degrade to all-null dates when `contest.list` fails, so a
+          // plain `excluded.contest_started_at` would wipe every previously
+          // populated date on one transient CF hiccup. CF never un-dates a
+          // contest, so keeping the existing value on null is always correct.
+          contestStartedAt: sql`COALESCE(excluded.contest_started_at, ${problems.contestStartedAt})`,
         },
       });
   }

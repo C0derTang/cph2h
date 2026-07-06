@@ -138,6 +138,19 @@ export interface CfProblemsetResult {
   problems: CfProblem[];
 }
 
+/**
+ * Minimal shape we consume from CF `contest.list`. Kept local to this module
+ * (not in `src/lib/types.ts`) since it's only used for contest-date stamping.
+ * `startTimeSeconds` is absent for contests that haven't started yet (e.g.
+ * scheduled future contests).
+ */
+export interface CfContest {
+  id: number;
+  name: string;
+  phase: string;
+  startTimeSeconds?: number;
+}
+
 export function getUserInfo(handle: string): Promise<CfUserInfo[]> {
   return cfFetch<CfUserInfo[]>("user.info", { handles: handle });
 }
@@ -159,4 +172,9 @@ export function getUserStatus(
 
 export function getProblemset(): Promise<CfProblemsetResult> {
   return cfFetch<CfProblemsetResult>("problemset.problems");
+}
+
+/** CF `contest.list` (gym contests excluded) — used to derive contest start dates. */
+export function getContestList(): Promise<CfContest[]> {
+  return cfFetch<CfContest[]>("contest.list", { gym: "false" });
 }
