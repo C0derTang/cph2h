@@ -97,20 +97,25 @@
   --input: oklch(1 0 0 / 14%);
   --ring: oklch(0.82 0.12 90);
   --chart-1: oklch(0.82 0.12 90);
-  --chart-2: oklch(0.55 0.2 18);
+  --chart-2: oklch(0.64 0.19 18);
   --chart-3: oklch(0.75 0.16 150);
   --chart-4: oklch(0.76 0.15 65);
   --chart-5: oklch(0.6 0.02 75);
   --radius: 0.25rem; /* hard edges — minimal rounding */
 
-  /* Player identity — champion gold vs challenger crimson. */
+  /* Player identity — champion gold vs challenger crimson. Both identity inks
+     are bright enough to clear WCAG AA 4.5:1 as text on --background AND
+     --card (crimson: 5.36 / 5.00), and both -foreground pairs are dark inks on
+     the bright fills (5.28 on crimson, 10.94 on gold). Don't darken these for
+     text use — see docs/design.md "identity contrast rule". */
   --player-self: oklch(0.82 0.12 90);
   --player-self-foreground: oklch(0.17 0.02 80);
-  --player-opponent: oklch(0.55 0.2 18);
-  --player-opponent-foreground: oklch(0.98 0.02 20);
+  --player-opponent: oklch(0.64 0.19 18);
+  --player-opponent-foreground: oklch(0.16 0.03 20);
 
-  /* Verdict semantics. Fail red is hotter (hue ~27) than challenger crimson
-     (hue ~18) so a failing verdict never reads as the opponent's identity. */
+  /* Verdict semantics. Fail red is hotter (hue ~27, orange-lean) and more
+     saturated than the rosier challenger crimson (hue ~18) so a failing
+     verdict never reads as the opponent's identity. */
   --verdict-ok: oklch(0.75 0.16 150);
   --verdict-ok-foreground: oklch(0.16 0.04 155);
   --verdict-fail: oklch(0.62 0.22 27);

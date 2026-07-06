@@ -157,13 +157,24 @@ recipe) — the neutral `--border` is for plain dividers.
 | --- | --- | --- | --- | --- |
 | `--player-self` | `oklch(0.82 0.12 90)` | `oklch(0.66 0.12 82)` | Champion (gold) — you | `bg/text/border-player-self` |
 | `--player-self-foreground` | `oklch(0.17 0.02 80)` | `oklch(0.18 0.02 80)` | text on gold | `text-player-self-foreground` |
-| `--player-opponent` | `oklch(0.55 0.2 18)` | `oklch(0.5 0.2 18)` | Challenger (crimson) | `bg/text/border-player-opponent` |
-| `--player-opponent-foreground` | `oklch(0.98 0.02 20)` | `oklch(0.98 0.02 20)` | text on crimson | `text-player-opponent-foreground` |
+| `--player-opponent` | `oklch(0.64 0.19 18)` | `oklch(0.5 0.2 18)` | Challenger (crimson) | `bg/text/border-player-opponent` |
+| `--player-opponent-foreground` | `oklch(0.16 0.03 20)` | `oklch(0.98 0.02 20)` | text on crimson | `text-player-opponent-foreground` |
 
 Always put text on a filled identity chip with its `-foreground` pair, never
 `text-white`. Opacity modifiers are fine for rules/washes: `bg-player-self/10`,
 `border-player-self/40` (the gold rule between poster corners is
 `bg-player-self/40`).
+
+**Identity contrast rule (dark/stage).** Both identity inks are calibrated to
+clear WCAG AA 4.5:1 as *normal-size text* on the stage: crimson is 5.36:1 on
+`--background` and 5.00:1 on `--card` (gold: 11.33:1), so bare
+`text-player-self` / `text-player-opponent` labels are safe at any size on
+those two surfaces. Both `-foreground` pairs are **dark inks on bright fills**
+(5.28:1 on crimson, 10.94:1 on gold) — the two corners of a versus lockup
+follow the same pattern. Don't dim identity-colored *copy* with opacity
+(`text-player-opponent/70` fails; opacity is for rules and washes), and don't
+put identity-colored text on a surface darker than `--card` without
+re-checking 4.5:1.
 
 ### Verdict semantics — the single source for judge outcomes
 
@@ -178,12 +189,12 @@ race and dashboard code with these.
 | `--verdict-pending` | `oklch(0.76 0.15 65)` | `oklch(0.7 0.14 65)` | running / queued / awaiting | `text/bg-verdict-pending` |
 
 Each has a `-foreground` pair for text sitting on the filled color. Two identity
-clashes are handled by hue on purpose — **fail red (hue ~27) is hotter and
-brighter than Challenger crimson (hue ~18)**; **pending amber (hue ~65) leans
-warmer than Champion gold (hue ~90)** — but never lean on hue alone: verdict
-colors describe **what happened**, identity colors describe **who**. A pending
-opponent shows *Challenger crimson* for their name and *verdict-pending* for
-their status.
+clashes are handled by hue and saturation on purpose — **fail red (hue ~27) is
+hotter (orange-lean) and more saturated than the rosier Challenger crimson
+(hue ~18)**; **pending amber (hue ~65) leans warmer than Champion gold
+(hue ~90)** — but never lean on hue alone: verdict colors describe **what
+happened**, identity colors describe **who**. A pending opponent shows
+*Challenger crimson* for their name and *verdict-pending* for their status.
 
 ### Radius & fonts
 
