@@ -24,6 +24,22 @@ export const ELO_K_STANDARD = 32;
 export const ELO_FLOOR = 100;
 export const ELO_DEFAULT = 1200;
 
+/** Hard bounds for the challenge-creation rating filter (CF problem ratings). */
+export const PROBLEM_RATING_FLOOR = 800;
+export const PROBLEM_RATING_CEIL = 3500;
+
+/**
+ * How stale a user's imported CF solve history may be before the ready path
+ * triggers an incremental re-import (seconds). 6 hours.
+ */
+export const SOLVE_HISTORY_STALE_SEC = 21600;
+
+/**
+ * Retry delays for the client-side unlock refetch: fired at `startedAt`, then
+ * backed off until the snapshot carries the statement.
+ */
+export const UNLOCK_REFETCH_BACKOFF_MS = [500, 1000, 2000] as const;
+
 export const DEFAULT_CPP_TEMPLATE = `#include <bits/stdc++.h>
 using namespace std;
 
@@ -59,6 +75,38 @@ export interface SampleTest {
   input: string;
   output: string;
 }
+
+/**
+ * Challenger-chosen constraints on problem selection (direct-challenge flow
+ * only). All fields nullable — null means "no constraint". Rating bounds are
+ * multiples of 100 within [PROBLEM_RATING_FLOOR, PROBLEM_RATING_CEIL]; dates
+ * are ISO strings filtering on the problem's contest start date.
+ */
+export interface RaceProblemFilters {
+  ratingMin: number | null;
+  ratingMax: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+/**
+ * Why problem selection failed at both-ready:
+ * - `no_problems_in_filters` — no catalogued problem matches the filters.
+ * - `all_problems_seen` — matching problems exist but every one has been
+ *   attempted by at least one player.
+ */
+export type ProblemSelectionFailureReason =
+  | "no_problems_in_filters"
+  | "all_problems_seen";
+
+/**
+ * Result contract for the `selectRaceProblem` hook. On failure the ready
+ * route must NOT transition the race to active; it resets ready flags and
+ * persists the reason for the snapshot.
+ */
+export type SelectProblemResult =
+  | { ok: true; problemId: ProblemId }
+  | { ok: false; reason: ProblemSelectionFailureReason };
 
 export interface ProblemStatement {
   problemId: ProblemId;
@@ -98,6 +146,12 @@ export interface RaceSubmissionInfo {
 
 export interface RaceSnapshot {
   id: string;
+  /**
+   * Server clock (ISO) at snapshot-build time. Clients compute
+   * `skewMs = localReceiveTime - Date.parse(now)` and use skew-corrected time
+   * for countdowns and the unlock refetch timer — never raw `Date.now()`.
+   */
+  now: string;
   status: RaceStatus;
   p1: PublicUser;
   p2: PublicUser | null;
@@ -125,6 +179,13 @@ export interface RaceSnapshot {
    * on decline, withdraw, or when the race ends.
    */
   drawOfferBy: string | null;
+  /** Challenger-chosen problem filters; null when the race has none. */
+  filters: RaceProblemFilters | null;
+  /**
+   * Set when the last both-ready attempt could not select a problem (race
+   * stays in the lobby with ready flags reset). Null otherwise.
+   */
+  problemSelectionFailedReason: ProblemSelectionFailureReason | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +214,9 @@ export type RaceEvent =
     }
   | { type: "aborted"; byUserId: string }
   | { type: "draw_offered"; byUserId: string }
-  | { type: "draw_declined"; byUserId: string };
+  | { type: "draw_declined"; byUserId: string }
+  | { type: "problem_selection_failed"; reason: ProblemSelectionFailureReason }
+  | { type: "filters_updated" };
 
 export function encodeRaceEvent(event: RaceEvent): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(event));

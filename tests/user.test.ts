@@ -50,6 +50,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     elo: 1200,
     racesPlayed: 0,
     cppTemplate: "",
+    solveHistorySyncedAt: null,
     createdAt: null,
     ...overrides,
   };

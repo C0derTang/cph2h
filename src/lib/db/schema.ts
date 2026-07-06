@@ -56,6 +56,14 @@ export const users = pgTable("users", {
   elo: integer("elo").notNull().default(1200),
   racesPlayed: integer("races_played").notNull().default(0),
   cppTemplate: text("cpp_template").notNull().default(DEFAULT_CPP_TEMPLATE),
+  /**
+   * Last time this user's CF solve history was imported into `user_problems`.
+   * Null = never (full import pending). Drives incremental refresh at ready
+   * time so problem exclusion stays fresh.
+   */
+  solveHistorySyncedAt: timestamp("solve_history_synced_at", {
+    withTimezone: true,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -89,16 +97,30 @@ export const handleVerifications = pgTable("handle_verifications", {
 // Problems
 // ---------------------------------------------------------------------------
 
-export const problems = pgTable("problems", {
-  /** e.g. "1794C" — see `problemIdOf` in src/lib/types.ts. */
-  id: text("id").primaryKey(),
-  contestId: integer("contest_id").notNull(),
-  index: text("index").notNull(),
-  name: text("name").notNull(),
-  rating: integer("rating").notNull(),
-  tags: jsonb("tags").notNull().$type<string[]>(),
-  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
-});
+export const problems = pgTable(
+  "problems",
+  {
+    /** e.g. "1794C" — see `problemIdOf` in src/lib/types.ts. */
+    id: text("id").primaryKey(),
+    contestId: integer("contest_id").notNull(),
+    index: text("index").notNull(),
+    name: text("name").notNull(),
+    rating: integer("rating").notNull(),
+    tags: jsonb("tags").notNull().$type<string[]>(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+    /**
+     * Contest start time from CF `contest.list`; null when unknown (e.g. gym).
+     * Problems with a null date are excluded when a race has a date filter.
+     */
+    contestStartedAt: timestamp("contest_started_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("problems_rating_contest_started_at_idx").on(
+      t.rating,
+      t.contestStartedAt,
+    ),
+  ],
+);
 
 export const problemStatements = pgTable("problem_statements", {
   problemId: text("problem_id")
@@ -144,6 +166,21 @@ export const races = pgTable(
     p2Ready: boolean("p2_ready").notNull().default(false),
     problemId: text("problem_id").references(() => problems.id),
     timeLimitSec: integer("time_limit_sec").notNull().default(2400),
+    /**
+     * Challenger-chosen problem filters (direct-challenge flow only; null =
+     * no filter, matchmaking races leave all four null). Hard constraints on
+     * problem selection at ready time.
+     */
+    ratingMin: integer("rating_min"),
+    ratingMax: integer("rating_max"),
+    problemDateFrom: timestamp("problem_date_from", { withTimezone: true }),
+    problemDateTo: timestamp("problem_date_to", { withTimezone: true }),
+    /**
+     * Why the last both-ready attempt failed to select a problem (values from
+     * `ProblemSelectionFailureReason` in src/lib/types.ts); null when the last
+     * attempt succeeded or none was made. Cleared when readying re-attempts.
+     */
+    problemSelectionFailedReason: text("problem_selection_failed_reason"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     endsAt: timestamp("ends_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),

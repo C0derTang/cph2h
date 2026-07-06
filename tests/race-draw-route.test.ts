@@ -102,6 +102,11 @@ function makeRace(overrides: Partial<Race> = {}): Race {
     eloDeltaP1: null,
     eloDeltaP2: null,
     lastPolledAt: null,
+    ratingMin: null,
+    ratingMax: null,
+    problemDateFrom: null,
+    problemDateTo: null,
+    problemSelectionFailedReason: null,
     livekitRoom: "room-1",
     drawOfferBy: null,
     createdAt: null,
@@ -145,6 +150,7 @@ beforeEach(() => {
       elo: 1200,
       racesPlayed: 3,
       cppTemplate: "",
+      solveHistorySyncedAt: null,
       createdAt: null,
     },
   });
@@ -185,7 +191,7 @@ describe("POST /api/races/[id]/draw — offer", () => {
   it("returns 403 not_participant for an outsider", async () => {
     requireLinkedUserMock.mockResolvedValue({
       ok: true,
-      user: { id: OUTSIDER, clerkId: "clerk-out", username: "out", cfHandle: null, cfRating: null, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 0, cppTemplate: "", createdAt: null },
+      user: { id: OUTSIDER, clerkId: "clerk-out", username: "out", cfHandle: null, cfRating: null, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 0, cppTemplate: "", solveHistorySyncedAt: null, createdAt: null },
     });
     queueSelects([[makeRace()]]);
 
@@ -229,7 +235,7 @@ describe("POST /api/races/[id]/draw — accept", () => {
     });
     requireLinkedUserMock.mockResolvedValue({
       ok: true,
-      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
+      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", solveHistorySyncedAt: null, createdAt: null },
     });
     queueSelects([[offered], [finished]]);
     // The CAS claim finds the still-valid offer and clears it.
@@ -262,7 +268,7 @@ describe("POST /api/races/[id]/draw — accept", () => {
     const withdrawn = makeRace({ drawOfferBy: null }); // active, no offer
     requireLinkedUserMock.mockResolvedValue({
       ok: true,
-      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
+      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", solveHistorySyncedAt: null, createdAt: null },
     });
     queueSelects([[stillOffered], [withdrawn]]);
     dbState.updateReturning = []; // CAS lost — offer already gone
@@ -280,7 +286,7 @@ describe("POST /api/races/[id]/draw — accept", () => {
     const ended = makeRace({ drawOfferBy: null, status: "finished" });
     requireLinkedUserMock.mockResolvedValue({
       ok: true,
-      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
+      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", solveHistorySyncedAt: null, createdAt: null },
     });
     queueSelects([[stillOffered], [ended]]);
     dbState.updateReturning = []; // CAS lost — race no longer active
@@ -305,7 +311,7 @@ describe("POST /api/races/[id]/draw — accept", () => {
   it("rejects accepting when there is no outstanding offer", async () => {
     requireLinkedUserMock.mockResolvedValue({
       ok: true,
-      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
+      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", solveHistorySyncedAt: null, createdAt: null },
     });
     queueSelects([[makeRace({ drawOfferBy: null })]]);
 
@@ -319,7 +325,7 @@ describe("POST /api/races/[id]/draw — accept", () => {
   it("returns 403 not_participant for an outsider", async () => {
     requireLinkedUserMock.mockResolvedValue({
       ok: true,
-      user: { id: OUTSIDER, clerkId: "clerk-out", username: "out", cfHandle: null, cfRating: null, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 0, cppTemplate: "", createdAt: null },
+      user: { id: OUTSIDER, clerkId: "clerk-out", username: "out", cfHandle: null, cfRating: null, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 0, cppTemplate: "", solveHistorySyncedAt: null, createdAt: null },
     });
     queueSelects([[makeRace({ drawOfferBy: P1 })]]);
 
@@ -335,7 +341,7 @@ describe("POST /api/races/[id]/draw — decline", () => {
     const race = makeRace({ drawOfferBy: P1 });
     requireLinkedUserMock.mockResolvedValue({
       ok: true,
-      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", createdAt: null },
+      user: { id: P2, clerkId: "clerk-p2", username: "p2", cfHandle: "p2cf", cfRating: 1400, cfLinkedAt: new Date(), elo: 1200, racesPlayed: 3, cppTemplate: "", solveHistorySyncedAt: null, createdAt: null },
     });
     queueSelects([[race]]);
     dbState.updateReturning = [{ ...race, drawOfferBy: null }];

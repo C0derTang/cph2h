@@ -20,8 +20,10 @@ import {
 import {
   problemUrl,
   type ProblemRef,
+  type ProblemSelectionFailureReason,
   type ProblemStatement,
   type PublicUser,
+  type RaceProblemFilters,
   type RaceSnapshot,
   type RaceSubmissionInfo,
 } from "@/lib/types";
@@ -106,8 +108,23 @@ export async function buildRaceSnapshot(
     }
   }
 
+  const hasFilters =
+    race.ratingMin !== null ||
+    race.ratingMax !== null ||
+    race.problemDateFrom !== null ||
+    race.problemDateTo !== null;
+  const filters: RaceProblemFilters | null = hasFilters
+    ? {
+        ratingMin: race.ratingMin,
+        ratingMax: race.ratingMax,
+        dateFrom: race.problemDateFrom?.toISOString() ?? null,
+        dateTo: race.problemDateTo?.toISOString() ?? null,
+      }
+    : null;
+
   return {
     id: race.id,
+    now: now.toISOString(),
     status: race.status,
     p1,
     p2,
@@ -127,6 +144,10 @@ export async function buildRaceSnapshot(
     livekitRoom: race.livekitRoom,
     challengeToken: race.challengeToken,
     drawOfferBy: race.drawOfferBy ?? null,
+    filters,
+    problemSelectionFailedReason:
+      (race.problemSelectionFailedReason as ProblemSelectionFailureReason | null) ??
+      null,
   };
 }
 
