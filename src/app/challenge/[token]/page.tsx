@@ -92,15 +92,15 @@ export default async function JoinChallengePage({
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
       <p className="font-mono text-xs text-muted-foreground">
-        <span className="text-primary">$</span> cd ~/cph2h/challenge/{token}
+        <span className="text-player-self">$</span> cd ~/cph2h/challenge/{token}
       </p>
 
       <div className="mt-6 flex items-start gap-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-primary">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
           <Swords className="size-5" aria-hidden />
         </div>
         <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">
+          <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
             You&apos;ve been challenged
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
@@ -133,11 +133,11 @@ function ChallengeMessage({
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
       <div className="mt-6 flex items-start gap-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-destructive">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 text-destructive">
           <Link2Off className="size-5" aria-hidden />
         </div>
         <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">
+          <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
             {title}
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">

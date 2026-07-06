@@ -15,13 +15,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Swords, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { QUEUE_POLL_INTERVAL_MS, type QueueStatusResponse } from "@/lib/types";
 
 type Phase = "idle" | "searching" | "matched" | "error";
@@ -147,15 +140,15 @@ export default function QueuePage() {
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
       <p className="font-mono text-xs text-muted-foreground">
-        <span className="text-primary">$</span> cd ~/cph2h/queue
+        <span className="text-player-self">$</span> cd ~/cph2h/queue
       </p>
 
       <div className="mt-6 flex items-start gap-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-primary">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
           <Swords className="size-5" aria-hidden />
         </div>
         <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">
+          <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
             Find a race
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
@@ -165,30 +158,29 @@ export default function QueuePage() {
         </div>
       </div>
 
-      <Card className="mt-10">
-        <CardHeader>
-          <CardTitle>
-            {searching ? "Searching for an opponent…" : "Ready when you are"}
-          </CardTitle>
-          <CardDescription>
-            {searching
-              ? "Keep this tab open — you'll be dropped into the race automatically."
-              : "We'll pair you with someone close to your Elo, then start a countdown."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-6">
+      <div className="panel mt-10 p-5">
+        <p className="font-display text-lg tracking-tight uppercase">
+          {searching ? "Searching for an opponent…" : "Ready when you are"}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {searching
+            ? "Keep this tab open — you'll be dropped into the race automatically."
+            : "We'll pair you with someone close to your Elo, then start a countdown."}
+        </p>
+
+        <div className="mt-6 flex flex-col gap-6">
           {searching && (
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-border bg-muted/30 p-4">
-                <p className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+              <div className="stat-plate p-4">
+                <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
                   Elapsed
                 </p>
                 <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
                   {formatElapsed(waitedSec)}
                 </p>
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-4">
-                <p className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+              <div className="stat-plate p-4">
+                <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
                   Rating band
                 </p>
                 <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
@@ -240,8 +232,8 @@ export default function QueuePage() {
               </>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </main>
   );
 }

@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * Client half of the create-challenge page (issue #16). Calls `POST
- * /api/races` (issue #7) — the only place a challenge race is actually
- * created — then shows the returned `joinUrl` with a copy button and a link
- * into the race room, where the new `Lobby` component takes over.
+ * Shared challenge-creation form (issue #16; extracted to a standalone
+ * component in issue #89 so the Play hub and the slim `/challenge/new` route
+ * can both render it inline). Calls `POST /api/races` (issue #7) — the only
+ * place a challenge race is actually created — then shows the returned
+ * `joinUrl` with a copy button and a link into the race room, where the
+ * `Lobby` component takes over.
  *
  * Issue #64 adds optional problem filters: a rating-range picker and a
  * contest-date preset/custom-range picker. Filter values are omitted from the

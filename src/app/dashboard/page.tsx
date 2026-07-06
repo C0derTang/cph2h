@@ -6,10 +6,11 @@ import { eq, or, and, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Stat } from "@/components/ui/stat";
-import { ExternalLink, Link2, TrendingUp, TrendingDown } from "lucide-react";
+import { ExternalLink, Link2, Swords, TrendingUp, TrendingDown } from "lucide-react";
 import { formatOutcome, formatEloDelta } from "@/lib/format";
 import { ensureUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
+import { NewChallengeForm } from "@/components/challenge/new-challenge-form";
 import type { RaceOutcome } from "@/lib/types";
 
 async function getRecentRaces(userId: string) {
@@ -137,8 +138,8 @@ function ErrorDisplay() {
   return (
     <div className="shell py-12">
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <h1 className="font-display text-2xl font-semibold">
-          Error loading dashboard
+        <h1 className="font-display text-2xl tracking-tight uppercase">
+          Error loading the hub
         </h1>
         <p className="text-muted-foreground">Please try again later</p>
         <Button
@@ -157,7 +158,7 @@ function LinkCfBanner() {
   return (
     <div className="panel mb-8 flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-player-self/40 bg-player-self/10 text-player-self">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
           <Link2 className="size-4" aria-hidden />
         </div>
         <div>
@@ -174,7 +175,40 @@ function LinkCfBanner() {
   );
 }
 
-function DashboardContent({
+/**
+ * Quick-match entry point — the other half of the PLAY hero alongside the
+ * inline challenge form. It doesn't replicate the queue's polling waiting
+ * room (`src/app/queue/page.tsx`); it just drops you into it.
+ */
+function QuickMatchPanel() {
+  return (
+    <div className="panel flex h-full flex-col justify-between gap-6 p-5">
+      <div>
+        <div className="flex size-9 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
+          <Swords className="size-4" aria-hidden />
+        </div>
+        <h2 className="mt-3 font-display text-lg tracking-tight uppercase">
+          Quick match
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+          We match you with someone close to your rating, usually in
+          seconds. Cameras on, same clock, same problem.
+        </p>
+      </div>
+      <Button
+        render={<Link href="/queue" />}
+        nativeButton={false}
+        size="lg"
+        className="w-full sm:w-auto"
+      >
+        <Swords aria-hidden />
+        Find a race
+      </Button>
+    </div>
+  );
+}
+
+function PlayHubContent({
   user,
   recentRaces,
   eloHistoryData,
@@ -198,10 +232,10 @@ function DashboardContent({
   return (
     <div className="shell py-8">
       <div className="mb-8">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Dashboard
+        <h1 className="font-display text-4xl tracking-tight uppercase md:text-5xl">
+          Play
         </h1>
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted-foreground">
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted-foreground">
           <span>{user.username}</span>
           {user.cfHandle ? (
             <>
@@ -227,137 +261,141 @@ function DashboardContent({
 
       {!user.cfHandle && <LinkCfBanner />}
 
-      {/* Scoreboard tiles */}
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat
-          label="Elo"
-          value={user.elo}
-          hint={isProvisional ? `Provisional ${user.racesPlayed}/10` : "Ranked"}
+      {/* PLAY — the hero. Quick match and challenge-a-friend, front and
+          center, with the full filter form inline (issue #89). */}
+      <section className="relative mb-12">
+        <div
+          aria-hidden
+          className="spotlight pointer-events-none absolute inset-0 -z-10"
         />
-        <Stat
-          label="CF Rating"
-          value={user.cfRating ?? "—"}
-          hint={user.cfHandle ?? "not linked"}
-        />
-        <Stat label="Races Played" value={user.racesPlayed} />
-        <Stat
-          label="Record"
-          value={`${record.wins}-${record.losses}`}
-          hint={
-            record.draws > 0
-              ? `last ${recentRaces.length} · ${record.draws} draw${record.draws === 1 ? "" : "s"}`
-              : `last ${recentRaces.length}`
-          }
-        />
-      </div>
-
-      {/* Elo History */}
-      <div className="panel mb-8 p-5">
-        <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-          Elo History
-        </p>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {eloHistoryData.length > 0
-            ? `Last ${eloHistoryData.length} races`
-            : "No races yet"}
-        </p>
-        {eloHistoryData.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            <EloSparkline history={eloHistoryData} />
-            <div className="font-mono text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground tabular-nums">
-                {eloHistoryData[0].eloAfter}
-              </span>{" "}
-              (current) &rarr;{" "}
-              <span className="tabular-nums">
-                {eloHistoryData[eloHistoryData.length - 1].eloAfter}
-              </span>{" "}
-              (oldest)
-            </div>
-          </div>
-        ) : (
-          <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-            Complete your first race to see your Elo progression
-          </div>
-        )}
-      </div>
-
-      {/* Recent Races */}
-      <div>
-        <p className="mb-3 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-          Race History
-        </p>
-
-        {recentRaces.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {recentRaces.map((race) => {
-              const isP1 = race.p1Id === user.id;
-              const opponent = isP1 ? race.p2User : race.p1User;
-              const eloDelta = isP1 ? race.eloDeltaP1 : race.eloDeltaP2;
-              const outcome = formatOutcome(race.outcome, isP1);
-              const isGain = eloDelta != null && eloDelta > 0;
-              const deltaTone = isGain ? "text-verdict-ok" : "text-verdict-fail";
-
-              return (
-                <li
-                  key={race.id}
-                  className="panel flex items-center justify-between gap-4 px-4 py-3"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-player-opponent font-display text-xs font-bold text-player-opponent-foreground">
-                      {(opponent?.username ?? "?").charAt(0).toUpperCase()}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {opponent?.username ?? "Unknown"}
-                      </p>
-                      <p className="font-mono text-[11px] text-muted-foreground">
-                        {race.finishedAt
-                          ? new Date(race.finishedAt).toLocaleDateString()
-                          : "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-3">
-                    <Badge variant={outcomeBadgeVariant(outcome)}>
-                      {outcome}
-                    </Badge>
-                    <span
-                      className={cn(
-                        "flex items-center gap-1 font-display text-sm font-semibold tabular-nums",
-                        deltaTone
-                      )}
-                    >
-                      {isGain ? (
-                        <TrendingUp className="size-3" />
-                      ) : (
-                        <TrendingDown className="size-3" />
-                      )}
-                      {formatEloDelta(eloDelta)}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div className="panel flex items-center justify-center py-8 text-muted-foreground">
-            Complete your first race to see your history
-          </div>
-        )}
-      </div>
-
-      {recentRaces.length === 0 && (
-        <div className="mt-6 text-center">
-          <Button
-            render={<Link href="/queue" />}
-            nativeButton={false}
-          >
-            Start Your First Race
-          </Button>
+        <div className="grid items-start gap-4 md:grid-cols-2">
+          <QuickMatchPanel />
+          <NewChallengeForm />
         </div>
-      )}
+      </section>
+
+      {/* Supporting cast: stats + history, demoted below the fold. */}
+      <section className="border-t border-border pt-8">
+        <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat
+            label="Elo"
+            value={user.elo}
+            hint={isProvisional ? `Provisional ${user.racesPlayed}/10` : "Ranked"}
+          />
+          <Stat
+            label="CF Rating"
+            value={user.cfRating ?? "—"}
+            hint={user.cfHandle ?? "not linked"}
+          />
+          <Stat label="Races Played" value={user.racesPlayed} />
+          <Stat
+            label="Record"
+            value={`${record.wins}-${record.losses}`}
+            hint={
+              record.draws > 0
+                ? `last ${recentRaces.length} · ${record.draws} draw${record.draws === 1 ? "" : "s"}`
+                : `last ${recentRaces.length}`
+            }
+          />
+        </div>
+
+        {/* Elo History */}
+        <div className="panel mb-8 p-5">
+          <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            Elo history
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {eloHistoryData.length > 0
+              ? `Last ${eloHistoryData.length} races`
+              : "No races yet"}
+          </p>
+          {eloHistoryData.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              <EloSparkline history={eloHistoryData} />
+              <div className="font-mono text-[11px] text-muted-foreground">
+                <span className="font-semibold text-foreground tabular-nums">
+                  {eloHistoryData[0].eloAfter}
+                </span>{" "}
+                (current) &rarr;{" "}
+                <span className="tabular-nums">
+                  {eloHistoryData[eloHistoryData.length - 1].eloAfter}
+                </span>{" "}
+                (oldest)
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+              Complete your first race to see your Elo progression
+            </div>
+          )}
+        </div>
+
+        {/* Recent Races */}
+        <div>
+          <p className="mb-3 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            Recent races
+          </p>
+
+          {recentRaces.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {recentRaces.map((race) => {
+                const isP1 = race.p1Id === user.id;
+                const opponent = isP1 ? race.p2User : race.p1User;
+                const eloDelta = isP1 ? race.eloDeltaP1 : race.eloDeltaP2;
+                const outcome = formatOutcome(race.outcome, isP1);
+                const isGain = eloDelta != null && eloDelta > 0;
+                const deltaTone = isGain ? "text-verdict-ok" : "text-verdict-fail";
+
+                return (
+                  <li
+                    key={race.id}
+                    className="panel flex items-center justify-between gap-4 px-4 py-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius)] bg-player-opponent font-display text-xs font-bold text-player-opponent-foreground">
+                        {(opponent?.username ?? "?").charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {opponent?.username ?? "Unknown"}
+                        </p>
+                        <p className="font-mono text-[11px] text-muted-foreground">
+                          {race.finishedAt
+                            ? new Date(race.finishedAt).toLocaleDateString()
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-3">
+                      <Badge variant={outcomeBadgeVariant(outcome)}>
+                        {outcome}
+                      </Badge>
+                      <span
+                        className={cn(
+                          "flex items-center gap-1 font-display text-sm font-semibold tabular-nums",
+                          deltaTone
+                        )}
+                      >
+                        {isGain ? (
+                          <TrendingUp className="size-3" />
+                        ) : (
+                          <TrendingDown className="size-3" />
+                        )}
+                        {formatEloDelta(eloDelta)}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="panel flex items-center justify-center py-8 text-muted-foreground">
+              Complete your first race to see your history
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -388,7 +426,7 @@ export default async function DashboardPage() {
     const historyData = await getEloHistory(user.id);
     eloHistoryData = historyData.map((h) => ({ eloAfter: h.eloAfter }));
   } catch (error) {
-    console.error("Error loading dashboard:", error);
+    console.error("Error loading the play hub:", error);
     errorOccurred = true;
   }
 
@@ -397,7 +435,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <DashboardContent
+    <PlayHubContent
       user={user}
       recentRaces={recentRaces}
       eloHistoryData={eloHistoryData}
