@@ -5,17 +5,18 @@
  * `CRON_SECRET` — see `src/proxy.ts`, which exempts `/api/cron/*` from Clerk
  * auth in favor of this bearer check.
  *
- * NOTE on scope: the CF `problemset.problems` payload does not include
- * contest start times, so the issue's optional "contest-age > 30 days"
- * candidate filter is intentionally omitted here — there's no data to filter
- * on without a separate `contest.list` fetch, which is out of scope for this
- * issue.
+ * CF `problemset.problems` doesn't include contest start times, so we also
+ * fetch `contest.list` and stamp each row's `contestStartedAt` from it (see
+ * `src/lib/cf/contest-dates.ts`). If `contest.list` fails, we degrade to an
+ * empty date map — every row gets a null `contestStartedAt` rather than
+ * failing the whole sync.
  */
 
 import { NextResponse } from "next/server";
-import { getProblemset } from "@/lib/cf/client";
+import { getContestList, getProblemset } from "@/lib/cf/client";
+import { buildContestDateMap, stampContestStartedAt } from "@/lib/cf/contest-dates";
+import type { ProblemWithoutContestDate } from "@/lib/cf/contest-dates";
 import { upsertProblems } from "@/lib/cf/problem-repo";
-import type { NewProblem } from "@/lib/db/schema";
 import { problemIdOf } from "@/lib/types";
 
 function isAuthorized(request: Request): boolean {
@@ -34,7 +35,16 @@ export async function GET(request: Request) {
   const { problems: cfProblems } = await getProblemset();
   const fetchedAt = new Date();
 
-  const rows: NewProblem[] = [];
+  let contestDates: Map<number, Date>;
+  try {
+    const contests = await getContestList();
+    contestDates = buildContestDateMap(contests);
+  } catch (error) {
+    console.error("contest.list fetch failed; contestStartedAt will be null this run:", error);
+    contestDates = new Map();
+  }
+
+  const rows: ProblemWithoutContestDate[] = [];
   let skipped = 0;
   for (const problem of cfProblems) {
     if (typeof problem.rating !== "number") {
@@ -52,7 +62,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const upserted = await upsertProblems(rows);
+  const upserted = await upsertProblems(stampContestStartedAt(rows, contestDates));
 
   return NextResponse.json({ ok: true, upserted, skipped });
 }

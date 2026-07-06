@@ -82,6 +82,7 @@ export async function upsertProblems(rows: NewProblem[]): Promise<number> {
           rating: sql`excluded.rating`,
           tags: sql`excluded.tags`,
           fetchedAt: sql`excluded.fetched_at`,
+          contestStartedAt: sql`excluded.contest_started_at`,
         },
       });
   }
