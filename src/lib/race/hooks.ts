@@ -18,7 +18,13 @@ import { pickProblem, targetRating } from "@/lib/cf/problem-picker";
 import { getOrScrapeStatement } from "@/lib/cf/statements";
 import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
 import { finishRace as finishRaceImpl } from "@/lib/race/finish";
-import type { ProblemId, RaceEvent, SelectProblemResult } from "@/lib/types";
+import {
+  PROBLEM_RATING_CEIL,
+  PROBLEM_RATING_FLOOR,
+  type ProblemId,
+  type RaceEvent,
+  type SelectProblemResult,
+} from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // #6 / #9 — problem selection (+ statement pre-cache)
@@ -81,10 +87,18 @@ export const selectRaceProblem: SelectRaceProblem = async (race) => {
   const filterMin = race.ratingMin;
   const filterMax = race.ratingMax;
 
-  // Fetch range: the target window, extended to the full filter range on any
-  // side a filter bound is set (so the picker sees every conforming problem).
-  const fetchMin = filterMin ?? target - CANDIDATE_BAND_LOW;
-  const fetchMax = filterMax ?? target + CANDIDATE_BAND_HIGH;
+  // Fetch range: with NO rating filter, the target's maximal widening window.
+  // With ANY rating bound set, the FULL filter rating range — an unset side
+  // defaults to the global floor/ceiling, never the target band, so a
+  // single-sided filter far from the target can't truncate (or invert) the
+  // range and misreport `no_problems_in_filters`.
+  const hasRatingFilter = filterMin !== null || filterMax !== null;
+  const fetchMin = hasRatingFilter
+    ? filterMin ?? PROBLEM_RATING_FLOOR
+    : target - CANDIDATE_BAND_LOW;
+  const fetchMax = hasRatingFilter
+    ? filterMax ?? PROBLEM_RATING_CEIL
+    : target + CANDIDATE_BAND_HIGH;
 
   const candidates = await getCandidatesInBand(fetchMin, fetchMax, {
     dateFrom: race.problemDateFrom,

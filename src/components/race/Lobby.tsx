@@ -521,15 +521,26 @@ function filtersErrorMessage(error?: string): string {
   }
 }
 
-/** Human-readable copy for a problem-selection failure. */
-function selectionFailureMessage(reason: ProblemSelectionFailureReason): string {
+/**
+ * Human-readable copy for a problem-selection failure. `hasFilters` softens
+ * the wording for filterless races — blaming "the current filters" when none
+ * are set would be misleading.
+ */
+function selectionFailureMessage(
+  reason: ProblemSelectionFailureReason,
+  hasFilters: boolean,
+): string {
   switch (reason) {
     case "no_problems_in_filters":
-      return "No problems match the current filters.";
+      return hasFilters
+        ? "No problems match the current filters."
+        : "Couldn't find a suitable problem — try again.";
     case "all_problems_seen":
-      return "You or your opponent has already attempted every matching problem.";
+      return hasFilters
+        ? "You or your opponent has already attempted every matching problem."
+        : "You or your opponent has already attempted every suitable problem.";
     default:
-      return "Couldn't pick a problem for these filters.";
+      return "Couldn't pick a problem for this race.";
   }
 }
 
@@ -644,10 +655,14 @@ function FiltersSection({
           <div className="flex flex-col gap-0.5">
             <span className="font-medium">Couldn&apos;t start the race</span>
             <span className="text-destructive/90">
-              {selectionFailureMessage(failureReason)}{" "}
-              {isChallenger
-                ? "Adjust the filters and ready up again."
-                : "Ask the challenger to adjust the filters."}
+              {selectionFailureMessage(failureReason, filters !== null)}{" "}
+              {filters !== null
+                ? isChallenger
+                  ? "Adjust the filters and ready up again."
+                  : "Ask the challenger to adjust the filters."
+                : isChallenger
+                  ? "Set filters below or ready up again."
+                  : "Ready up again to retry."}
             </span>
           </div>
         </div>

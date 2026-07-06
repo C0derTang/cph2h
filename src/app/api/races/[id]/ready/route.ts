@@ -91,8 +91,11 @@ export async function POST(
     // No conforming problem: stay in the lobby. Atomically reset both ready
     // flags and persist the reason (single Neon-safe statement); do NOT
     // transition to active. Snapshot is the source of truth; the event is a
-    // hint. The `status='ready'` guard makes this safe under concurrent
-    // double-ready and never disturbs a race another writer already started.
+    // hint. The `status='ready' AND both-flags-still-set` guard makes this
+    // safe under concurrent double-ready, never disturbs a race another
+    // writer already started, and — like the transition below — is
+    // invalidated by a concurrent PATCH /filters flag reset (whose cleared
+    // reason/new filters must not be clobbered by this stale-filter result).
     const [reset] = await db
       .update(races)
       .set({
@@ -100,7 +103,14 @@ export async function POST(
         p2Ready: false,
         problemSelectionFailedReason: selection.reason,
       })
-      .where(and(eq(races.id, id), eq(races.status, "ready")))
+      .where(
+        and(
+          eq(races.id, id),
+          eq(races.status, "ready"),
+          eq(races.p1Ready, true),
+          eq(races.p2Ready, true),
+        ),
+      )
       .returning();
 
     if (!reset) {
@@ -116,6 +126,10 @@ export async function POST(
   }
 
   // Success: transition ready -> active with a concrete, non-null problem.
+  // The claim requires BOTH ready flags to still be set (not just
+  // status='ready'): a concurrent PATCH /filters resets the flags without
+  // changing status, and a start selected under the old filters must not fire
+  // after the filters changed. Zero rows = claim lost, re-read.
   const now = new Date();
   const transition = nextOnBothReady(afterReady, now);
 
@@ -128,11 +142,19 @@ export async function POST(
       problemId: selection.problemId,
       problemSelectionFailedReason: null,
     })
-    .where(and(eq(races.id, id), eq(races.status, "ready")))
+    .where(
+      and(
+        eq(races.id, id),
+        eq(races.status, "ready"),
+        eq(races.p1Ready, true),
+        eq(races.p2Ready, true),
+      ),
+    )
     .returning();
 
   if (!started) {
-    // Opponent's concurrent ready won the start transition.
+    // Lost the claim: the opponent's concurrent ready won the start
+    // transition, or a concurrent filter edit reset the ready flags.
     return currentSnapshot(id, afterReady);
   }
 

@@ -162,6 +162,53 @@ describe("selectRaceProblem", () => {
     expect(result).toEqual({ ok: true, problemId: "2A" });
   });
 
+  it("single-sided ratingMin far ABOVE the target still fetches a valid range and succeeds (regression)", async () => {
+    // Players rated 1200 -> target 1200. ratingMin=2500, ratingMax unset.
+    // A naive fallback to the target band would fetch (2500, 1900) — an
+    // inverted, always-empty range — and misreport no_problems_in_filters.
+    // The unset side must widen to the global ceiling (3500) instead.
+    getCandidatesInBandMock.mockResolvedValue([problem("1A", 3000)]);
+
+    const result = await selectRaceProblem(makeRace({ ratingMin: 2500, ratingMax: null }));
+
+    expect(getCandidatesInBandMock).toHaveBeenCalledWith(2500, 3500, {
+      dateFrom: null,
+      dateTo: null,
+    });
+    expect(result).toEqual({ ok: true, problemId: "1A" });
+  });
+
+  it("single-sided ratingMax far BELOW the target still fetches a valid range and succeeds (regression)", async () => {
+    // Players rated 3000 -> target 3000. ratingMax=1000, ratingMin unset.
+    // The unset side must widen to the global floor (800), not target-600=2400
+    // (which would invert the range to (2400, 1000)).
+    usersRows.value = [
+      { id: P1, cfRating: 3000 },
+      { id: P2, cfRating: 3000 },
+    ];
+    getCandidatesInBandMock.mockResolvedValue([problem("1A", 900)]);
+
+    const result = await selectRaceProblem(makeRace({ ratingMin: null, ratingMax: 1000 }));
+
+    expect(getCandidatesInBandMock).toHaveBeenCalledWith(800, 1000, {
+      dateFrom: null,
+      dateTo: null,
+    });
+    expect(result).toEqual({ ok: true, problemId: "1A" });
+  });
+
+  it("no rating filter at all keeps the target-band fetch range (unchanged behavior)", async () => {
+    getCandidatesInBandMock.mockResolvedValue([problem("1A", 1200)]);
+
+    await selectRaceProblem(makeRace());
+
+    // target 1200 -> (1200-600, 1200+700).
+    expect(getCandidatesInBandMock).toHaveBeenCalledWith(600, 1900, {
+      dateFrom: null,
+      dateTo: null,
+    });
+  });
+
   it("still succeeds even if the statement pre-cache throws (best-effort)", async () => {
     getCandidatesInBandMock.mockResolvedValue([problem("1A", 1200)]);
     getOrScrapeStatementMock.mockRejectedValue(new Error("scrape down"));
