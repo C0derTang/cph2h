@@ -22,14 +22,16 @@
  *    KaTeX JS in the client bundle, no render flash.
  *  - Parsing + rendering is deterministic and fully covered by the fixture
  *    unit test.
- * The HTML is sanitized with DOMPurify (isomorphic, so it also runs in the
- * client component as defense-in-depth) before it is ever stored or injected.
+ * The HTML is sanitized with `sanitize-html` (pure Node, no jsdom — jsdom's
+ * transitive deps break the Vercel serverless bundle, see #58) before it is
+ * ever stored or injected. `ProblemPane` re-sanitizes with plain `dompurify`
+ * (real browser DOM) as defense-in-depth on the client.
  */
 
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import katex from "katex";
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 import { eq } from "drizzle-orm";
 
 import type { ProblemId, ProblemStatement, SampleTest } from "@/lib/types";
@@ -81,6 +83,108 @@ function renderMath(html: string): string {
     )
     .replace(/\$\$\$([\s\S]+?)\$\$\$/g, (_, tex: string) => renderTex(tex, false))
     .replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) => renderTex(tex, true));
+}
+
+// ---------------------------------------------------------------------------
+// Sanitization (pure Node — no jsdom; see #58)
+// ---------------------------------------------------------------------------
+
+/**
+ * `sanitize-html` config for scraped CF statement bodies. Must preserve
+ * KaTeX's pre-rendered markup — inline `<svg>` (stretchy glyphs like `\sqrt`),
+ * MathML fallback nodes, and the `class`/`style` attributes KaTeX relies on
+ * for layout — while still stripping `<script>` and event handlers.
+ */
+const SANITIZE_OPTS: sanitizeHtml.IOptions = {
+  allowedTags: [
+    ...sanitizeHtml.defaults.allowedTags,
+    "span",
+    "div",
+    "p",
+    "pre",
+    "sup",
+    "sub",
+    "b",
+    "i",
+    "em",
+    "strong",
+    "br",
+    "img",
+    "ul",
+    "ol",
+    "li",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "td",
+    "th",
+    // KaTeX SVG (stretchy constructs: \sqrt, \overbrace, \widehat, ...)
+    "svg",
+    "path",
+    "line",
+    "g",
+    "defs",
+    "rect",
+    "use",
+    "symbol",
+    // KaTeX MathML fallback
+    "math",
+    "semantics",
+    "annotation",
+    "mrow",
+    "mi",
+    "mo",
+    "mn",
+    "msup",
+    "msub",
+    "mfrac",
+    "msqrt",
+    "mroot",
+    "mspace",
+    "mtext",
+    "munder",
+    "mover",
+    "munderover",
+    "mtable",
+    "mtr",
+    "mtd",
+  ],
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    // KaTeX leans heavily on inline `style` + `class` for layout; SVG attrs
+    // are needed for the stretchy-glyph glyphs. Safe on every tag — none of
+    // these are executable (no `on*`, no `href`/`src` here beyond img below).
+    "*": [
+      "class",
+      "style",
+      "aria-hidden",
+      "viewBox",
+      "d",
+      "width",
+      "height",
+      "preserveAspectRatio",
+      "xmlns",
+      "fill",
+      "stroke",
+      "transform",
+      "x",
+      "y",
+      "x1",
+      "y1",
+      "x2",
+      "y2",
+      "points",
+    ],
+    img: ["src", "alt"],
+  },
+  // Defaults already drop <script>/<style> tag content entirely and never
+  // allow `on*` attributes since they're not in `allowedAttributes` above.
+};
+
+/** Sanitize scraped/rendered statement HTML. Server-side only — no jsdom. */
+function sanitize(html: string): string {
+  return sanitizeHtml(html, SANITIZE_OPTS);
 }
 
 // ---------------------------------------------------------------------------
@@ -145,14 +249,7 @@ export function parseStatementHtml(html: string): Omit<ProblemStatement, "proble
 
   const rawBody = $statement.html() ?? "";
   const rendered = renderMath(rawBody);
-  // `svg: true` is required: KaTeX renders stretchy constructs (\sqrt,
-  // \overbrace, \widehat, ...) as inline <svg><path/></svg>, which the html /
-  // mathMl profiles alone would strip. `svgFilters` stays OFF — that surface
-  // (feImage/filter) is where DOMPurify's SVG XSS history concentrates and
-  // KaTeX never emits it.
-  const clean = DOMPurify.sanitize(rendered, {
-    USE_PROFILES: { html: true, mathMl: true, svg: true },
-  });
+  const clean = sanitize(rendered);
 
   return { html: clean, samples };
 }

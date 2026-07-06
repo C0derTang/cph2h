@@ -3,17 +3,18 @@
 /**
  * Race problem pane: renders a scraped Codeforces `ProblemStatement`.
  *
- * The statement HTML arrives already sanitized and with math pre-rendered to
- * KaTeX markup (see `src/lib/cf/statements.ts`). We only need KaTeX's
- * stylesheet here — no KaTeX JS in the client bundle. As defense-in-depth we
- * sanitize once more with DOMPurify before injecting via
- * `dangerouslySetInnerHTML`.
+ * The statement HTML arrives already sanitized (server-side, via
+ * `sanitize-html` — see `src/lib/cf/statements.ts`) and with math
+ * pre-rendered to KaTeX markup. We only need KaTeX's stylesheet here — no
+ * KaTeX JS in the client bundle. As defense-in-depth we sanitize once more
+ * with plain `dompurify` (the real browser DOM; no jsdom) before injecting
+ * via `dangerouslySetInnerHTML`.
  */
 
 import "katex/dist/katex.min.css";
 
 import { useMemo, useState } from "react";
-import DOMPurify from "isomorphic-dompurify";
+import DOMPurify from "dompurify";
 import { Check, Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

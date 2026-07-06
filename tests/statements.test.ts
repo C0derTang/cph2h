@@ -57,4 +57,16 @@ describe("parseStatementHtml", () => {
   it("produces sanitized HTML with no script tags", () => {
     expect(parsed.html.toLowerCase()).not.toContain("<script");
   });
+
+  it("strips <script> tags and inline event handlers (XSS)", () => {
+    const { html } = parseStatementHtml(
+      '<div class="problem-statement">' +
+        '<p>hi<img src="x" onerror="alert(1)"></p>' +
+        "<script>alert(2)</script>" +
+        "</div>",
+    );
+    expect(html.toLowerCase()).not.toContain("<script");
+    expect(html.toLowerCase()).not.toContain("onerror");
+    expect(html.toLowerCase()).not.toContain("alert(2)");
+  });
 });
