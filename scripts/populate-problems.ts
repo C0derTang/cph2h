@@ -36,7 +36,7 @@ async function main() {
     contestDates = buildContestDateMap(contests);
   } catch (error) {
     console.error(
-      "contest.list fetch failed; contestStartedAt will be null for all problems:",
+      "contest.list fetch failed; contestStartedAt stamped null this run (existing dates preserved by upsert COALESCE):",
       error,
     );
     contestDates = new Map();

@@ -8,8 +8,9 @@
  * CF `problemset.problems` doesn't include contest start times, so we also
  * fetch `contest.list` and stamp each row's `contestStartedAt` from it (see
  * `src/lib/cf/contest-dates.ts`). If `contest.list` fails, we degrade to an
- * empty date map — every row gets a null `contestStartedAt` rather than
- * failing the whole sync.
+ * empty date map — rows are stamped null rather than failing the whole sync,
+ * and the upsert's COALESCE (see `upsertProblems`) keeps any previously
+ * stored dates intact until the next successful run.
  */
 
 import { NextResponse } from "next/server";
@@ -40,7 +41,10 @@ export async function GET(request: Request) {
     const contests = await getContestList();
     contestDates = buildContestDateMap(contests);
   } catch (error) {
-    console.error("contest.list fetch failed; contestStartedAt will be null this run:", error);
+    console.error(
+      "contest.list fetch failed; contestStartedAt stamped null this run (existing dates preserved by upsert COALESCE):",
+      error,
+    );
     contestDates = new Map();
   }
 

@@ -10,6 +10,11 @@
  * missing from the map (omitted above, or `contest.list` itself failed) gets
  * a null `contestStartedAt` — never a leak of a "no filter" match onto a
  * wrong date.
+ *
+ * A null stamp is a "no fresh data" signal, not an eraser: the persistence
+ * layer (`upsertProblems` in `problem-repo.ts`) COALESCEs a null incoming
+ * date with the stored one, so a failed `contest.list` run never wipes
+ * previously populated dates.
  */
 
 import type { CfContest } from "@/lib/cf/client";
