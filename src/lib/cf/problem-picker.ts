@@ -5,7 +5,11 @@
  * `problem-repo.ts`; this module only ranks/filters/selects.
  */
 
-import type { ProblemId, ProblemRef } from "@/lib/types";
+import type {
+  ProblemId,
+  ProblemRef,
+  ProblemSelectionFailureReason,
+} from "@/lib/types";
 
 /** Initial band: [target - LOW_OFFSET, target + HIGH_OFFSET]. */
 const BAND_LOW_OFFSET = 100;
@@ -24,7 +28,25 @@ export interface PickProblemOptions {
   p2Rating: number | null;
   /** Caller-provided seed for deterministic, reproducible selection. */
   seed: number;
+  /**
+   * Hard rating-filter bounds from the challenger's filters (null = no
+   * constraint). Widening never escapes `[ratingMin, ratingMax]`, and only
+   * problems inside these bounds are ever eligible — so a rating-filtered race
+   * can never pick a non-conforming problem.
+   */
+  ratingMin?: number | null;
+  ratingMax?: number | null;
 }
+
+/**
+ * Result of a pick: either a conforming problem, or a discriminated failure
+ * reason (`no_problems_in_filters` when nothing in the eligible range exists at
+ * all; `all_problems_seen` when eligible problems exist but every one has been
+ * attempted by a player). Mirrors {@link SelectProblemResult} minus the I/O.
+ */
+export type PickProblemResult =
+  | { ok: true; problem: ProblemRef }
+  | { ok: false; reason: ProblemSelectionFailureReason };
 
 /**
  * Target rating for a race between two players: the average of their
@@ -36,8 +58,13 @@ export function targetRating(p1Rating: number | null, p2Rating: number | null): 
   return Math.round((r1 + r2) / 2 / 100) * 100;
 }
 
-function inBand(rating: number, target: number, widen: number): boolean {
-  return rating >= target - BAND_LOW_OFFSET - widen && rating <= target + BAND_HIGH_OFFSET + widen;
+/** Deterministic pick among `pool` using `rand`; stable regardless of input order. */
+function pickDeterministic(pool: ProblemRef[], rand: () => number): ProblemRef {
+  // Sort by id first so the pick is stable regardless of the candidates'
+  // input order (DB result order is not guaranteed).
+  const sorted = [...pool].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const index = Math.floor(rand() * sorted.length);
+  return sorted[index];
 }
 
 /**
@@ -56,35 +83,67 @@ function seededRandom(seed: number): () => number {
 }
 
 /**
- * Picks a fair, unseen problem for a race.
+ * Picks a fair, unseen problem for a race, honoring the challenger's hard
+ * rating filter.
  *
  * 1. Compute `target = targetRating(p1Rating, p2Rating)`.
- * 2. Filter out seen problems, then filter to the rating band
- *    `[target - 100, target + 200]`.
- * 3. If the band is empty, widen it by ±100 and retry, up to
- *    `MAX_WIDEN_ATTEMPTS` times.
- * 4. Pick deterministically among the surviving candidates using `seed`.
- *
- * Returns `null` if no candidate is found even after widening.
+ * 2. Restrict to *eligible* candidates: those within `[ratingMin, ratingMax]`
+ *    when set. If none exist at all → `no_problems_in_filters`.
+ * 3. Drop seen problems. If nothing unseen remains → `all_problems_seen`.
+ * 4. Prefer problems near the target: filter to `[target-100, target+200]`,
+ *    widening by ±100 up to `MAX_WIDEN_ATTEMPTS` times — the band is always
+ *    clamped so it never escapes `[ratingMin, ratingMax]`.
+ * 5. When a rating filter is set and target-proximity finds nothing (an unseen
+ *    conforming problem exists but lies outside the target's widening reach),
+ *    fall back to any unseen eligible problem so the race can still start with
+ *    a conforming problem. Without a rating filter, the widening reach is the
+ *    whole eligible universe, so this fallback never triggers — an out-of-band
+ *    problem is intentionally *not* forced onto a mismatched race.
  */
-export function pickProblem(opts: PickProblemOptions): ProblemRef | null {
+export function pickProblem(opts: PickProblemOptions): PickProblemResult {
   const { candidates, seenIds, p1Rating, p2Rating, seed } = opts;
+  const ratingMin = opts.ratingMin ?? null;
+  const ratingMax = opts.ratingMax ?? null;
+  const hasRatingFilter = ratingMin !== null || ratingMax !== null;
   const target = targetRating(p1Rating, p2Rating);
-  const unseen = candidates.filter((candidate) => !seenIds.has(candidate.id));
   const rand = seededRandom(seed);
+
+  // Only problems inside the hard rating filter are ever eligible.
+  const eligible = candidates.filter(
+    (c) =>
+      (ratingMin === null || c.rating >= ratingMin) &&
+      (ratingMax === null || c.rating <= ratingMax),
+  );
+  if (eligible.length === 0) {
+    return { ok: false, reason: "no_problems_in_filters" };
+  }
+
+  const unseen = eligible.filter((candidate) => !seenIds.has(candidate.id));
+  if (unseen.length === 0) {
+    return { ok: false, reason: "all_problems_seen" };
+  }
 
   for (let attempt = 0; attempt <= MAX_WIDEN_ATTEMPTS; attempt++) {
     const widen = attempt * WIDEN_STEP;
-    const inWindow = unseen.filter((candidate) => inBand(candidate.rating, target, widen));
+    let lo = target - BAND_LOW_OFFSET - widen;
+    let hi = target + BAND_HIGH_OFFSET + widen;
+    // Clamp the band so widening never escapes the hard filter bounds.
+    if (ratingMin !== null) lo = Math.max(lo, ratingMin);
+    if (ratingMax !== null) hi = Math.min(hi, ratingMax);
+    const inWindow = unseen.filter((c) => c.rating >= lo && c.rating <= hi);
     if (inWindow.length === 0) {
       continue;
     }
-    // Sort by id first so the pick is stable regardless of the candidates'
-    // input order (DB result order is not guaranteed).
-    const sorted = [...inWindow].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    const index = Math.floor(rand() * sorted.length);
-    return sorted[index];
+    return { ok: true, problem: pickDeterministic(inWindow, rand) };
   }
 
-  return null;
+  // Rating-filtered race with an unseen conforming problem outside the target's
+  // widening reach — still start, on any conforming problem.
+  if (hasRatingFilter) {
+    return { ok: true, problem: pickDeterministic(unseen, rand) };
+  }
+
+  // Filterless: unseen problems exist but all lie outside the acceptable
+  // rating window around the target — treat as "nothing in range".
+  return { ok: false, reason: "no_problems_in_filters" };
 }

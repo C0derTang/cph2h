@@ -18,13 +18,19 @@ import { pickProblem, targetRating } from "@/lib/cf/problem-picker";
 import { getOrScrapeStatement } from "@/lib/cf/statements";
 import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
 import { finishRace as finishRaceImpl } from "@/lib/race/finish";
-import type { ProblemId, RaceEvent } from "@/lib/types";
+import {
+  PROBLEM_RATING_CEIL,
+  PROBLEM_RATING_FLOOR,
+  type ProblemId,
+  type RaceEvent,
+  type SelectProblemResult,
+} from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // #6 / #9 — problem selection (+ statement pre-cache)
 // ---------------------------------------------------------------------------
 
-export type SelectRaceProblem = (race: Race) => Promise<string | null>;
+export type SelectRaceProblem = (race: Race) => Promise<SelectProblemResult>;
 
 /**
  * The picker widens its rating band by up to `MAX_WIDEN_ATTEMPTS * WIDEN_STEP`
@@ -47,10 +53,22 @@ function seedFromRaceId(raceId: string): number {
 }
 
 /**
- * Pick an unseen, in-band problem for the two players and pre-cache its
- * statement before the race goes active. Returns the `problems.id` to assign,
- * or `null` when no candidate fits (races then start with `problemId = null`
- * and can only end by timeout/forfeit).
+ * Pick an unseen, in-band, filter-conforming problem for the two players and
+ * pre-cache its statement before the race goes active.
+ *
+ * Returns a {@link SelectProblemResult}: on success the `problems.id` to
+ * assign; on failure a discriminated reason (`no_problems_in_filters` /
+ * `all_problems_seen`) — the ready route uses this to keep the race in the
+ * lobby instead of starting with a null problem.
+ *
+ * The challenger's filters (race row columns) are hard constraints:
+ * - Candidates are fetched over the target's rating window, but the fetch
+ *   range is *widened to the full filter rating range* whenever a rating bound
+ *   is set, so the picker sees the whole conforming universe (needed for an
+ *   accurate `no_problems_in_filters` vs `all_problems_seen` distinction and
+ *   for the picker's conforming-fallback).
+ * - Date bounds are pushed into the query (null-date problems excluded when a
+ *   date filter is set — see `getCandidatesInBand`).
  */
 export const selectRaceProblem: SelectRaceProblem = async (race) => {
   const playerIds = [race.p1Id, race.p2Id].filter(
@@ -66,10 +84,26 @@ export const selectRaceProblem: SelectRaceProblem = async (race) => {
   const p2Rating = race.p2Id ? ratingById.get(race.p2Id) ?? null : null;
 
   const target = targetRating(p1Rating, p2Rating);
-  const candidates = await getCandidatesInBand(
-    target - CANDIDATE_BAND_LOW,
-    target + CANDIDATE_BAND_HIGH,
-  );
+  const filterMin = race.ratingMin;
+  const filterMax = race.ratingMax;
+
+  // Fetch range: with NO rating filter, the target's maximal widening window.
+  // With ANY rating bound set, the FULL filter rating range — an unset side
+  // defaults to the global floor/ceiling, never the target band, so a
+  // single-sided filter far from the target can't truncate (or invert) the
+  // range and misreport `no_problems_in_filters`.
+  const hasRatingFilter = filterMin !== null || filterMax !== null;
+  const fetchMin = hasRatingFilter
+    ? filterMin ?? PROBLEM_RATING_FLOOR
+    : target - CANDIDATE_BAND_LOW;
+  const fetchMax = hasRatingFilter
+    ? filterMax ?? PROBLEM_RATING_CEIL
+    : target + CANDIDATE_BAND_HIGH;
+
+  const candidates = await getCandidatesInBand(fetchMin, fetchMax, {
+    dateFrom: race.problemDateFrom,
+    dateTo: race.problemDateTo,
+  });
 
   const seenIds = new Set<ProblemId>();
   for (const userId of playerIds) {
@@ -83,19 +117,21 @@ export const selectRaceProblem: SelectRaceProblem = async (race) => {
     p1Rating,
     p2Rating,
     seed: seedFromRaceId(race.id),
+    ratingMin: filterMin,
+    ratingMax: filterMax,
   });
-  if (!picked) return null;
+  if (!picked.ok) return picked;
 
   // Pre-cache the statement so it is available the moment the countdown ends.
   // Best-effort: if the scrape fails we still assign the problem (the snapshot
   // simply omits the statement until a later scrape succeeds).
   try {
-    await getOrScrapeStatement(picked.id);
+    await getOrScrapeStatement(picked.problem.id);
   } catch (err) {
-    console.error(`[race] statement pre-cache failed for ${picked.id}`, err);
+    console.error(`[race] statement pre-cache failed for ${picked.problem.id}`, err);
   }
 
-  return picked.id;
+  return { ok: true, problemId: picked.problem.id };
 };
 
 // ---------------------------------------------------------------------------
