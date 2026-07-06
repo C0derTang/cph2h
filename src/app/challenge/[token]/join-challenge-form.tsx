@@ -13,13 +13,6 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { PublicUser, RaceSnapshot } from "@/lib/types";
 
 interface JoinChallengeFormProps {
@@ -99,16 +92,18 @@ export function JoinChallengeForm({
   }
 
   return (
-    <Card className="max-w-lg">
-      <CardHeader>
-        <CardTitle>{challenger.username}</CardTitle>
-        <CardDescription>
+    <div className="panel max-w-lg p-5">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-lg tracking-tight uppercase">
+          {challenger.username}
+        </h2>
+        <p className="text-sm text-muted-foreground">
           Elo {challenger.elo}
           {challenger.cfHandle ? ` · ${challenger.cfHandle}` : ""}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <Badge variant="outline">
+        </p>
+      </div>
+      <div className="mt-4 flex flex-col gap-4">
+        <Badge variant="outline" className="w-fit">
           {Math.round(timeLimitSec / 60)} min race
         </Badge>
 
@@ -169,8 +164,8 @@ export function JoinChallengeForm({
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

@@ -24,11 +24,11 @@ export default function GlobalError({
 
   return (
     <main className="shell-narrow flex flex-1 flex-col items-center justify-center gap-4 py-16 text-center md:py-24">
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-destructive">
+      <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 text-destructive">
         <AlertTriangle className="size-5" aria-hidden />
       </div>
       <div>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">
+        <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
           Something went wrong
         </h1>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground md:text-base">

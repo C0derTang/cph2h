@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trophy } from "lucide-react";
+import { Swords, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getLeaderboardPage,
@@ -17,13 +17,16 @@ function EmptyLeaderboard() {
   return (
     <div className="shell py-12">
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <Trophy className="h-12 w-12 text-muted-foreground" />
-        <h1 className="font-display text-2xl font-semibold">No racers yet</h1>
+        <Trophy className="h-12 w-12 text-player-self" />
+        <h1 className="font-display text-2xl tracking-tight uppercase">
+          Nobody&rsquo;s stepped up.
+        </h1>
         <p className="text-muted-foreground">
-          Complete some races to appear on the leaderboard
+          Complete a race to claim the top spot on the Ladder.
         </p>
         <Button render={<Link href="/queue" />} nativeButton={false}>
-          Start Racing
+          <Swords aria-hidden />
+          Find a race
         </Button>
       </div>
     </div>
@@ -35,8 +38,8 @@ function ErrorLeaderboard() {
     <div className="shell py-12">
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <Trophy className="h-12 w-12 text-destructive" />
-        <h1 className="font-display text-2xl font-semibold">
-          Error loading leaderboard
+        <h1 className="font-display text-2xl tracking-tight uppercase">
+          Error loading the Ladder
         </h1>
         <p className="text-muted-foreground">Please try again later</p>
         <Button
@@ -64,11 +67,11 @@ function LeaderboardTable({
     <div className="shell py-8">
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
-            Leaderboard
+          <h1 className="font-display text-4xl tracking-tight uppercase md:text-5xl">
+            The Ladder
           </h1>
           <p className="text-muted-foreground">
-            Top racers ranked by Elo rating
+            Ranked by Elo. Climb it or get climbed.
           </p>
         </div>
       </div>
@@ -137,7 +140,7 @@ function LeaderboardTable({
                       )}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-display font-semibold tabular-nums">
+                    <td className="px-4 py-3 text-right font-mono text-sm font-semibold tabular-nums">
                       {entry.user.elo}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground tabular-nums">
