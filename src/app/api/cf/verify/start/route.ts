@@ -4,7 +4,7 @@
  * Codeforces Cloudflare-blocks server-side login, so ownership can't be proven
  * by logging in. Instead we validate the handle via the public API, pick a
  * well-known easy problem, and ask the user to submit a solution that FAILS TO
- * COMPILE to it. `POST /api/cf/verify/check` then confirms the COMPILE_ERROR
+ * COMPILE to it. `POST /api/cf/verify/check` then confirms the COMPILATION_ERROR
  * verdict via the public API. NO password is ever collected.
  *
  * AUTH: the user is signed in but not yet linked, so `requireLinkedUser` is

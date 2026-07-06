@@ -72,7 +72,7 @@ export const users = pgTable("users", {
 /**
  * Pending compile-error handle-ownership challenge. Codeforces Cloudflare-blocks
  * server-side login, so we verify ownership by asking the user to submit a
- * COMPILE_ERROR to `problemId`, then confirm it via the public API. One pending
+ * COMPILATION_ERROR to `problemId`, then confirm it via the public API. One pending
  * challenge per user (upserted on each start).
  */
 export const handleVerifications = pgTable("handle_verifications", {

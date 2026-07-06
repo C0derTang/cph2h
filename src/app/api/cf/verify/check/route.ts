@@ -1,7 +1,7 @@
 /**
  * POST /api/cf/verify/check — confirm a pending compile-error challenge.
  *
- * Loads the caller's `handle_verifications` row and looks for a COMPILE_ERROR
+ * Loads the caller's `handle_verifications` row and looks for a COMPILATION_ERROR
  * submission to the target problem, created within the challenge window, via
  * the public `user.status` API. On success it links the handle (sets
  * `users.cfHandle/cfRating/cfLinkedAt`), imports solve history, and clears the
@@ -28,7 +28,7 @@ const READBACK_COUNT = 30;
  * Tolerance (seconds) subtracted from the challenge `createdAt` when computing
  * the lower bound, to absorb client/CF clock skew. Small on purpose — large
  * enough to never miss the compile-error the user just made, small enough not
- * to re-admit a pre-existing COMPILE_ERROR from before the challenge started.
+ * to re-admit a pre-existing COMPILATION_ERROR from before the challenge started.
  */
 const CLOCK_SKEW_SEC = 60;
 

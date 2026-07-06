@@ -20,7 +20,7 @@ describe("isFinalVerdict", () => {
   it("is true for final verdicts", () => {
     expect(isFinalVerdict("OK")).toBe(true);
     expect(isFinalVerdict("WRONG_ANSWER")).toBe(true);
-    expect(isFinalVerdict("COMPILE_ERROR")).toBe(true);
+    expect(isFinalVerdict("COMPILATION_ERROR")).toBe(true);
     expect(isFinalVerdict("TIME_LIMIT_EXCEEDED")).toBe(true);
   });
 });
@@ -38,7 +38,7 @@ describe("findRaceVerdicts", () => {
     const otherIds = others.map((s) => s.id).sort();
     expect(otherIds).toEqual([200000002, 200000004, 200000005]);
     expect(others.map((s) => s.verdict)).toEqual(
-      expect.arrayContaining(["WRONG_ANSWER", "COMPILE_ERROR", "TIME_LIMIT_EXCEEDED"]),
+      expect.arrayContaining(["WRONG_ANSWER", "COMPILATION_ERROR", "TIME_LIMIT_EXCEEDED"]),
     );
   });
 
@@ -88,13 +88,13 @@ describe("findRaceVerdicts", () => {
 });
 
 describe("hasCompileErrorSince", () => {
-  // Fixture has a COMPILE_ERROR (id 200000004) to 1794C at t=1700000150.
-  it("is true when a COMPILE_ERROR for the problem exists at/after the cutoff", () => {
+  // Fixture has a COMPILATION_ERROR (id 200000004) to 1794C at t=1700000150.
+  it("is true when a COMPILATION_ERROR for the problem exists at/after the cutoff", () => {
     expect(hasCompileErrorSince(submissions, PROBLEM_ID, SINCE)).toBe(true);
     expect(hasCompileErrorSince(submissions, PROBLEM_ID, 1700000150)).toBe(true);
   });
 
-  it("is false when the only COMPILE_ERROR predates the cutoff", () => {
+  it("is false when the only COMPILATION_ERROR predates the cutoff", () => {
     expect(hasCompileErrorSince(submissions, PROBLEM_ID, 1700000151)).toBe(false);
   });
 
@@ -102,8 +102,8 @@ describe("hasCompileErrorSince", () => {
     expect(hasCompileErrorSince(submissions, "1794D", SINCE)).toBe(false);
   });
 
-  it("ignores non-COMPILE_ERROR verdicts (e.g. WRONG_ANSWER, OK)", () => {
-    const noCompileError = submissions.filter((s) => s.verdict !== "COMPILE_ERROR");
+  it("ignores non-COMPILATION_ERROR verdicts (e.g. WRONG_ANSWER, OK)", () => {
+    const noCompileError = submissions.filter((s) => s.verdict !== "COMPILATION_ERROR");
     expect(hasCompileErrorSince(noCompileError, PROBLEM_ID, SINCE)).toBe(false);
   });
 

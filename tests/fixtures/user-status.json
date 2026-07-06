@@ -35,7 +35,7 @@
       "problem": { "contestId": 1794, "index": "C", "name": "Sum on Subarrays", "rating": 1600 },
       "author": { "members": [{ "handle": "tourist" }] },
       "programmingLanguage": "GNU G++17 7.3.0",
-      "verdict": "COMPILE_ERROR"
+      "verdict": "COMPILATION_ERROR"
     },
     {
       "id": 200000005,
