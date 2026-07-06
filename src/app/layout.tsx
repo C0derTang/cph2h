@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Geist, Geist_Mono, Chakra_Petch } from "next/font/google";
+import { Geist, Geist_Mono, Anton } from "next/font/google";
 import { Nav } from "@/components/nav";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -11,25 +11,27 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-// Data / labels / code — problem IDs, ratings, verdict feed, in-copy stats.
+// Data / labels / code — problem IDs, ratings, verdict feed — and, per the
+// numeral rule in docs/design.md, every live-updating number (Bangers digits
+// are not tabular, so timers/countdowns fall back to this face).
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
-// Display / scoreboard. Squared, technical letterforms with even numerals —
-// used for headings, the wordmark, and every live timer or scoreboard figure.
-// Consumed via `font-display` / `font-heading` (see globals.css @theme).
-const chakraPetch = Chakra_Petch({
-  variable: "--font-chakra",
+// Display face — tall condensed poster. Powers hero lockups, the wordmark, VS
+// names, and stamps via `font-display` / `font-heading` (see globals.css
+// @theme). Single weight (400); it is already a heavy, all-caps letterform.
+const anton = Anton({
+  variable: "--font-anton",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400"],
 });
 
 export const metadata: Metadata = {
-  title: "cph2h — Codeforces Head-to-Head Races",
+  title: "cph2h — same problem, same clock, catch these bars",
   description:
-    "Race a friend on a Codeforces problem with voice, video, and an Elo ladder.",
+    "Head-to-head Codeforces battles with voice, video, and a real Elo ladder. Shittalk your way to a higher rating.",
 };
 
 export default function RootLayout({
@@ -39,11 +41,12 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider afterSignOutUrl="/">
-      {/* `dark` is the hero theme; the light palette stays defined for a future
-          toggle. Fonts: sans=body, mono=data, chakra=display/scoreboard. */}
+      {/* The dark "stage" is the hero theme; the light "daytime cypher" palette
+          stays fully defined for a future toggle. Fonts: sans=body, mono=data +
+          live numbers, anton=poster display. */}
       <html
         lang="en"
-        className={`dark ${geistSans.variable} ${geistMono.variable} ${chakraPetch.variable} h-full antialiased`}
+        className={`dark ${geistSans.variable} ${geistMono.variable} ${anton.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
           <Nav />
