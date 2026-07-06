@@ -3,10 +3,10 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Trophy } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   getLeaderboardPage,
   parsePositiveInt,
@@ -18,7 +18,7 @@ function EmptyLeaderboard() {
     <div className="shell py-12">
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <Trophy className="h-12 w-12 text-muted-foreground" />
-        <h1 className="font-heading text-2xl font-semibold">No racers yet</h1>
+        <h1 className="font-display text-2xl font-semibold">No racers yet</h1>
         <p className="text-muted-foreground">
           Complete some races to appear on the leaderboard
         </p>
@@ -35,7 +35,7 @@ function ErrorLeaderboard() {
     <div className="shell py-12">
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <Trophy className="h-12 w-12 text-destructive" />
-        <h1 className="font-heading text-2xl font-semibold">
+        <h1 className="font-display text-2xl font-semibold">
           Error loading leaderboard
         </h1>
         <p className="text-muted-foreground">Please try again later</p>
@@ -64,33 +64,27 @@ function LeaderboardTable({
     <div className="shell py-8">
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-heading text-3xl font-semibold">Leaderboard</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">
+            Leaderboard
+          </h1>
           <p className="text-muted-foreground">
             Top racers ranked by Elo rating
           </p>
         </div>
       </div>
 
-      <Card className="overflow-hidden">
+      <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[32rem] text-sm">
             <thead>
-              <tr className="border-b border-border/50">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  Rank
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  Player
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+              <tr className="border-b border-border font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+                <th className="px-4 py-2.5 text-left font-medium">Rank</th>
+                <th className="px-4 py-2.5 text-left font-medium">Player</th>
+                <th className="hidden px-4 py-2.5 text-left font-medium sm:table-cell">
                   Codeforces
                 </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  Elo
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  Races
-                </th>
+                <th className="px-4 py-2.5 text-right font-medium">Elo</th>
+                <th className="px-4 py-2.5 text-right font-medium">Races</th>
               </tr>
             </thead>
             <tbody>
@@ -99,48 +93,54 @@ function LeaderboardTable({
                 return (
                   <tr
                     key={entry.user.id}
-                    className={`border-b border-border/30 transition-colors last:border-b-0 ${
-                      isCurrentUser ? "bg-primary/5" : "hover:bg-muted/50"
-                    }`}
+                    className={cn(
+                      "border-b border-border transition-colors last:border-b-0",
+                      isCurrentUser
+                        ? "border-l-2 border-l-player-self bg-player-self/10"
+                        : "hover:bg-muted/50"
+                    )}
                   >
-                    <td className="px-4 py-3 font-medium">
-                      {entry.user.racesPlayed < 10 && (
-                        <span className="text-xs text-muted-foreground">
-                          P
-                        </span>
-                      )}
+                    <td className="px-4 py-3 font-display text-lg font-semibold tabular-nums">
                       {entry.rank}
+                      {entry.user.racesPlayed < 10 && (
+                        <sup className="ml-0.5 font-mono text-[10px] font-normal text-muted-foreground">
+                          P
+                        </sup>
+                      )}
                     </td>
+
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{entry.user.username}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {entry.user.username}
+                        </span>
                         {isCurrentUser && (
-                          <Badge variant="secondary" className="ml-2">
+                          <Badge variant="secondary" className="shrink-0">
                             You
                           </Badge>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+
+                    <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">
                       {entry.user.cfHandle ? (
-                        <div>
-                          <div>{entry.user.cfHandle}</div>
+                        <>
+                          {entry.user.cfHandle}
                           {entry.user.cfRating && (
-                            <div className="text-xs text-muted-foreground">
+                            <span className="ml-1.5">
                               {entry.user.cfRating}
-                            </div>
+                            </span>
                           )}
-                        </div>
+                        </>
                       ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Not linked
-                        </span>
+                        <span>Not linked</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold">
+
+                    <td className="px-4 py-3 text-right font-display font-semibold tabular-nums">
                       {entry.user.elo}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground tabular-nums">
                       {entry.user.racesPlayed}
                     </td>
                   </tr>
@@ -149,7 +149,7 @@ function LeaderboardTable({
             </tbody>
           </table>
         </div>
-      </Card>
+      </div>
 
       {/* Pagination */}
       {data.pages > 1 && (

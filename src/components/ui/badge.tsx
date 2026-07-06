@@ -19,6 +19,12 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // Verdict semantics (docs/design.md) — judge outcomes only, never identity.
+        "verdict-ok": "border-verdict-ok/40 bg-verdict-ok/10 text-verdict-ok",
+        "verdict-fail":
+          "border-verdict-fail/40 bg-verdict-fail/10 text-verdict-fail",
+        "verdict-pending":
+          "border-verdict-pending/40 bg-verdict-pending/10 text-verdict-pending",
       },
     },
     defaultVariants: {

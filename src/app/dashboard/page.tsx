@@ -3,13 +3,13 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { users, races, eloHistory } from "@/lib/db/schema";
 import { eq, or, and, desc } from "drizzle-orm";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Stat } from "@/components/ui/stat";
 import { ExternalLink, Link2, TrendingUp, TrendingDown } from "lucide-react";
 import { formatOutcome, formatEloDelta } from "@/lib/format";
 import { ensureUser } from "@/lib/user";
+import { cn } from "@/lib/utils";
 import type { RaceOutcome } from "@/lib/types";
 
 async function getRecentRaces(userId: string) {
@@ -57,9 +57,51 @@ async function getEloHistory(userId: string) {
   return history;
 }
 
+type RecentRace = {
+  id: string;
+  p1Id: string;
+  p2Id: string | null;
+  outcome: RaceOutcome | null;
+  eloDeltaP1: number | null;
+  eloDeltaP2: number | null;
+  finishedAt: Date | null;
+  p1User?: { username: string };
+  p2User?: { username: string } | null;
+};
+
+/** Wins/losses/draws over the fetched race-history window (visual convenience,
+ * not a lifetime record — the schema has no running W/L counters). */
+function computeRecord(recentRaces: RecentRace[], userId: string) {
+  let wins = 0;
+  let losses = 0;
+  let draws = 0;
+  for (const race of recentRaces) {
+    const outcome = formatOutcome(race.outcome, race.p1Id === userId);
+    if (outcome === "Win") wins += 1;
+    else if (outcome === "Loss") losses += 1;
+    else if (outcome === "Draw") draws += 1;
+  }
+  return { wins, losses, draws };
+}
+
+/** Map a formatted race outcome to a shared Badge variant. Win/loss are judge
+ * outcomes (verdict axis); a draw is a settled, neutral result — not
+ * "pending" — so it gets the neutral outline treatment. */
+function outcomeBadgeVariant(
+  outcome: string
+): "verdict-ok" | "verdict-fail" | "outline" {
+  if (outcome === "Win") return "verdict-ok";
+  if (outcome === "Loss") return "verdict-fail";
+  return "outline";
+}
+
 function EloSparkline({ history }: { history: { eloAfter: number }[] }) {
   if (history.length === 0) {
-    return <div className="h-16 w-full flex items-center justify-center text-muted-foreground text-sm">No Elo data yet</div>;
+    return (
+      <div className="flex h-16 w-full items-center justify-center text-sm text-muted-foreground">
+        No Elo data yet
+      </div>
+    );
   }
 
   const values = history.map((h) => h.eloAfter).reverse();
@@ -74,18 +116,19 @@ function EloSparkline({ history }: { history: { eloAfter: number }[] }) {
       return `${x},${y}`;
     })
     .join(" ");
+  const [lastX, lastY] = points.split(" ").pop()?.split(",") ?? ["0", "0"];
 
   return (
-    <svg viewBox="0 0 100 40" className="h-16 w-full">
+    <svg viewBox="0 0 100 40" className="h-16 w-full overflow-visible">
       <polyline
         points={points}
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
-        className="text-primary"
+        className="text-player-self"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx={points.split(" ").pop()?.split(",")[0]} cy={points.split(" ").pop()?.split(",")[1]} r="1.5" className="text-primary fill-primary" />
+      <circle cx={lastX} cy={lastY} r="1.75" className="fill-player-self" />
     </svg>
   );
 }
@@ -94,7 +137,7 @@ function ErrorDisplay() {
   return (
     <div className="shell py-12">
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <h1 className="font-heading text-2xl font-semibold">
+        <h1 className="font-display text-2xl font-semibold">
           Error loading dashboard
         </h1>
         <p className="text-muted-foreground">Please try again later</p>
@@ -112,24 +155,22 @@ function ErrorDisplay() {
 
 function LinkCfBanner() {
   return (
-    <Card className="mb-8 border-primary/40 bg-primary/5">
-      <CardContent className="flex flex-col items-start gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-primary">
-            <Link2 className="size-4" aria-hidden />
-          </div>
-          <div>
-            <p className="font-medium">Link your Codeforces account</p>
-            <p className="text-sm text-muted-foreground">
-              Connect Codeforces to start racing and track your rating.
-            </p>
-          </div>
+    <div className="panel mb-8 flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-player-self/40 bg-player-self/10 text-player-self">
+          <Link2 className="size-4" aria-hidden />
         </div>
-        <Button render={<Link href="/settings/cf" />} nativeButton={false}>
-          Link Account
-        </Button>
-      </CardContent>
-    </Card>
+        <div>
+          <p className="font-medium">Link your Codeforces account</p>
+          <p className="text-sm text-muted-foreground">
+            Connect Codeforces to start racing and track your rating.
+          </p>
+        </div>
+      </div>
+      <Button render={<Link href="/settings/cf" />} nativeButton={false}>
+        Link Account
+      </Button>
+    </div>
   );
 }
 
@@ -146,217 +187,166 @@ function DashboardContent({
     elo: number;
     racesPlayed: number;
   };
-  recentRaces: Array<{
-    id: string;
-    p1Id: string;
-    p2Id: string | null;
-    outcome: RaceOutcome | null;
-    eloDeltaP1: number | null;
-    eloDeltaP2: number | null;
-    finishedAt: Date | null;
-    p1User?: { username: string };
-    p2User?: { username: string } | null;
-  }>;
+  recentRaces: RecentRace[];
   eloHistoryData: Array<{
     eloAfter: number;
   }>;
 }) {
   const isProvisional = user.racesPlayed < 10;
+  const record = computeRecord(recentRaces, user.id);
 
   return (
     <div className="shell py-8">
-      <h1 className="font-heading text-3xl font-semibold mb-8">Dashboard</h1>
+      <div className="mb-8">
+        <h1 className="font-display text-3xl font-semibold tracking-tight">
+          Dashboard
+        </h1>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted-foreground">
+          <span>{user.username}</span>
+          {user.cfHandle ? (
+            <>
+              <span aria-hidden>&middot;</span>
+              <a
+                href={`https://codeforces.com/profile/${user.cfHandle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-player-self hover:underline"
+              >
+                {user.cfHandle}
+                <ExternalLink className="size-3" />
+              </a>
+            </>
+          ) : (
+            <>
+              <span aria-hidden>&middot;</span>
+              <span>Codeforces not linked</span>
+            </>
+          )}
+        </p>
+      </div>
 
       {!user.cfHandle && <LinkCfBanner />}
 
-      {/* Profile Card */}
-      <div className="grid gap-6 md:grid-cols-2 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase">Username</p>
-              <p className="font-semibold">{user.username}</p>
+      {/* Scoreboard tiles */}
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat
+          label="Elo"
+          value={user.elo}
+          hint={isProvisional ? `Provisional ${user.racesPlayed}/10` : "Ranked"}
+        />
+        <Stat
+          label="CF Rating"
+          value={user.cfRating ?? "—"}
+          hint={user.cfHandle ?? "not linked"}
+        />
+        <Stat label="Races Played" value={user.racesPlayed} />
+        <Stat
+          label="Record"
+          value={`${record.wins}-${record.losses}`}
+          hint={
+            record.draws > 0
+              ? `last ${recentRaces.length} · ${record.draws} draw${record.draws === 1 ? "" : "s"}`
+              : `last ${recentRaces.length}`
+          }
+        />
+      </div>
+
+      {/* Elo History */}
+      <div className="panel mb-8 p-5">
+        <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          Elo History
+        </p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {eloHistoryData.length > 0
+            ? `Last ${eloHistoryData.length} races`
+            : "No races yet"}
+        </p>
+        {eloHistoryData.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            <EloSparkline history={eloHistoryData} />
+            <div className="font-mono text-[11px] text-muted-foreground">
+              <span className="font-semibold text-foreground tabular-nums">
+                {eloHistoryData[0].eloAfter}
+              </span>{" "}
+              (current) &rarr;{" "}
+              <span className="tabular-nums">
+                {eloHistoryData[eloHistoryData.length - 1].eloAfter}
+              </span>{" "}
+              (oldest)
             </div>
-
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase">Codeforces</p>
-              {user.cfHandle ? (
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`https://codeforces.com/profile/${user.cfHandle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-primary hover:underline flex items-center gap-1"
-                  >
-                    {user.cfHandle}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                  {user.cfRating && (
-                    <span className="text-xs text-muted-foreground">
-                      {user.cfRating}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Not linked</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    render={<Link href="/settings/cf" />}
-                    nativeButton={false}
-                    className="h-6 text-xs"
-                  >
-                    Link Account
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase">
-                  Current Elo
-                </p>
-                <p className="text-2xl font-bold">{user.elo}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase">
-                  Races Played
-                </p>
-                <p className="text-2xl font-bold">{user.racesPlayed}</p>
-              </div>
-            </div>
-
-            {isProvisional && (
-              <Badge variant="secondary" className="w-full justify-center">
-                Provisional ({user.racesPlayed}/10)
-              </Badge>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Elo History Sparkline */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Elo History</CardTitle>
-            <CardDescription>
-              {eloHistoryData.length > 0
-                ? `Last ${eloHistoryData.length} races`
-                : "No races yet"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {eloHistoryData.length > 0 ? (
-              <div className="space-y-2">
-                <EloSparkline history={eloHistoryData} />
-                <div className="text-xs text-muted-foreground">
-                  {eloHistoryData[0].eloAfter} (current) →{" "}
-                  {eloHistoryData[eloHistoryData.length - 1].eloAfter} (oldest)
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
-                Complete your first race to see your Elo progression
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          </div>
+        ) : (
+          <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+            Complete your first race to see your Elo progression
+          </div>
+        )}
       </div>
 
       {/* Recent Races */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent Races</CardTitle>
-          <CardDescription>
-            {recentRaces.length > 0
-              ? `Last ${recentRaces.length} races`
-              : "No completed races yet"}
-          </CardDescription>
-        </CardHeader>
-        {recentRaces.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                    Opponent
-                  </th>
-                  <th className="px-4 py-3 text-center font-medium text-muted-foreground">
-                    Outcome
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Elo Delta
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentRaces.map((race) => {
-                  const isP1 = race.p1Id === user.id;
-                  const opponent = isP1 ? race.p2User : race.p1User;
-                  const eloDelta = isP1 ? race.eloDeltaP1 : race.eloDeltaP2;
-                  const outcome = formatOutcome(race.outcome, isP1);
-                  const isDelta = eloDelta && eloDelta > 0;
+      <div>
+        <p className="mb-3 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          Race History
+        </p>
 
-                  return (
-                    <tr key={race.id} className="border-b border-border/30 hover:bg-muted/50 last:border-b-0">
-                      <td className="px-4 py-3 font-medium">
-                        {opponent?.username || "Unknown"}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Badge
-                          variant={
-                            outcome === "Win"
-                              ? "default"
-                              : outcome === "Loss"
-                                ? "destructive"
-                                : "outline"
-                          }
-                        >
-                          {outcome}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span
-                          className={`flex items-center justify-end gap-1 ${
-                            isDelta
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-red-600 dark:text-red-400"
-                          }`}
-                        >
-                          {isDelta ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          {formatEloDelta(eloDelta)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground text-xs">
+        {recentRaces.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {recentRaces.map((race) => {
+              const isP1 = race.p1Id === user.id;
+              const opponent = isP1 ? race.p2User : race.p1User;
+              const eloDelta = isP1 ? race.eloDeltaP1 : race.eloDeltaP2;
+              const outcome = formatOutcome(race.outcome, isP1);
+              const isGain = eloDelta != null && eloDelta > 0;
+              const deltaTone = isGain ? "text-verdict-ok" : "text-verdict-fail";
+
+              return (
+                <li
+                  key={race.id}
+                  className="panel flex items-center justify-between gap-4 px-4 py-3"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-player-opponent font-display text-xs font-bold text-player-opponent-foreground">
+                      {(opponent?.username ?? "?").charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
+                        {opponent?.username ?? "Unknown"}
+                      </p>
+                      <p className="font-mono text-[11px] text-muted-foreground">
                         {race.finishedAt
                           ? new Date(race.finishedAt).toLocaleDateString()
                           : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-3">
+                    <Badge variant={outcomeBadgeVariant(outcome)}>
+                      {outcome}
+                    </Badge>
+                    <span
+                      className={cn(
+                        "flex items-center gap-1 font-display text-sm font-semibold tabular-nums",
+                        deltaTone
+                      )}
+                    >
+                      {isGain ? (
+                        <TrendingUp className="size-3" />
+                      ) : (
+                        <TrendingDown className="size-3" />
+                      )}
+                      {formatEloDelta(eloDelta)}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         ) : (
-          <CardContent className="flex items-center justify-center py-8 text-muted-foreground">
+          <div className="panel flex items-center justify-center py-8 text-muted-foreground">
             Complete your first race to see your history
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </div>
 
       {recentRaces.length === 0 && (
         <div className="mt-6 text-center">
@@ -389,17 +379,7 @@ export default async function DashboardPage() {
     racesPlayed: dbUser.racesPlayed,
   };
 
-  let recentRaces: Array<{
-    id: string;
-    p1Id: string;
-    p2Id: string | null;
-    outcome: RaceOutcome | null;
-    eloDeltaP1: number | null;
-    eloDeltaP2: number | null;
-    finishedAt: Date | null;
-    p1User?: { username: string };
-    p2User?: { username: string } | null;
-  }> = [];
+  let recentRaces: RecentRace[] = [];
   let eloHistoryData: Array<{ eloAfter: number }> = [];
   let errorOccurred = false;
 
