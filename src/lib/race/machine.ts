@@ -30,6 +30,7 @@ export type MachineRace = Pick<
   | "p2Ready"
   | "timeLimitSec"
   | "drawOfferBy"
+  | "challengeToken"
 >;
 
 /** Reasons a guard can reject a transition. */
@@ -43,7 +44,8 @@ export type GuardReason =
   | "already_finished"
   | "not_active"
   | "no_draw_offer"
-  | "own_draw_offer";
+  | "own_draw_offer"
+  | "invalid_token";
 
 /** Discriminated guard result. */
 export type GuardResult = { ok: true } | { ok: false; reason: GuardReason };
@@ -95,6 +97,21 @@ export function canAbort(race: MachineRace, userId: string): GuardResult {
   if (!isParticipant(race, userId)) return fail("not_participant");
   if (race.status === "finished" || race.status === "aborted") {
     return fail("already_finished");
+  }
+  return ok;
+}
+
+/**
+ * Can a non-participant decline `race` via its challenge link? Requires the
+ * race still be `pending` (a truthful "no longer open" for used/finished
+ * challenges) and the presented `challengeToken` to match the race's own
+ * token — `null` (a matchmade race has no token) and any mismatch both fail
+ * `invalid_token` so a bad/foreign token can't probe race state.
+ */
+export function canDecline(race: MachineRace, challengeToken: string): GuardResult {
+  if (race.status !== "pending") return fail("not_pending");
+  if (race.challengeToken === null || race.challengeToken !== challengeToken) {
+    return fail("invalid_token");
   }
   return ok;
 }

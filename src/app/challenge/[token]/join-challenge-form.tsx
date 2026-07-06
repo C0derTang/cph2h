@@ -24,17 +24,20 @@ import type { PublicUser, RaceSnapshot } from "@/lib/types";
 
 interface JoinChallengeFormProps {
   token: string;
+  raceId: string;
   challenger: PublicUser;
   timeLimitSec: number;
 }
 
 export function JoinChallengeForm({
   token,
+  raceId,
   challenger,
   timeLimitSec,
 }: JoinChallengeFormProps) {
   const router = useRouter();
   const [joining, setJoining] = useState(false);
+  const [declining, setDeclining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
 
@@ -64,6 +67,34 @@ export function JoinChallengeForm({
       toast.error("Network error — please try again.");
     } finally {
       setJoining(false);
+    }
+  }
+
+  async function handleDecline() {
+    setDeclining(true);
+    setError(null);
+    setErrorCode(null);
+    try {
+      const res = await fetch(`/api/races/${raceId}/abort`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeToken: token }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = joinErrorMessage(data?.error);
+        setError(message);
+        setErrorCode(data?.error ?? null);
+        toast.error(message);
+        return;
+      }
+      toast.success("Challenge declined.");
+      router.refresh();
+    } catch {
+      setError("Network error — please try again.");
+      toast.error("Network error — please try again.");
+    } finally {
+      setDeclining(false);
     }
   }
 
@@ -105,16 +136,38 @@ export function JoinChallengeForm({
             Find another race
           </Button>
         ) : (
-          <Button type="button" onClick={handleJoin} disabled={joining}>
-            {joining ? (
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                Joining…
-              </>
-            ) : (
-              "Join race"
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={handleJoin}
+              disabled={joining || declining}
+            >
+              {joining ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  Joining…
+                </>
+              ) : (
+                "Join race"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDecline}
+              disabled={joining || declining}
+              data-testid="decline-challenge-btn"
+            >
+              {declining ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  Declining…
+                </>
+              ) : (
+                "Decline"
+              )}
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -128,7 +181,8 @@ function isTerminalJoinError(error: string | null): boolean {
     error === "already_has_opponent" ||
     error === "conflict" ||
     error === "not_pending" ||
-    error === "not_found"
+    error === "not_found" ||
+    error === "invalid_token"
   );
 }
 
@@ -142,6 +196,8 @@ function joinErrorMessage(error?: string): string {
     case "not_pending":
       return "This challenge is no longer open.";
     case "not_found":
+      return "This challenge link is invalid.";
+    case "invalid_token":
       return "This challenge link is invalid.";
     case "cf_not_linked":
       return "Link your Codeforces account first.";

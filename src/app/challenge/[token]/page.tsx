@@ -112,6 +112,7 @@ export default async function JoinChallengePage({
       <div className="mt-10">
         <JoinChallengeForm
           token={token}
+          raceId={race.id}
           challenger={toPublicUser(challenger)}
           timeLimitSec={race.timeLimitSec}
         />

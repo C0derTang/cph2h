@@ -10,6 +10,7 @@ import {
   canReady,
   canStart,
   canAbort,
+  canDecline,
   canOfferDraw,
   canAcceptDraw,
   canDeclineDraw,
@@ -33,6 +34,7 @@ function race(overrides: Partial<MachineRace> = {}): MachineRace {
     p2Ready: false,
     timeLimitSec: 2400,
     drawOfferBy: null,
+    challengeToken: null,
     ...overrides,
   };
 }
@@ -191,6 +193,44 @@ describe("canAbort", () => {
       ok: false,
       reason: "not_participant",
     });
+  });
+});
+
+describe("canDecline", () => {
+  it("allows a pending race with a matching challenge token", () => {
+    expect(
+      canDecline(race({ challengeToken: "tok-abc" }), "tok-abc"),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects a mismatched token", () => {
+    expect(
+      canDecline(race({ challengeToken: "tok-abc" }), "tok-wrong"),
+    ).toEqual({ ok: false, reason: "invalid_token" });
+  });
+
+  it("rejects when the race has no token (matchmade race)", () => {
+    expect(canDecline(race({ challengeToken: null }), "tok-abc")).toEqual({
+      ok: false,
+      reason: "invalid_token",
+    });
+  });
+
+  it("rejects any non-pending status", () => {
+    for (const status of ALL_STATUSES.filter((s) => s !== "pending")) {
+      expect(
+        canDecline(race({ status, challengeToken: "tok-abc" }), "tok-abc"),
+      ).toEqual({ ok: false, reason: "not_pending" });
+    }
+  });
+
+  it("checks status before the token — not_pending wins over a wrong token", () => {
+    expect(
+      canDecline(
+        race({ status: "ready", p2Id: P2, challengeToken: "tok-abc" }),
+        "tok-wrong",
+      ),
+    ).toEqual({ ok: false, reason: "not_pending" });
   });
 });
 
