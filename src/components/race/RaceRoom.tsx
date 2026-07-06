@@ -62,6 +62,7 @@ import {
   nextRetryDelay,
 } from "@/lib/race/countdown";
 import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
+import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
 
 interface RaceRoomProps {
   raceId: string;
@@ -833,6 +834,18 @@ export function RaceRoom({
  * (see `mintToken` in `src/lib/livekit.ts`), so a forged `byUserId` must not
  * be able to impersonate another player's bubble. A mismatch is dropped
  * silently, same as any other malformed/unknown taunt payload.
+ *
+ * The NON-taunt branch is throttled (PR #85 security review): because
+ * clients hold data-publish rights, a malicious opponent could publish
+ * forged non-taunt events (e.g. `{type:"verdict"}`) at arbitrary rate,
+ * turning each into a `GET /api/races/[id]` from the victim's browser — a
+ * 1:1 amplification DoS against our own API. Events collapse to at most one
+ * refetch per `REFETCH_MIN_MS`, leading + trailing edge (the pure timing
+ * math lives in `@/lib/race/refetch-throttle`): the first event of a burst
+ * refetches immediately, and one trailing refetch covers the tail so a
+ * legitimate final event (e.g. `race_finished`) is never dropped.
+ * `onReconnected` is deliberately NOT throttled — connection state is
+ * LiveKit-server-driven, not attacker-controllable.
  */
 function RaceEvents({
   onEvent,
@@ -843,6 +856,15 @@ function RaceEvents({
   onReconnected: () => void;
   onTaunt: (byUserId: string, tauntId: string) => void;
 }) {
+  const lastRefetch = useRef(0);
+  const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirror the latest onEvent so a trailing timer scheduled before a parent
+  // re-render still calls the current callback when it fires.
+  const onEventRef = useRef(onEvent);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
   useDataChannel(LIVEKIT_DATA_TOPIC, (msg) => {
     const event = decodeRaceEvent(msg.payload);
     if (!event) return;
@@ -854,9 +876,27 @@ function RaceEvents({
       return;
     }
     // We only need to know a (non-taunt) event arrived — the snapshot is
-    // authoritative.
-    onEvent();
+    // authoritative. Throttled: leading edge fires now, a burst's tail is
+    // covered by a single trailing refetch, everything in between drops.
+    const decision = refetchThrottleDecision(lastRefetch.current, Date.now());
+    if (decision.action === "now") {
+      lastRefetch.current = Date.now();
+      onEventRef.current();
+    } else if (!trailing.current) {
+      trailing.current = setTimeout(() => {
+        trailing.current = null;
+        lastRefetch.current = Date.now();
+        onEventRef.current();
+      }, decision.delayMs);
+    }
   });
+
+  // Clear a pending trailing refetch on unmount (room teardown).
+  useEffect(() => {
+    return () => {
+      if (trailing.current) clearTimeout(trailing.current);
+    };
+  }, []);
 
   const connState = useConnectionState();
   const prevState = useRef(connState);

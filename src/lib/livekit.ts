@@ -9,15 +9,20 @@
  * `taunt` events are the deliberate exception (issue #84): they're
  * ephemeral, presentational, and sent directly client-to-client, so clients
  * need `canPublishData: true` to publish them. This does mean a client
- * *could* publish a forged non-taunt `RaceEvent`, but that's harmless by
- * construction — every other event is only ever treated as a hint that
- * triggers a `GET /api/races/[id]` refetch, which is read-only and
- * idempotent (worst case: some wasted refetches). The one place a forged
- * payload could matter is impersonating another player's taunt; the
- * consumer (`RaceEvents` in `src/components/race/RaceRoom.tsx`) guards
- * against that by trusting LiveKit's own `msg.from.identity` — assigned at
- * token mint here, unforgeable by the client — over the payload's own
- * `byUserId` field.
+ * *could* publish a forged non-taunt `RaceEvent`. Two consumer-side guards
+ * in `RaceEvents` (`src/components/race/RaceRoom.tsx`) make that harmless:
+ *
+ * 1. **Impersonation** — a forged taunt `byUserId` can't put words on
+ *    another player's tile: the consumer trusts LiveKit's own
+ *    `msg.from.identity` (assigned at token mint here, unforgeable by the
+ *    client) over the payload's `byUserId` field, dropping mismatches.
+ * 2. **Refetch amplification** — every non-taunt event is only ever a hint
+ *    that triggers a read-only, idempotent `GET /api/races/[id]` refetch,
+ *    and that path is throttled to at most one refetch per `REFETCH_MIN_MS`
+ *    (leading + trailing edge, see `src/lib/race/refetch-throttle.ts`), so
+ *    an opponent flooding forged events can't turn the victim's browser
+ *    into a DoS amplifier against our own API — a flood collapses to
+ *    ~1 refetch/sec, comparable to the existing snapshot poll cadence.
  */
 
 import { AccessToken, DataPacket_Kind, RoomServiceClient } from "livekit-server-sdk";
