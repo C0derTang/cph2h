@@ -260,7 +260,7 @@ export function Lobby({
           <Button
             type="button"
             onClick={handleReady}
-            disabled={readying || youReady}
+            disabled={readying || cancelling || youReady}
           >
             {readying ? (
               <>
