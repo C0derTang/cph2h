@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { Circle, Clock, Timer } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { correctedNow } from "@/lib/race/countdown";
 import type { PublicUser, RaceSnapshot } from "@/lib/types";
 
 interface RaceHUDProps {
@@ -22,6 +23,12 @@ interface RaceHUDProps {
   opponent: PublicUser | null;
   /** LiveKit presence — whether the opponent is currently in the room. */
   opponentPresent?: boolean;
+  /**
+   * Clock skew (ms) between the local machine and the server, computed on
+   * every snapshot receipt (see `src/lib/race/countdown.ts`). Applied to the
+   * local tick so the countdown/timer never trust a skewed local clock.
+   */
+  skewMs?: number;
   className?: string;
 }
 
@@ -50,9 +57,11 @@ export function RaceHUD({
   you,
   opponent,
   opponentPresent,
+  skewMs = 0,
   className,
 }: RaceHUDProps) {
-  const now = useNow(250);
+  const localNow = useNow(250);
+  const now = correctedNow(skewMs, localNow);
   const startedAt = snapshot.startedAt ? new Date(snapshot.startedAt).getTime() : null;
   const endsAt = snapshot.endsAt ? new Date(snapshot.endsAt).getTime() : null;
 

@@ -54,6 +54,12 @@ import {
   decodeRaceEvent,
   type RaceSnapshot,
 } from "@/lib/types";
+import {
+  classifyPollResponse,
+  computeSkewMs,
+  msUntilUnlock,
+  nextRetryDelay,
+} from "@/lib/race/countdown";
 
 interface RaceRoomProps {
   raceId: string;
@@ -103,17 +109,45 @@ export function RaceRoom({
 
   const status = snapshot.status;
 
+  // --- Clock skew correction ----------------------------------------------
+  // The server's `now` (snapshot build time) vs. the local clock at receipt —
+  // recomputed on every snapshot receipt so countdown/unlock timing never
+  // trusts a skewed local clock (see `src/lib/race/countdown.ts`). Kept as
+  // state (not just a ref) because RaceHUD needs the current value at render
+  // time; a ref mirror is synced separately for use inside timer callbacks
+  // (effects/timeouts) so those don't need to depend on — and restart on —
+  // every skew update.
+  const [skewMs, setSkewMs] = useState(() =>
+    computeSkewMs(initialSnapshot.now, Date.now()),
+  );
+  const skewMsRef = useRef(skewMs);
+  useEffect(() => {
+    skewMsRef.current = skewMs;
+  }, [skewMs]);
+
+  // Mirrors `snapshot` for read access inside timer callbacks without
+  // recreating them on every snapshot update.
+  const snapshotRef = useRef(snapshot);
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
+  const applySnapshot = useCallback((data: RaceSnapshot) => {
+    setSkewMs(computeSkewMs(data.now, Date.now()));
+    setSnapshot(data);
+  }, []);
+
   // --- Snapshot refetch (source of truth) --------------------------------
   const refetch = useCallback(async () => {
     try {
       const res = await fetch(`/api/races/${raceId}`, { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as RaceSnapshot;
-      if (data && typeof data.status === "string") setSnapshot(data);
+      if (data && typeof data.status === "string") applySnapshot(data);
     } catch {
       // Transient — the poll loop / next event will retry.
     }
-  }, [raceId]);
+  }, [raceId, applySnapshot]);
 
   // Refetch once on mount (per spec: mount is a refetch trigger). Deferred so
   // the async setState never runs synchronously inside the effect body.
@@ -188,13 +222,21 @@ export function RaceRoom({
         const res = await fetch(`/api/races/${raceId}/poll`, { method: "POST" });
         if (!res.ok) throw new Error(`poll failed (${res.status})`);
         const data: unknown = await res.json().catch(() => null);
-        if (
-          !cancelled &&
-          data &&
-          typeof data === "object" &&
-          typeof (data as RaceSnapshot).status === "string"
-        ) {
-          setSnapshot(data as RaceSnapshot);
+        const classified = classifyPollResponse(data);
+        if (!cancelled) {
+          if (classified.kind === "snapshot") {
+            applySnapshot(classified.snapshot);
+          } else if (
+            classified.kind === "skipped" &&
+            snapshotRef.current.status === "active" &&
+            snapshotRef.current.statement == null
+          ) {
+            // We lost the poll mutex (someone else claimed it) and we're
+            // still locked out of the statement — don't just drop the tick,
+            // fall back to a plain refetch so a losing streak can't strand
+            // us behind the winner (issue #62).
+            void refetch();
+          }
         }
         // A response (even `{ skipped: true }`) means the connection to our
         // own API is healthy — clear any "having trouble" banner.
@@ -224,7 +266,44 @@ export function RaceRoom({
       pollFailuresRef.current = 0;
       setPollDegraded(false);
     };
-  }, [status, raceId]);
+  }, [status, raceId, applySnapshot, refetch]);
+
+  // --- Unlock timer --------------------------------------------------------
+  // Bridges the gap between countdown end and the next verdict-poll mutex
+  // win: fires a plain (non-mutex) refetch right at the skew-corrected unlock
+  // instant, then retries per UNLOCK_REFETCH_BACKOFF_MS until the statement
+  // shows up (or the race leaves `active`). Reads live state via refs rather
+  // than depending on `snapshot.statement`/skew directly so a losing-streak
+  // backoff isn't reset by unrelated snapshot updates (issue #62).
+  useEffect(() => {
+    if (status !== "active") return;
+    const startedAtIso = snapshot.startedAt;
+    if (!startedAtIso) return;
+    if (snapshot.statement) return; // already unlocked — nothing to schedule
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const stillLocked = () =>
+      snapshotRef.current.status === "active" && snapshotRef.current.statement == null;
+
+    const attempt = (attemptNumber: number, delayMs: number) => {
+      timer = setTimeout(async () => {
+        if (cancelled) return;
+        await refetch();
+        if (cancelled || !stillLocked()) return;
+        attempt(attemptNumber + 1, nextRetryDelay(attemptNumber));
+      }, delayMs);
+    };
+
+    const initialDelay = Math.max(0, msUntilUnlock(startedAtIso, skewMsRef.current));
+    attempt(0, initialDelay);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [status, snapshot.startedAt, snapshot.statement, refetch]);
 
   // --- Manual submission: check now ---------------------------------------
   // Users submit on codeforces.com themselves (their real browser passes
@@ -237,13 +316,9 @@ export function RaceRoom({
     try {
       const res = await fetch(`/api/races/${raceId}/poll`, { method: "POST" });
       const data: unknown = await res.json().catch(() => null);
-      if (
-        res.ok &&
-        data &&
-        typeof data === "object" &&
-        typeof (data as RaceSnapshot).status === "string"
-      ) {
-        setSnapshot(data as RaceSnapshot);
+      const classified = classifyPollResponse(data);
+      if (res.ok && classified.kind === "snapshot") {
+        applySnapshot(classified.snapshot);
         toast.success("Checked Codeforces for your latest verdict.");
       } else {
         // Poll may have been skipped (mutex/cooldown) — fall back to a snapshot.
@@ -255,7 +330,7 @@ export function RaceRoom({
     } finally {
       setChecking(false);
     }
-  }, [checking, raceId, refetch]);
+  }, [checking, raceId, refetch, applySnapshot]);
 
   const copyCode = useCallback(async () => {
     try {
@@ -284,7 +359,7 @@ export function RaceRoom({
       const res = await fetch(`/api/races/${raceId}/abort`, { method: "POST" });
       const data = (await res.json().catch(() => null)) as RaceSnapshot | null;
       if (res.ok && data && typeof data.status === "string") {
-        setSnapshot(data);
+        applySnapshot(data);
         toast.info("You forfeited the race.");
       } else {
         toast.error("Couldn't forfeit — try again.");
@@ -294,7 +369,7 @@ export function RaceRoom({
     } finally {
       setForfeiting(false);
     }
-  }, [forfeiting, raceId]);
+  }, [forfeiting, raceId, applySnapshot]);
 
   // --- Draw offers (offer / accept / decline / withdraw) -----------------
   const handleDrawAction = useCallback(
@@ -309,7 +384,7 @@ export function RaceRoom({
         });
         const data = (await res.json().catch(() => null)) as RaceSnapshot | null;
         if (res.ok && data && typeof data.status === "string") {
-          setSnapshot(data);
+          applySnapshot(data);
           if (action === "offer") {
             toast.info("Draw offer sent.");
           } else if (action === "accept") {
@@ -330,7 +405,7 @@ export function RaceRoom({
         setDrawActionPending(false);
       }
     },
-    [drawActionPending, raceId, refetch],
+    [drawActionPending, raceId, refetch, applySnapshot],
   );
 
   // --- Opponent disconnect grace: only counts a *sustained* absence, so a
@@ -379,7 +454,7 @@ export function RaceRoom({
           raceId={raceId}
           currentUserId={currentUserId}
           initialSnapshot={snapshot}
-          onRaceActive={(snap) => setSnapshot(snap)}
+          onRaceActive={applySnapshot}
         />
       </main>
     );
@@ -590,6 +665,7 @@ export function RaceRoom({
         you={you}
         opponent={opponent}
         opponentPresent={withVideo ? opponentLive : undefined}
+        skewMs={skewMs}
       />
       {withVideo ? (
         <VideoTiles />

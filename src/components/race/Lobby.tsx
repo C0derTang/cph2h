@@ -32,6 +32,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { buildJoinUrl } from "@/lib/race/join-url";
+import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
 import { CLIENT_POLL_INTERVAL_MS } from "@/lib/types";
 import type { PublicUser, RaceSnapshot } from "@/lib/types";
 
@@ -63,10 +64,24 @@ export function Lobby({
   const [readying, setReadying] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [, forceTick] = useState(0);
+  // Tracks a real local timestamp (not a dummy counter) so the render body
+  // can derive a skew-corrected "now" without calling `Date.now()` directly
+  // during render. Updated by the countdown tick effect below.
+  const [tickNow, setTickNow] = useState(() => Date.now());
   const notifiedActiveRef = useRef(false);
   const fetchedOnceRef = useRef(Boolean(initialSnapshot));
   const seenOpponentIdRef = useRef<string | null>(initialSnapshot?.p2?.id ?? null);
+  // Clock skew (ms) between the local machine and the server, recomputed on
+  // every snapshot receipt (see `src/lib/race/countdown.ts`) — the countdown
+  // display must never trust a skewed local clock. Kept as state (read
+  // during render) with a ref mirror for the tick effect below.
+  const [skewMs, setSkewMs] = useState(() =>
+    computeSkewMs(initialSnapshot?.now ?? new Date().toISOString(), Date.now()),
+  );
+  const skewMsRef = useRef(skewMs);
+  useEffect(() => {
+    skewMsRef.current = skewMs;
+  }, [skewMs]);
 
   const refresh = useCallback(async () => {
     try {
@@ -76,6 +91,7 @@ export function Lobby({
         return;
       }
       const data = (await res.json()) as RaceSnapshot;
+      setSkewMs(computeSkewMs(data.now, Date.now()));
       if (data.p2 && !seenOpponentIdRef.current) {
         toast.success(`${data.p2.username} joined — get ready!`);
       }
@@ -109,12 +125,15 @@ export function Lobby({
   useEffect(() => {
     if (snapshot?.status !== "active" || !snapshot.startedAt) return;
     const startedAtMs = new Date(snapshot.startedAt).getTime();
-    if (Date.now() >= startedAtMs) return;
+    if (correctedNow(skewMsRef.current, Date.now()) >= startedAtMs) return;
     const tick = setInterval(() => {
       // Tick first so the final render reflects "started", then stop —
       // otherwise this would keep firing uselessly for the rest of the race.
-      forceTick((n) => n + 1);
-      if (Date.now() >= startedAtMs) clearInterval(tick);
+      const localNowMs = Date.now();
+      setTickNow(localNowMs);
+      if (correctedNow(skewMsRef.current, localNowMs) >= startedAtMs) {
+        clearInterval(tick);
+      }
     }, 250);
     return () => clearInterval(tick);
   }, [snapshot?.status, snapshot?.startedAt]);
@@ -216,15 +235,16 @@ export function Lobby({
   const opponent = isP1 ? snapshot.p2 : snapshot.p1;
   const youReady = isP1 ? snapshot.p1Ready : snapshot.p2Ready;
   const opponentReady = isP1 ? snapshot.p2Ready : snapshot.p1Ready;
+  const nowMs = correctedNow(skewMs, tickNow);
 
   return (
     <LobbyShell className={className}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Swords className="size-4 text-primary" aria-hidden />
-          {statusHeading(snapshot)}
+          {statusHeading(snapshot, nowMs)}
         </CardTitle>
-        <CardDescription>{statusSubheading(snapshot)}</CardDescription>
+        <CardDescription>{statusSubheading(snapshot, nowMs)}</CardDescription>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-5">
@@ -353,7 +373,7 @@ function PlayerRow({
   );
 }
 
-function statusHeading(snapshot: RaceSnapshot): string {
+function statusHeading(snapshot: RaceSnapshot, nowMs: number): string {
   switch (snapshot.status) {
     case "pending":
       return "Waiting for opponent";
@@ -361,10 +381,10 @@ function statusHeading(snapshot: RaceSnapshot): string {
       return "Get ready";
     case "active": {
       const startedAt = snapshot.startedAt ? new Date(snapshot.startedAt) : null;
-      if (startedAt && Date.now() < startedAt.getTime()) {
+      if (startedAt && nowMs < startedAt.getTime()) {
         const secondsLeft = Math.max(
           0,
-          Math.ceil((startedAt.getTime() - Date.now()) / 1000),
+          Math.ceil((startedAt.getTime() - nowMs) / 1000),
         );
         return `Starting in ${secondsLeft}s`;
       }
@@ -379,14 +399,14 @@ function statusHeading(snapshot: RaceSnapshot): string {
   }
 }
 
-function statusSubheading(snapshot: RaceSnapshot): string {
+function statusSubheading(snapshot: RaceSnapshot, nowMs: number): string {
   switch (snapshot.status) {
     case "pending":
       return "Share the link below — the race begins once your opponent joins.";
     case "ready":
       return "Both players must mark ready to start the countdown.";
     case "active":
-      return snapshot.startedAt && Date.now() < new Date(snapshot.startedAt).getTime()
+      return snapshot.startedAt && nowMs < new Date(snapshot.startedAt).getTime()
         ? "Get ready — the problem unlocks when the countdown ends."
         : "Good luck!";
     case "finished":
