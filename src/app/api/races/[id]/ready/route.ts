@@ -1,14 +1,22 @@
 /**
  * POST /api/races/[id]/ready — mark caller ready (issue #7).
  *
- * Sets the caller's ready flag (conditional on `status='ready'`). When both
- * players are ready, atomically transitions `ready -> active`: picks the problem
- * (via the injected {@link selectRaceProblem} hook — stubbed until #6) and
- * applies {@link nextOnBothReady} (startedAt = now + countdown, endsAt derived).
+ * Sets the caller's ready flag (conditional on `status='ready'`) and clears any
+ * stale problem-selection failure reason. When both players are ready, it
+ * selects a filter-conforming, unseen problem via the injected
+ * {@link selectRaceProblem} hook BEFORE any transition (issue #66):
+ * - On success it atomically transitions `ready -> active` with the concrete
+ *   problem id and applies {@link nextOnBothReady} (startedAt = now + countdown,
+ *   endsAt derived). The race can never enter `active` with a null problem.
+ * - On failure (no conforming/unseen problem) it does NOT transition: a single
+ *   atomic `UPDATE` resets both ready flags and persists the reason, and a
+ *   `problem_selection_failed` event is published (a hint; the snapshot is the
+ *   truth). Both players land back in the lobby with the reason.
  *
  * All writes are `UPDATE ... WHERE id=$1 AND status='ready' RETURNING *`; a lost
- * race (zero rows) re-reads and returns the current snapshot. LiveKit publishing
- * is behind the {@link publishRaceEvent} hook (no-op until #8/#17).
+ * race (zero rows) re-reads and returns the current snapshot. This keeps the
+ * no-match path safe and idempotent under concurrent double-ready. LiveKit
+ * publishing is behind the {@link publishRaceEvent} hook.
  */
 
 import { NextResponse } from "next/server";
@@ -52,9 +60,11 @@ export async function POST(
   const setReady =
     session.user.id === race.p1Id ? { p1Ready: true } : { p2Ready: true };
 
+  // Clear any stale failure reason from a previous no-match attempt as this
+  // ready attempt begins (conditional on the race still being in `ready`).
   const [afterReady] = await db
     .update(races)
-    .set(setReady)
+    .set({ ...setReady, problemSelectionFailedReason: null })
     .where(and(eq(races.id, id), eq(races.status, "ready")))
     .returning();
 
@@ -73,10 +83,41 @@ export async function POST(
     return NextResponse.json(await buildRaceSnapshot(afterReady), { status: 200 });
   }
 
-  // Both ready: transition ready -> active.
+  // Both ready: attempt to select a filter-conforming, unseen problem BEFORE
+  // any transition — the race must never enter `active` with a null problem.
+  const selection = await selectRaceProblem(afterReady);
+
+  if (!selection.ok) {
+    // No conforming problem: stay in the lobby. Atomically reset both ready
+    // flags and persist the reason (single Neon-safe statement); do NOT
+    // transition to active. Snapshot is the source of truth; the event is a
+    // hint. The `status='ready'` guard makes this safe under concurrent
+    // double-ready and never disturbs a race another writer already started.
+    const [reset] = await db
+      .update(races)
+      .set({
+        p1Ready: false,
+        p2Ready: false,
+        problemSelectionFailedReason: selection.reason,
+      })
+      .where(and(eq(races.id, id), eq(races.status, "ready")))
+      .returning();
+
+    if (!reset) {
+      return currentSnapshot(id, afterReady);
+    }
+
+    await publishRaceEvent(reset.id, {
+      type: "problem_selection_failed",
+      reason: selection.reason,
+    });
+
+    return NextResponse.json(await buildRaceSnapshot(reset), { status: 200 });
+  }
+
+  // Success: transition ready -> active with a concrete, non-null problem.
   const now = new Date();
   const transition = nextOnBothReady(afterReady, now);
-  const problemId = await selectRaceProblem(afterReady); // #6 hook (stub -> null)
 
   const [started] = await db
     .update(races)
@@ -84,7 +125,8 @@ export async function POST(
       status: transition.status,
       startedAt: transition.startedAt,
       endsAt: transition.endsAt,
-      problemId,
+      problemId: selection.problemId,
+      problemSelectionFailedReason: null,
     })
     .where(and(eq(races.id, id), eq(races.status, "ready")))
     .returning();

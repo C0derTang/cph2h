@@ -19,6 +19,13 @@ function problem(id: string, rating: number): ProblemRef {
   };
 }
 
+/** Narrow a successful pick to its problem id, failing the test otherwise. */
+function pickedId(result: ReturnType<typeof pickProblem>): string {
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("expected an ok pick");
+  return result.problem.id;
+}
+
 describe("targetRating", () => {
   it("averages both ratings and rounds to the nearest 100", () => {
     expect(targetRating(1400, 1600)).toBe(1500);
@@ -47,8 +54,7 @@ describe("pickProblem", () => {
       p2Rating: 1600,
       seed: 1,
     });
-    expect(result).not.toBeNull();
-    expect(["2A", "3A"]).toContain(result!.id);
+    expect(["2A", "3A"]).toContain(pickedId(result));
   });
 
   it("excludes seen problems even when they're in-band", () => {
@@ -60,11 +66,10 @@ describe("pickProblem", () => {
       p2Rating: 1200,
       seed: 1,
     });
-    expect(result).not.toBeNull();
-    expect(result!.id).toBe("2A");
+    expect(pickedId(result)).toBe("2A");
   });
 
-  it("returns null when every in-band candidate has been seen", () => {
+  it("reports all_problems_seen when every in-band candidate has been seen", () => {
     const candidates = [problem("1A", 1200), problem("2A", 1300)];
     const result = pickProblem({
       candidates,
@@ -73,10 +78,10 @@ describe("pickProblem", () => {
       p2Rating: 1200,
       seed: 1,
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ ok: false, reason: "all_problems_seen" });
   });
 
-  it("returns null when there are no candidates at all", () => {
+  it("reports no_problems_in_filters when there are no candidates at all", () => {
     const result = pickProblem({
       candidates: [],
       seenIds: new Set(),
@@ -84,7 +89,7 @@ describe("pickProblem", () => {
       p2Rating: 1200,
       seed: 1,
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ ok: false, reason: "no_problems_in_filters" });
   });
 
   it("widens the window by ±100 per retry until it finds a candidate", () => {
@@ -98,13 +103,13 @@ describe("pickProblem", () => {
       p2Rating: 1200,
       seed: 1,
     });
-    expect(result).not.toBeNull();
-    expect(result!.id).toBe("1A");
+    expect(pickedId(result)).toBe("1A");
   });
 
-  it("gives up and returns null if widening exhausts its bound", () => {
+  it("gives up (no_problems_in_filters) if widening exhausts its bound", () => {
     // target 1200; candidate rating is far enough away that no bounded widen
-    // reaches it.
+    // reaches it, and no rating filter is set — an out-of-band problem must not
+    // be forced onto a mismatched race.
     const candidates = [problem("1A", 3000)];
     const result = pickProblem({
       candidates,
@@ -113,7 +118,7 @@ describe("pickProblem", () => {
       p2Rating: 1200,
       seed: 1,
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ ok: false, reason: "no_problems_in_filters" });
   });
 
   it("is deterministic: same candidates + same seed always pick the same problem", () => {
@@ -149,5 +154,93 @@ describe("pickProblem", () => {
       seed: 7,
     });
     expect(candidates).toEqual(snapshot);
+  });
+
+  describe("hard rating filter (challenger filters)", () => {
+    it("never picks below ratingMin even though it lies in the target band", () => {
+      // target 1500, band [1400,1700] would include 1400; filter floor is 1500.
+      const candidates = [problem("1A", 1400), problem("2A", 1500)];
+      const result = pickProblem({
+        candidates,
+        seenIds: new Set(),
+        p1Rating: 1400,
+        p2Rating: 1600,
+        seed: 3,
+        ratingMin: 1500,
+      });
+      expect(pickedId(result)).toBe("2A");
+    });
+
+    it("never picks above ratingMax even though it lies in the target band", () => {
+      // target 1500, band [1400,1700] includes 1700; filter ceil is 1500.
+      const candidates = [problem("1A", 1500), problem("2A", 1700)];
+      const result = pickProblem({
+        candidates,
+        seenIds: new Set(),
+        p1Rating: 1400,
+        p2Rating: 1600,
+        seed: 3,
+        ratingMax: 1500,
+      });
+      expect(pickedId(result)).toBe("1A");
+    });
+
+    it("no_problems_in_filters when nothing falls inside the filter bounds", () => {
+      const candidates = [problem("1A", 1200), problem("2A", 1300)];
+      const result = pickProblem({
+        candidates,
+        seenIds: new Set(),
+        p1Rating: 1200,
+        p2Rating: 1200,
+        seed: 3,
+        ratingMin: 2000,
+        ratingMax: 2200,
+      });
+      expect(result).toEqual({ ok: false, reason: "no_problems_in_filters" });
+    });
+
+    it("all_problems_seen when in-filter problems exist but every one is seen", () => {
+      const candidates = [problem("1A", 2000), problem("2A", 2100)];
+      const result = pickProblem({
+        candidates,
+        seenIds: new Set(["1A", "2A"]),
+        p1Rating: 1200,
+        p2Rating: 1200,
+        seed: 3,
+        ratingMin: 1900,
+        ratingMax: 2200,
+      });
+      expect(result).toEqual({ ok: false, reason: "all_problems_seen" });
+    });
+
+    it("falls back to a conforming problem outside the target's widening reach when a filter is set", () => {
+      // target 1200 (reach maxes ~[600,1900]); only unseen conforming problem
+      // is at 3000, well inside the wide filter [800,3500] -> must still pick it.
+      const candidates = [problem("1A", 3000)];
+      const result = pickProblem({
+        candidates,
+        seenIds: new Set(),
+        p1Rating: 1200,
+        p2Rating: 1200,
+        seed: 3,
+        ratingMin: 800,
+        ratingMax: 3500,
+      });
+      expect(pickedId(result)).toBe("1A");
+    });
+
+    it("still prefers a near-target problem over a far conforming one", () => {
+      const candidates = [problem("1A", 1200), problem("2A", 3400)];
+      const result = pickProblem({
+        candidates,
+        seenIds: new Set(),
+        p1Rating: 1200,
+        p2Rating: 1200,
+        seed: 3,
+        ratingMin: 800,
+        ratingMax: 3500,
+      });
+      expect(pickedId(result)).toBe("1A");
+    });
   });
 });

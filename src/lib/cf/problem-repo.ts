@@ -4,7 +4,7 @@
  * unit-testable without a database.
  */
 
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { problems, userProblems, type NewProblem } from "@/lib/db/schema";
 import { problemUrl, type ProblemId, type ProblemRef } from "@/lib/types";
@@ -38,15 +38,48 @@ export async function getSeenProblemIds(userId: string): Promise<Set<ProblemId>>
   return new Set(rows.map((row) => row.problemId));
 }
 
-/** All cached problems with a rating in `[minRating, maxRating]` (inclusive). */
+/**
+ * Optional contest-date constraints on candidate selection. When either bound
+ * is set, problems with a null `contest_started_at` are EXCLUDED — their
+ * contest date is unknown, so they can't be proven to fall inside the range
+ * (mirrors `buildAvailabilityWhere` in `problem-availability.ts`).
+ */
+export interface CandidateDateBounds {
+  dateFrom?: Date | null;
+  dateTo?: Date | null;
+}
+
+/**
+ * All cached problems with a rating in `[minRating, maxRating]` (inclusive),
+ * optionally further constrained by contest date. A set date bound both filters
+ * the range AND drops rows with an unknown (null) contest date.
+ */
 export async function getCandidatesInBand(
   minRating: number,
   maxRating: number,
+  dateBounds?: CandidateDateBounds,
 ): Promise<ProblemRef[]> {
+  const conditions: SQL[] = [
+    gte(problems.rating, minRating),
+    lte(problems.rating, maxRating),
+  ];
+
+  const dateFrom = dateBounds?.dateFrom ?? null;
+  const dateTo = dateBounds?.dateTo ?? null;
+  if (dateFrom !== null || dateTo !== null) {
+    conditions.push(isNotNull(problems.contestStartedAt));
+    if (dateFrom !== null) {
+      conditions.push(gte(problems.contestStartedAt, dateFrom));
+    }
+    if (dateTo !== null) {
+      conditions.push(lte(problems.contestStartedAt, dateTo));
+    }
+  }
+
   const rows = await db
     .select()
     .from(problems)
-    .where(and(gte(problems.rating, minRating), lte(problems.rating, maxRating)));
+    .where(and(...conditions));
   return rows.map(toProblemRef);
 }
 

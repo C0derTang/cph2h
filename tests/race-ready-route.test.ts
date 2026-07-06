@@ -1,0 +1,306 @@
+/**
+ * Tests for src/app/api/races/[id]/ready/route.ts (issue #66 no-match path).
+ *
+ * `requireLinkedUser`, `db`, `selectRaceProblem`/`publishRaceEvent`
+ * (`@/lib/race/hooks`), and `buildRaceSnapshot` are mocked; the REAL pure
+ * machine guards (`@/lib/race/machine`) run. The load-bearing invariant pinned
+ * here: a race NEVER transitions to `active` when problem selection fails — no
+ * update ever sets `status: 'active'` or a problem id on the no-match path, the
+ * ready flags reset, and the failure reason is persisted. The success path
+ * still transitions with a concrete, non-null problem id.
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Race } from "../src/lib/db/schema";
+import type { SessionResult } from "../src/lib/race/session";
+import type { SelectProblemResult } from "../src/lib/types";
+
+const {
+  requireLinkedUserMock,
+  selectRaceProblemMock,
+  publishRaceEventMock,
+  buildRaceSnapshotMock,
+  updateSetMock,
+  dbState,
+} = vi.hoisted(() => {
+  const dbState = {
+    selectResults: [] as unknown[][],
+    selectIndex: 0,
+    updateReturns: [] as unknown[][],
+    updateIndex: 0,
+  };
+  return {
+    requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
+    selectRaceProblemMock: vi.fn<() => Promise<SelectProblemResult>>(),
+    publishRaceEventMock: vi.fn().mockResolvedValue(undefined),
+    buildRaceSnapshotMock: vi.fn(async (race: Race) => ({
+      __snapshotFor: race.id,
+      status: race.status,
+      problemId: race.problemId,
+      problemSelectionFailedReason: race.problemSelectionFailedReason,
+    })),
+    updateSetMock: vi.fn(),
+    dbState,
+  };
+});
+
+vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
+vi.mock("@/lib/race/hooks", () => ({
+  selectRaceProblem: selectRaceProblemMock,
+  publishRaceEvent: publishRaceEventMock,
+}));
+vi.mock("@/lib/race/snapshot", () => ({ buildRaceSnapshot: buildRaceSnapshotMock }));
+
+vi.mock("@/lib/db", () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () =>
+            Promise.resolve(dbState.selectResults[dbState.selectIndex++] ?? []),
+        }),
+      }),
+    }),
+    update: () => ({
+      set: (values: Record<string, unknown>) => {
+        updateSetMock(values);
+        return {
+          where: () => ({
+            returning: () =>
+              Promise.resolve(dbState.updateReturns[dbState.updateIndex++] ?? []),
+          }),
+        };
+      },
+    }),
+  },
+}));
+
+import { POST } from "../src/app/api/races/[id]/ready/route";
+
+const RACE_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+const P1 = "user-p1";
+const P2 = "user-p2";
+
+function makeRace(overrides: Partial<Race> = {}): Race {
+  return {
+    id: RACE_ID,
+    status: "ready",
+    challengeToken: null,
+    p1Id: P1,
+    p2Id: P2,
+    p1Ready: false,
+    p2Ready: false,
+    problemId: null,
+    timeLimitSec: 2400,
+    startedAt: null,
+    endsAt: null,
+    finishedAt: null,
+    outcome: null,
+    winnerId: null,
+    winningSubmissionId: null,
+    eloDeltaP1: null,
+    eloDeltaP2: null,
+    lastPolledAt: null,
+    ratingMin: null,
+    ratingMax: null,
+    problemDateFrom: null,
+    problemDateTo: null,
+    problemSelectionFailedReason: null,
+    livekitRoom: "room-1",
+    drawOfferBy: null,
+    createdAt: null,
+    ...overrides,
+  };
+}
+
+function queueSelects(results: unknown[][]) {
+  dbState.selectResults = results;
+  dbState.selectIndex = 0;
+}
+function queueUpdates(results: unknown[][]) {
+  dbState.updateReturns = results;
+  dbState.updateIndex = 0;
+}
+
+const params = Promise.resolve({ id: RACE_ID });
+
+function req(): Request {
+  return new Request(`http://localhost/api/races/${RACE_ID}/ready`, { method: "POST" });
+}
+
+function mockSessionAs(userId: string) {
+  requireLinkedUserMock.mockResolvedValue({
+    ok: true,
+    user: {
+      id: userId,
+      clerkId: `clerk-${userId}`,
+      username: userId,
+      cfHandle: `${userId}cf`,
+      cfRating: 1400,
+      cfLinkedAt: new Date(),
+      elo: 1200,
+      racesPlayed: 3,
+      cppTemplate: "",
+      solveHistorySyncedAt: null,
+      createdAt: null,
+    },
+  });
+}
+
+beforeEach(() => {
+  requireLinkedUserMock.mockReset();
+  selectRaceProblemMock.mockReset();
+  publishRaceEventMock.mockClear();
+  buildRaceSnapshotMock.mockClear();
+  updateSetMock.mockClear();
+  dbState.selectResults = [];
+  dbState.selectIndex = 0;
+  dbState.updateReturns = [];
+  dbState.updateIndex = 0;
+  mockSessionAs(P1);
+});
+
+describe("POST /api/races/[id]/ready — success path", () => {
+  it("transitions ready -> active with a concrete non-null problem id", async () => {
+    const race = makeRace({ p2Ready: true }); // opponent already ready
+    const afterReady = { ...race, p1Ready: true };
+    const started = {
+      ...afterReady,
+      status: "active" as const,
+      problemId: "1794C",
+    };
+    queueSelects([[race]]);
+    queueUpdates([[afterReady], [started]]);
+    selectRaceProblemMock.mockResolvedValue({ ok: true, problemId: "1794C" });
+
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(200);
+    expect(selectRaceProblemMock).toHaveBeenCalledTimes(1);
+    // The transition update carries a real problem id and clears any reason.
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "active",
+        problemId: "1794C",
+        problemSelectionFailedReason: null,
+      }),
+    );
+    expect(publishRaceEventMock).toHaveBeenCalledWith(
+      RACE_ID,
+      expect.objectContaining({ type: "countdown" }),
+    );
+  });
+
+  it("clears a stale failure reason as the ready attempt begins", async () => {
+    const race = makeRace({ p2Ready: false, problemSelectionFailedReason: "all_problems_seen" });
+    queueSelects([[race]]);
+    queueUpdates([[{ ...race, p1Ready: true }]]); // still not both ready
+    selectRaceProblemMock.mockResolvedValue({ ok: true, problemId: "x" });
+
+    await POST(req(), { params });
+
+    // First (only) update sets the caller's flag AND nulls the stale reason.
+    expect(updateSetMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ p1Ready: true, problemSelectionFailedReason: null }),
+    );
+    // Not both ready -> selection is never attempted.
+    expect(selectRaceProblemMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/races/[id]/ready — no-match path (issue #66)", () => {
+  it("does NOT transition to active; resets ready flags and persists the reason", async () => {
+    const race = makeRace({ p2Ready: true });
+    const afterReady = { ...race, p1Ready: true };
+    const reset = {
+      ...race,
+      p1Ready: false,
+      p2Ready: false,
+      problemSelectionFailedReason: "all_problems_seen" as const,
+    };
+    queueSelects([[race]]);
+    queueUpdates([[afterReady], [reset]]);
+    selectRaceProblemMock.mockResolvedValue({ ok: false, reason: "all_problems_seen" });
+
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(200);
+    // INVARIANT: no update ever sets status:'active' or a problem id.
+    for (const call of updateSetMock.mock.calls) {
+      const values = call[0] as Record<string, unknown>;
+      expect(values.status).not.toBe("active");
+      expect(values).not.toHaveProperty("problemId");
+    }
+    // The reset update resets both flags and persists the reason.
+    expect(updateSetMock).toHaveBeenNthCalledWith(2, {
+      p1Ready: false,
+      p2Ready: false,
+      problemSelectionFailedReason: "all_problems_seen",
+    });
+    expect(publishRaceEventMock).toHaveBeenCalledWith(RACE_ID, {
+      type: "problem_selection_failed",
+      reason: "all_problems_seen",
+    });
+    // Snapshot reflects the reset row (still in the lobby).
+    const json = (await res.json()) as { status: string; problemSelectionFailedReason: string };
+    expect(json.status).toBe("ready");
+    expect(json.problemSelectionFailedReason).toBe("all_problems_seen");
+  });
+
+  it("propagates no_problems_in_filters likewise", async () => {
+    const race = makeRace({ p2Ready: true, ratingMin: 3500, ratingMax: 3500 });
+    const afterReady = { ...race, p1Ready: true };
+    const reset = {
+      ...race,
+      p1Ready: false,
+      p2Ready: false,
+      problemSelectionFailedReason: "no_problems_in_filters" as const,
+    };
+    queueSelects([[race]]);
+    queueUpdates([[afterReady], [reset]]);
+    selectRaceProblemMock.mockResolvedValue({ ok: false, reason: "no_problems_in_filters" });
+
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(200);
+    expect(publishRaceEventMock).toHaveBeenCalledWith(RACE_ID, {
+      type: "problem_selection_failed",
+      reason: "no_problems_in_filters",
+    });
+  });
+
+  it("re-reads and does not double-select when the reset claim is lost (concurrent start)", async () => {
+    const race = makeRace({ p2Ready: true });
+    const afterReady = { ...race, p1Ready: true };
+    queueSelects([[race], [{ ...afterReady, status: "active" }]]);
+    queueUpdates([[afterReady], []]); // reset update loses the status='ready' claim
+    selectRaceProblemMock.mockResolvedValue({ ok: false, reason: "all_problems_seen" });
+
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(200);
+    // No failure event published on a lost claim (the snapshot is the truth).
+    expect(publishRaceEventMock).not.toHaveBeenCalledWith(
+      RACE_ID,
+      expect.objectContaining({ type: "problem_selection_failed" }),
+    );
+  });
+});
+
+describe("POST /api/races/[id]/ready — guards", () => {
+  it("returns 404 when the race does not exist", async () => {
+    queueSelects([[]]);
+    const res = await POST(req(), { params });
+    expect(res.status).toBe(404);
+    expect(selectRaceProblemMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when not in the ready phase", async () => {
+    queueSelects([[makeRace({ status: "pending" })]]);
+    const res = await POST(req(), { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("not_ready_phase");
+    expect(updateSetMock).not.toHaveBeenCalled();
+  });
+});
