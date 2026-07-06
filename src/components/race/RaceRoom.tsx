@@ -48,6 +48,7 @@ import { RaceHUD } from "@/components/race/RaceHUD";
 import { VerdictFeed } from "@/components/race/VerdictFeed";
 import { ResultCard } from "@/components/race/ResultCard";
 import { VideoTiles } from "@/components/race/VideoTiles";
+import { TauntPicker } from "@/components/race/TauntPicker";
 import {
   CLIENT_POLL_INTERVAL_MS,
   LIVEKIT_DATA_TOPIC,
@@ -60,6 +61,8 @@ import {
   msUntilUnlock,
   nextRetryDelay,
 } from "@/lib/race/countdown";
+import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
+import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
 
 interface RaceRoomProps {
   raceId: string;
@@ -103,6 +106,7 @@ export function RaceRoom({
   const [forfeiting, setForfeiting] = useState(false);
   const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
+  const [taunts, setTaunts] = useState<TauntBubbles>({});
   const editorRef = useRef<CppEditorHandle>(null);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailuresRef = useRef(0);
@@ -408,6 +412,28 @@ export function RaceRoom({
     [drawActionPending, raceId, refetch, applySnapshot],
   );
 
+  // --- Taunts (issue #84) — purely presentational, never refetch-driven ---
+  // `handleTauntReceived` applies an opponent's (or, harmlessly, an echoed
+  // self-) taunt arriving over the LiveKit data channel; `handleTauntSent`
+  // applies this client's own bubble optimistically the instant it sends,
+  // since LiveKit never echoes a publisher's own data message back to it.
+  // `handleTauntExpire` clears a bubble once its display window elapses,
+  // guarded by `sentAt` so a stale timer can't clobber a newer replacement.
+  const handleTauntReceived = useCallback((byUserId: string, tauntId: string) => {
+    setTaunts((prev) => addTaunt(prev, byUserId, tauntId, Date.now()));
+  }, []);
+
+  const handleTauntSent = useCallback(
+    (tauntId: string) => {
+      setTaunts((prev) => addTaunt(prev, currentUserId, tauntId, Date.now()));
+    },
+    [currentUserId],
+  );
+
+  const handleTauntExpire = useCallback((byUserId: string, sentAt: number) => {
+    setTaunts((prev) => expireTaunt(prev, byUserId, sentAt));
+  }, []);
+
   // --- Opponent disconnect grace: only counts a *sustained* absence, so a
   // brief reconnect blip never flashes the banner. -------------------------
   const handlePresenceChange = useCallback((present: boolean) => {
@@ -595,6 +621,9 @@ export function RaceRoom({
     </section>
   );
 
+  const selfTaunt = taunts[currentUserId] ?? null;
+  const opponentTaunt = opponent ? taunts[opponent.id] ?? null : null;
+
   const rightRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
       {opponentOfferedDraw && (
@@ -668,11 +697,27 @@ export function RaceRoom({
         skewMs={skewMs}
       />
       {withVideo ? (
-        <VideoTiles />
+        <VideoTiles
+          selfTaunt={selfTaunt}
+          opponentTaunt={opponentTaunt}
+          onSelfTauntExpire={
+            selfTaunt
+              ? () => handleTauntExpire(currentUserId, selfTaunt.sentAt)
+              : undefined
+          }
+          onOpponentTauntExpire={
+            opponentTaunt && opponent
+              ? () => handleTauntExpire(opponent.id, opponentTaunt.sentAt)
+              : undefined
+          }
+        />
       ) : (
         <div className="panel p-4 text-xs text-muted-foreground">
           Video is unavailable.
         </div>
+      )}
+      {withVideo && (
+        <TauntPicker currentUserId={currentUserId} onSent={handleTauntSent} />
       )}
       <VerdictFeed
         submissions={snapshot.submissions}
@@ -755,7 +800,11 @@ export function RaceRoom({
           video
           className="flex min-h-0 flex-1 flex-col"
         >
-          <RaceEvents onEvent={refetch} onReconnected={refetch} />
+          <RaceEvents
+            onEvent={refetch}
+            onReconnected={refetch}
+            onTaunt={handleTauntReceived}
+          />
           {opponent && (
             <PresenceWatcher
               opponentId={opponent.id}
@@ -774,18 +823,80 @@ export function RaceRoom({
 /**
  * In-room listener: forwards LiveKit data-channel `RaceEvent`s (hints) and
  * (re)connections to the parent as snapshot-refetch triggers. Renders nothing.
+ *
+ * `taunt` events are the one exception (issue #84): they are purely
+ * presentational and MUST NOT trigger a snapshot refetch (spamming taunts
+ * would otherwise hammer `GET /api/races/[id]`), so they're filtered into
+ * `onTaunt` before the `onEvent` refetch path ever sees them. The sender
+ * identity is taken from LiveKit's own `msg.from` (assigned at token mint,
+ * unforgeable by the client) rather than trusted from the payload's
+ * `byUserId` field — clients can publish arbitrary data on this channel
+ * (see `mintToken` in `src/lib/livekit.ts`), so a forged `byUserId` must not
+ * be able to impersonate another player's bubble. A mismatch is dropped
+ * silently, same as any other malformed/unknown taunt payload.
+ *
+ * The NON-taunt branch is throttled (PR #85 security review): because
+ * clients hold data-publish rights, a malicious opponent could publish
+ * forged non-taunt events (e.g. `{type:"verdict"}`) at arbitrary rate,
+ * turning each into a `GET /api/races/[id]` from the victim's browser — a
+ * 1:1 amplification DoS against our own API. Events collapse to at most one
+ * refetch per `REFETCH_MIN_MS`, leading + trailing edge (the pure timing
+ * math lives in `@/lib/race/refetch-throttle`): the first event of a burst
+ * refetches immediately, and one trailing refetch covers the tail so a
+ * legitimate final event (e.g. `race_finished`) is never dropped.
+ * `onReconnected` is deliberately NOT throttled — connection state is
+ * LiveKit-server-driven, not attacker-controllable.
  */
 function RaceEvents({
   onEvent,
   onReconnected,
+  onTaunt,
 }: {
   onEvent: () => void;
   onReconnected: () => void;
+  onTaunt: (byUserId: string, tauntId: string) => void;
 }) {
+  const lastRefetch = useRef(0);
+  const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirror the latest onEvent so a trailing timer scheduled before a parent
+  // re-render still calls the current callback when it fires.
+  const onEventRef = useRef(onEvent);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
   useDataChannel(LIVEKIT_DATA_TOPIC, (msg) => {
-    // We only need to know an event arrived — the snapshot is authoritative.
-    if (decodeRaceEvent(msg.payload)) onEvent();
+    const event = decodeRaceEvent(msg.payload);
+    if (!event) return;
+    if (event.type === "taunt") {
+      const senderId = msg.from?.identity;
+      if (senderId && senderId === event.byUserId) {
+        onTaunt(event.byUserId, event.tauntId);
+      }
+      return;
+    }
+    // We only need to know a (non-taunt) event arrived — the snapshot is
+    // authoritative. Throttled: leading edge fires now, a burst's tail is
+    // covered by a single trailing refetch, everything in between drops.
+    const decision = refetchThrottleDecision(lastRefetch.current, Date.now());
+    if (decision.action === "now") {
+      lastRefetch.current = Date.now();
+      onEventRef.current();
+    } else if (!trailing.current) {
+      trailing.current = setTimeout(() => {
+        trailing.current = null;
+        lastRefetch.current = Date.now();
+        onEventRef.current();
+      }, decision.delayMs);
+    }
   });
+
+  // Clear a pending trailing refetch on unmount (room teardown).
+  useEffect(() => {
+    return () => {
+      if (trailing.current) clearTimeout(trailing.current);
+    };
+  }, []);
 
   const connState = useConnectionState();
   const prevState = useRef(connState);

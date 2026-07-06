@@ -52,7 +52,7 @@ beforeEach(() => {
 });
 
 describe("mintToken", () => {
-  it("grants roomJoin + publish/subscribe but never canPublishData", async () => {
+  it("grants roomJoin + publish/subscribe + data publish (taunts, issue #84)", async () => {
     const token = await mintToken({ room: "room-1", identity: "user-1", name: "Alice" });
 
     expect(token).toBe("mock-jwt-token");
@@ -65,7 +65,7 @@ describe("mintToken", () => {
       room: "room-1",
       canPublish: true,
       canSubscribe: true,
-      canPublishData: false,
+      canPublishData: true,
     });
     expect(toJwtMock).toHaveBeenCalledTimes(1);
   });

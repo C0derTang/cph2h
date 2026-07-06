@@ -2,9 +2,27 @@
  * LiveKit server integration.
  *
  * Mints room-join tokens for race participants and publishes `RaceEvent`s
- * on the shared room data channel. Clients always get `canPublishData:
- * false` — only this server ever calls `RoomServiceClient.sendData`, so
- * clients cannot spoof race events (see `src/lib/types.ts`).
+ * on the shared room data channel. For every event type except `taunt`,
+ * this server is the sole publisher (`RoomServiceClient.sendData` below) —
+ * clients only ever *receive* them as refetch hints, they never author one.
+ *
+ * `taunt` events are the deliberate exception (issue #84): they're
+ * ephemeral, presentational, and sent directly client-to-client, so clients
+ * need `canPublishData: true` to publish them. This does mean a client
+ * *could* publish a forged non-taunt `RaceEvent`. Two consumer-side guards
+ * in `RaceEvents` (`src/components/race/RaceRoom.tsx`) make that harmless:
+ *
+ * 1. **Impersonation** — a forged taunt `byUserId` can't put words on
+ *    another player's tile: the consumer trusts LiveKit's own
+ *    `msg.from.identity` (assigned at token mint here, unforgeable by the
+ *    client) over the payload's `byUserId` field, dropping mismatches.
+ * 2. **Refetch amplification** — every non-taunt event is only ever a hint
+ *    that triggers a read-only, idempotent `GET /api/races/[id]` refetch,
+ *    and that path is throttled to at most one refetch per `REFETCH_MIN_MS`
+ *    (leading + trailing edge, see `src/lib/race/refetch-throttle.ts`), so
+ *    an opponent flooding forged events can't turn the victim's browser
+ *    into a DoS amplifier against our own API — a flood collapses to
+ *    ~1 refetch/sec, comparable to the existing snapshot poll cadence.
  */
 
 import { AccessToken, DataPacket_Kind, RoomServiceClient } from "livekit-server-sdk";
@@ -37,8 +55,9 @@ export interface MintTokenParams {
 
 /**
  * Mint a join token for a race participant. Grants audio/video
- * publish+subscribe but never data publish — the server is the sole
- * publisher of `RaceEvent`s on the room's data channel.
+ * publish+subscribe. Also grants data publish (`canPublishData: true`) so
+ * clients can send `taunt` `RaceEvent`s directly to each other (issue #84)
+ * — see the module doc above for why that's safe.
  */
 export async function mintToken({ room, identity, name }: MintTokenParams): Promise<string> {
   const at = new AccessToken(requireEnv("LIVEKIT_API_KEY"), requireEnv("LIVEKIT_API_SECRET"), {
@@ -50,7 +69,7 @@ export async function mintToken({ room, identity, name }: MintTokenParams): Prom
     room,
     canPublish: true,
     canSubscribe: true,
-    canPublishData: false,
+    canPublishData: true,
   });
   return at.toJwt();
 }
