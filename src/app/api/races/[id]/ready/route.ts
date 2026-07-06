@@ -20,13 +20,21 @@
  */
 
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { races, type Race } from "@/lib/db/schema";
+import { races, users, type Race } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { canReady, canStart, nextOnBothReady } from "@/lib/race/machine";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
-import { publishRaceEvent, selectRaceProblem } from "@/lib/race/hooks";
+import { publishRaceEvent, refreshSeenProblems, selectRaceProblem } from "@/lib/race/hooks";
+
+/**
+ * Soft timeout (ms) for the best-effort solve-history refresh (issue #69)
+ * run for both players before problem selection. The refresh itself never
+ * throws, but CF can be slow — this bounds how long the ready path waits on
+ * it regardless, so a slow/down CF never stalls the race from starting.
+ */
+const HISTORY_REFRESH_TIMEOUT_MS = 3500;
 
 export async function POST(
   _req: Request,
@@ -82,6 +90,12 @@ export async function POST(
   if (!canStart(afterReady).ok) {
     return NextResponse.json(await buildRaceSnapshot(afterReady), { status: 200 });
   }
+
+  // Both ready: best-effort refresh of each player's CF solve history (issue
+  // #69) so problems solved since their last sync are excluded from this
+  // selection. Never allowed to fail or stall the ready path past the soft
+  // timeout above — CF being slow or down still lets the race start.
+  await refreshBothPlayersSeenProblems(afterReady);
 
   // Both ready: attempt to select a filter-conforming, unseen problem BEFORE
   // any transition — the race must never enter `active` with a null problem.
@@ -165,6 +179,50 @@ export async function POST(
   });
 
   return NextResponse.json(await buildRaceSnapshot(started, now), { status: 200 });
+}
+
+/**
+ * Best-effort, parallel refresh of both players' CF solve history before
+ * problem selection (issue #69). Wrapped in try/catch and a `Promise.race`
+ * soft timeout: this must never throw out of the ready path, and must never
+ * hold up problem selection past {@link HISTORY_REFRESH_TIMEOUT_MS} even if
+ * CF is slow or unreachable — the in-flight refresh(es) may keep running in
+ * the background, but the ready request stops waiting on them.
+ */
+async function refreshBothPlayersSeenProblems(race: Race): Promise<void> {
+  const playerIds = [race.p1Id, race.p2Id].filter(
+    (id): id is string => id !== null,
+  );
+
+  try {
+    const players = await db
+      .select({
+        id: users.id,
+        cfHandle: users.cfHandle,
+        solveHistorySyncedAt: users.solveHistorySyncedAt,
+      })
+      .from(users)
+      .where(inArray(users.id, playerIds));
+
+    const refreshAll = Promise.all(
+      players.map((player) => refreshSeenProblems(player)),
+    ).then(() => undefined);
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<void>((resolve) => {
+      timeoutId = setTimeout(resolve, HISTORY_REFRESH_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([refreshAll, timeout]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
+  } catch (err) {
+    // Best-effort: a lookup or refresh failure must never block the ready
+    // path or fail this request (selection just runs against a stale/partial
+    // exclusion set).
+    console.error("[race] solve-history refresh before selection failed", err);
+  }
 }
 
 /** Re-read the row after a lost conditional update and return its snapshot. */

@@ -16,6 +16,10 @@ import {
 } from "@/lib/cf/problem-repo";
 import { pickProblem, targetRating } from "@/lib/cf/problem-picker";
 import { getOrScrapeStatement } from "@/lib/cf/statements";
+import {
+  refreshSolveHistoryIfStale,
+  type SolveHistoryUser,
+} from "@/lib/cf/history-refresh";
 import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
 import { finishRace as finishRaceImpl } from "@/lib/race/finish";
 import {
@@ -133,6 +137,21 @@ export const selectRaceProblem: SelectRaceProblem = async (race) => {
 
   return { ok: true, problemId: picked.problem.id };
 };
+
+// ---------------------------------------------------------------------------
+// #69 — incremental solve-history refresh (freshness for problem exclusion)
+// ---------------------------------------------------------------------------
+
+export type RefreshSeenProblems = (user: SolveHistoryUser) => Promise<void>;
+
+/**
+ * Best-effort, per-player refresh of `user_problems` right before problem
+ * selection so recently solved problems are excluded on this ready-up (see
+ * `src/lib/cf/history-refresh.ts`). No-ops when the user's history is still
+ * fresh or unlinked; never throws — the ready route wraps the parallel call
+ * for both players in a soft timeout regardless.
+ */
+export const refreshSeenProblems: RefreshSeenProblems = refreshSolveHistoryIfStale;
 
 // ---------------------------------------------------------------------------
 // #8 — LiveKit event publishing

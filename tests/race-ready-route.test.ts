@@ -19,6 +19,7 @@ const {
   requireLinkedUserMock,
   selectRaceProblemMock,
   publishRaceEventMock,
+  refreshSeenProblemsMock,
   buildRaceSnapshotMock,
   updateSetMock,
   dbState,
@@ -28,11 +29,15 @@ const {
     selectIndex: 0,
     updateReturns: [] as unknown[][],
     updateIndex: 0,
+    // Rows returned by the (un-limited) users lookup the ready route makes
+    // before selection to feed the solve-history refresh (issue #69).
+    playerRows: [] as unknown[],
   };
   return {
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
     selectRaceProblemMock: vi.fn<() => Promise<SelectProblemResult>>(),
     publishRaceEventMock: vi.fn().mockResolvedValue(undefined),
+    refreshSeenProblemsMock: vi.fn().mockResolvedValue(undefined),
     buildRaceSnapshotMock: vi.fn(async (race: Race) => ({
       __snapshotFor: race.id,
       status: race.status,
@@ -48,6 +53,7 @@ vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock 
 vi.mock("@/lib/race/hooks", () => ({
   selectRaceProblem: selectRaceProblemMock,
   publishRaceEvent: publishRaceEventMock,
+  refreshSeenProblems: refreshSeenProblemsMock,
 }));
 vi.mock("@/lib/race/snapshot", () => ({ buildRaceSnapshot: buildRaceSnapshotMock }));
 
@@ -55,10 +61,23 @@ vi.mock("@/lib/db", () => ({
   db: {
     select: () => ({
       from: () => ({
-        where: () => ({
-          limit: () =>
-            Promise.resolve(dbState.selectResults[dbState.selectIndex++] ?? []),
-        }),
+        where: () => {
+          // Two call shapes share this mock: the race-by-id lookups
+          // (`.where(...).limit(1)`, queued via `dbState.selectResults`) and
+          // the un-limited users lookup the ready route makes before
+          // solve-history refresh (`await db...where(...)` directly — no
+          // `.limit()`). Support both: `.limit()` for the former, and make
+          // the returned object itself thenable so a bare `await` resolves
+          // to `dbState.playerRows` for the latter.
+          return {
+            limit: () =>
+              Promise.resolve(dbState.selectResults[dbState.selectIndex++] ?? []),
+            then: (
+              resolve: (value: unknown[]) => void,
+              reject?: (reason: unknown) => void,
+            ) => Promise.resolve(dbState.playerRows).then(resolve, reject),
+          };
+        },
       }),
     }),
     update: () => ({
@@ -151,12 +170,15 @@ beforeEach(() => {
   requireLinkedUserMock.mockReset();
   selectRaceProblemMock.mockReset();
   publishRaceEventMock.mockClear();
+  refreshSeenProblemsMock.mockClear();
+  refreshSeenProblemsMock.mockResolvedValue(undefined);
   buildRaceSnapshotMock.mockClear();
   updateSetMock.mockClear();
   dbState.selectResults = [];
   dbState.selectIndex = 0;
   dbState.updateReturns = [];
   dbState.updateIndex = 0;
+  dbState.playerRows = [];
   mockSessionAs(P1);
 });
 
@@ -169,6 +191,10 @@ describe("POST /api/races/[id]/ready — success path", () => {
       status: "active" as const,
       problemId: "1794C",
     };
+    dbState.playerRows = [
+      { id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null },
+      { id: P2, cfHandle: "p2cf", solveHistorySyncedAt: null },
+    ];
     queueSelects([[race]]);
     queueUpdates([[afterReady], [started]]);
     selectRaceProblemMock.mockResolvedValue({ ok: true, problemId: "1794C" });
@@ -177,6 +203,14 @@ describe("POST /api/races/[id]/ready — success path", () => {
 
     expect(res.status).toBe(200);
     expect(selectRaceProblemMock).toHaveBeenCalledTimes(1);
+    // Solve-history refresh (issue #69) runs for both players before selection.
+    expect(refreshSeenProblemsMock).toHaveBeenCalledTimes(2);
+    expect(refreshSeenProblemsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: P1 }),
+    );
+    expect(refreshSeenProblemsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: P2 }),
+    );
     // The transition update carries a real problem id and clears any reason.
     expect(updateSetMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -206,6 +240,53 @@ describe("POST /api/races/[id]/ready — success path", () => {
     );
     // Not both ready -> selection is never attempted.
     expect(selectRaceProblemMock).not.toHaveBeenCalled();
+    // ...and the solve-history refresh (only meaningful right before
+    // selection) is never attempted either.
+    expect(refreshSeenProblemsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/races/[id]/ready — solve-history refresh (issue #69)", () => {
+  it("never blocks or fails the ready path when the refresh rejects", async () => {
+    const race = makeRace({ p2Ready: true });
+    const afterReady = { ...race, p1Ready: true };
+    const started = { ...afterReady, status: "active" as const, problemId: "1794C" };
+    dbState.playerRows = [
+      { id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null },
+      { id: P2, cfHandle: "p2cf", solveHistorySyncedAt: null },
+    ];
+    queueSelects([[race]]);
+    queueUpdates([[afterReady], [started]]);
+    selectRaceProblemMock.mockResolvedValue({ ok: true, problemId: "1794C" });
+    refreshSeenProblemsMock.mockRejectedValue(new Error("cf is down"));
+
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(200);
+    expect(selectRaceProblemMock).toHaveBeenCalledTimes(1);
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "active", problemId: "1794C" }),
+    );
+  });
+
+  it("proceeds to selection even when the refresh call throws synchronously", async () => {
+    const race = makeRace({ p2Ready: true });
+    const afterReady = { ...race, p1Ready: true };
+    const started = { ...afterReady, status: "active" as const, problemId: "1794C" };
+    dbState.playerRows = [{ id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null }];
+    queueSelects([[race]]);
+    queueUpdates([[afterReady], [started]]);
+    selectRaceProblemMock.mockResolvedValue({ ok: true, problemId: "1794C" });
+    // Simulate a hook implementation bug/failure that throws synchronously
+    // rather than rejecting — the route's try/catch must still swallow it.
+    refreshSeenProblemsMock.mockImplementation(() => {
+      throw new Error("boom");
+    });
+
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(200);
+    expect(selectRaceProblemMock).toHaveBeenCalledTimes(1);
   });
 });
 
