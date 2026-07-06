@@ -13,7 +13,11 @@
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { races, type Race } from "@/lib/db/schema";
-import { DEFAULT_TIME_LIMIT_SEC, type RaceStatus } from "@/lib/types";
+import {
+  DEFAULT_TIME_LIMIT_SEC,
+  type RaceProblemFilters,
+  type RaceStatus,
+} from "@/lib/types";
 
 export interface CreateRaceInput {
   p1Id: string;
@@ -21,6 +25,12 @@ export interface CreateRaceInput {
   status: RaceStatus;
   timeLimitSec?: number;
   challengeToken?: string;
+  /**
+   * Challenger-chosen problem filters (direct-challenge flow only, issue
+   * #64). Omitted entirely by matchmaking callers (`src/app/api/queue/route.ts`),
+   * which persist all four columns as null — unchanged from before this issue.
+   */
+  filters?: RaceProblemFilters;
 }
 
 /** URL-safe challenge token. */
@@ -34,6 +44,7 @@ export function generateChallengeToken(): string {
  */
 export async function createRace(input: CreateRaceInput): Promise<Race> {
   const id = crypto.randomUUID();
+  const filters = input.filters;
   const [race] = await db
     .insert(races)
     .values({
@@ -44,6 +55,10 @@ export async function createRace(input: CreateRaceInput): Promise<Race> {
       timeLimitSec: input.timeLimitSec ?? DEFAULT_TIME_LIMIT_SEC,
       challengeToken: input.challengeToken ?? null,
       livekitRoom: `race-${id}`,
+      ratingMin: filters?.ratingMin ?? null,
+      ratingMax: filters?.ratingMax ?? null,
+      problemDateFrom: filters?.dateFrom ? new Date(filters.dateFrom) : null,
+      problemDateTo: filters?.dateTo ? new Date(filters.dateTo) : null,
     })
     .returning();
   return race;
