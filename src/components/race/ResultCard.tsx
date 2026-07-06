@@ -13,14 +13,6 @@ import Link from "next/link";
 import { Frown, Handshake, Minus, Swords, Trophy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { RaceSnapshot } from "@/lib/types";
 
@@ -62,7 +54,13 @@ export function ResultCard({
 }: ResultCardProps) {
   const result = resultFor(snapshot, currentUserId);
   const isP1 = snapshot.p1.id === currentUserId;
-  const eloDelta = isP1 ? snapshot.eloDeltaP1 : snapshot.eloDeltaP2;
+
+  // Both sides' data is already on the snapshot — surfacing the opponent's
+  // half too (winner glow / delta) is a display-only addition, no new
+  // fetches or state.
+  const p1IsWinner = snapshot.winnerId != null && snapshot.winnerId === snapshot.p1.id;
+  const p2IsWinner =
+    snapshot.winnerId != null && snapshot.p2 != null && snapshot.winnerId === snapshot.p2.id;
 
   const winningSub =
     snapshot.winnerId != null
@@ -77,19 +75,48 @@ export function ResultCard({
       : null;
 
   return (
-    <Card data-testid="result-card" className={cn("w-full max-w-lg", className)}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
+    <div
+      data-testid="result-card"
+      className={cn("panel clip-notch w-full max-w-lg overflow-hidden", className)}
+    >
+      <div className="ticker justify-between px-4 py-2.5">
+        <span>race &middot; result</span>
+        <span className="flex items-center gap-1.5">
           <ResultIcon result={result} />
-          <span data-testid="result-heading">{HEADING[result]}</span>
-        </CardTitle>
-        <CardDescription>{SUBHEADING[result]}</CardDescription>
-      </CardHeader>
+        </span>
+      </div>
 
-      <CardContent className="flex flex-col gap-4">
+      <div className="flex flex-col items-center gap-1.5 p-6 text-center">
+        <h2
+          data-testid="result-heading"
+          className="font-display text-2xl font-semibold tracking-tight"
+        >
+          {HEADING[result]}
+        </h2>
+        <p className="text-sm text-muted-foreground">{SUBHEADING[result]}</p>
+      </div>
+
+      <div className="grid grid-cols-2 divide-x divide-border border-t border-border">
+        <PlayerResultTile
+          username={snapshot.p1.username}
+          eloDelta={snapshot.eloDeltaP1}
+          winner={p1IsWinner}
+          tone="self"
+          isYou={isP1}
+        />
+        <PlayerResultTile
+          username={snapshot.p2?.username ?? "—"}
+          eloDelta={snapshot.eloDeltaP2}
+          winner={p2IsWinner}
+          tone="opponent"
+          isYou={!isP1}
+        />
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-border p-5">
         {snapshot.problem && (
-          <div className="flex flex-col gap-1 rounded-lg border border-border bg-card/40 p-3">
-            <span className="text-xs tracking-[0.14em] text-muted-foreground uppercase">
+          <div className="stat-plate flex flex-col gap-1 p-3">
+            <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
               Problem
             </span>
             <a
@@ -103,40 +130,28 @@ export function ResultCard({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <Stat
-            label="Elo change"
-            value={
-              eloDelta == null
-                ? "—"
-                : `${eloDelta >= 0 ? "+" : ""}${eloDelta}`
-            }
-            valueClassName={cn(
-              eloDelta != null && eloDelta > 0 && "text-emerald-500",
-              eloDelta != null && eloDelta < 0 && "text-destructive",
+        <div className="stat-plate flex items-center justify-between gap-2 p-3">
+          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            Winning submission
+          </span>
+          <span className="font-display text-sm font-semibold tabular-nums">
+            {cfSubmissionUrl ? (
+              <a
+                href={cfSubmissionUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline"
+              >
+                #{winningSub?.cfSubmissionId}
+              </a>
+            ) : (
+              "—"
             )}
-          />
-          <Stat
-            label="Winning submission"
-            value={
-              cfSubmissionUrl ? (
-                <a
-                  href={cfSubmissionUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  #{winningSub?.cfSubmissionId}
-                </a>
-              ) : (
-                "—"
-              )
-            }
-          />
+          </span>
         </div>
-      </CardContent>
+      </div>
 
-      <CardFooter className="gap-2">
+      <div className="flex gap-2 border-t border-border p-5">
         <Button
           render={<Link href="/challenge/new" />}
           nativeButton={false}
@@ -152,41 +167,68 @@ export function ResultCard({
         >
           Back to dashboard
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
+  );
+}
+
+function PlayerResultTile({
+  username,
+  eloDelta,
+  winner,
+  tone,
+  isYou,
+}: {
+  username: string;
+  eloDelta: number | null;
+  winner: boolean;
+  tone: "self" | "opponent";
+  isYou: boolean;
+}) {
+  const isSelf = tone === "self";
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center gap-2 p-4 text-center",
+        winner && (isSelf ? "bg-player-self/10" : "bg-player-opponent/10"),
+        !winner && "opacity-60",
+      )}
+    >
+      <span
+        className={cn(
+          "flex size-9 items-center justify-center rounded-md font-display text-sm font-bold",
+          isSelf
+            ? "bg-player-self text-player-self-foreground"
+            : "bg-player-opponent text-player-opponent-foreground",
+        )}
+      >
+        {username.charAt(0).toUpperCase()}
+      </span>
+      <p className="truncate text-sm font-medium">
+        {username} {isYou && <span className="text-muted-foreground">(you)</span>}
+      </p>
+      <p
+        className={cn(
+          "font-display text-lg font-semibold tabular-nums",
+          eloDelta != null && eloDelta > 0 && "text-verdict-ok",
+          eloDelta != null && eloDelta < 0 && "text-verdict-fail",
+        )}
+      >
+        {eloDelta == null ? "—" : `${eloDelta >= 0 ? "+" : ""}${eloDelta}`}
+      </p>
+    </div>
   );
 }
 
 function ResultIcon({ result }: { result: Result }) {
   switch (result) {
     case "win":
-      return <Trophy className="size-5 text-emerald-500" aria-hidden />;
+      return <Trophy className="size-4 text-verdict-ok" aria-hidden />;
     case "loss":
-      return <Frown className="size-5 text-destructive" aria-hidden />;
+      return <Frown className="size-4 text-verdict-fail" aria-hidden />;
     case "draw":
-      return <Handshake className="size-5 text-muted-foreground" aria-hidden />;
+      return <Handshake className="size-4 text-muted-foreground" aria-hidden />;
     case "aborted":
-      return <Minus className="size-5 text-muted-foreground" aria-hidden />;
+      return <Minus className="size-4 text-muted-foreground" aria-hidden />;
   }
-}
-
-function Stat({
-  label,
-  value,
-  valueClassName,
-}: {
-  label: string;
-  value: React.ReactNode;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card/40 p-3">
-      <span className="text-xs tracking-[0.14em] text-muted-foreground uppercase">
-        {label}
-      </span>
-      <span className={cn("font-mono text-lg font-semibold", valueClassName)}>
-        {value}
-      </span>
-    </div>
-  );
 }

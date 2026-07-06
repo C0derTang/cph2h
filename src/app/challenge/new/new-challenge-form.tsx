@@ -22,13 +22,6 @@ import { toast } from "sonner";
 import { Check, Copy, Loader2, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   DEFAULT_TIME_LIMIT_SEC,
   PROBLEM_RATING_CEIL,
   PROBLEM_RATING_FLOOR,
@@ -217,18 +210,18 @@ export function NewChallengeForm() {
 
   if (result) {
     return (
-      <Card className="max-w-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Swords className="size-4 text-primary" aria-hidden />
+      <div className="panel max-w-lg p-5">
+        <div className="flex flex-col gap-1">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
+            <Swords className="size-4 text-player-self" aria-hidden />
             Challenge created
-          </CardTitle>
-          <CardDescription>
+          </h2>
+          <p className="text-sm text-muted-foreground">
             Share this link with your opponent — it works until someone joins.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
+          </p>
+        </div>
+        <div className="mt-4 flex flex-col gap-4">
+          <div className="stat-plate flex items-center gap-2 p-2.5">
             <code className="flex-1 truncate font-mono text-xs">
               {result.joinUrl}
             </code>
@@ -240,24 +233,26 @@ export function NewChallengeForm() {
           <Button render={<Link href={`/race/${result.raceId}`} />} nativeButton={false}>
             Go to race room
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   const submitDisabled = creating || !filtersValid || displayCount === 0;
 
   return (
-    <Card className="max-w-lg">
-      <CardHeader>
-        <CardTitle>Create a challenge</CardTitle>
-        <CardDescription>
+    <div className="panel max-w-lg p-5">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-lg font-semibold tracking-tight">
+          Create a challenge
+        </h2>
+        <p className="text-sm text-muted-foreground">
           Pick a time limit and optional problem filters, then share the link with a friend.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+        </p>
+      </div>
+      <div className="mt-4 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
             Time limit
           </span>
           <div className="flex flex-wrap gap-2">
@@ -277,7 +272,7 @@ export function NewChallengeForm() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
             Problem rating range
           </span>
           <div className="flex items-center gap-2">
@@ -317,7 +312,7 @@ export function NewChallengeForm() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
             Contest date
           </span>
           <div className="flex flex-wrap gap-2">
@@ -401,8 +396,8 @@ export function NewChallengeForm() {
             "Create challenge"
           )}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

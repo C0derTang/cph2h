@@ -73,20 +73,17 @@ export function RaceHUD({
   return (
     <div
       data-testid="race-hud"
-      className={cn(
-        "flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-4",
-        className,
-      )}
+      className={cn("panel clip-notch flex flex-col gap-3 overflow-hidden p-4", className)}
     >
       {counting ? (
         <div className="flex flex-col items-center gap-1 py-2">
-          <span className="flex items-center gap-1.5 text-xs font-medium tracking-[0.14em] text-muted-foreground uppercase">
+          <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
             <Timer className="size-3.5" aria-hidden />
             Starts in
           </span>
           <span
             data-testid="race-countdown"
-            className="font-mono text-4xl font-semibold tabular-nums"
+            className="font-display text-4xl font-semibold tabular-nums"
           >
             {Math.max(0, Math.ceil(remainingToStart))}
           </span>
@@ -97,25 +94,25 @@ export function RaceHUD({
       ) : (
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="flex items-center gap-1.5 text-xs font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
               <Clock className="size-3.5" aria-hidden />
               Remaining
             </span>
             <span
               data-testid="race-timer"
               className={cn(
-                "font-mono text-3xl font-semibold tabular-nums",
-                remaining <= 60 && "text-destructive",
+                "font-display text-3xl font-semibold tabular-nums",
+                remaining <= 120 && "text-verdict-fail",
               )}
             >
               {fmtClock(remaining)}
             </span>
           </div>
           <div className="flex flex-col items-end text-right">
-            <span className="text-xs tracking-[0.14em] text-muted-foreground uppercase">
+            <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
               Elapsed
             </span>
-            <span className="font-mono text-sm tabular-nums text-muted-foreground">
+            <span className="font-display text-sm tabular-nums text-muted-foreground">
               {fmtClock(elapsed)}
             </span>
           </div>
@@ -148,7 +145,9 @@ function PresenceRow({
       <Circle
         className={cn(
           "size-2 shrink-0",
-          present ? "fill-emerald-500 text-emerald-500" : "fill-muted-foreground/40 text-muted-foreground/40",
+          present
+            ? "fill-verdict-ok text-verdict-ok"
+            : "fill-muted-foreground/40 text-muted-foreground/40",
         )}
         aria-hidden
       />

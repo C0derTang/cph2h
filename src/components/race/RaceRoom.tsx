@@ -478,7 +478,7 @@ export function RaceRoom({
 
   const editorPane = (
     <section className="flex min-h-0 flex-col gap-3">
-      <div className="min-h-[320px] flex-1 overflow-hidden rounded-xl border border-border">
+      <div className="panel min-h-[320px] flex-1 overflow-hidden">
         <CppEditor
           ref={editorRef}
           value={code}
@@ -601,7 +601,7 @@ export function RaceRoom({
         <div
           data-testid="draw-offer-banner"
           role="alert"
-          className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-600 dark:text-sky-400"
+          className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
         >
           <div className="flex items-center gap-2 font-medium">
             <Handshake className="size-4 shrink-0" aria-hidden />
@@ -634,13 +634,13 @@ export function RaceRoom({
         <div
           data-testid="opponent-disconnected-banner"
           role="alert"
-          className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400"
+          className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
         >
           <div className="flex items-center gap-2 font-medium">
             <WifiOff className="size-4 shrink-0" aria-hidden />
             Your opponent appears to have disconnected.
           </div>
-          <p className="text-amber-600/90 dark:text-amber-400/90">
+          <p className="text-verdict-pending/90">
             They may reconnect at any time. If they don&apos;t come back,
             you can forfeit to end the race — your opponent would be awarded
             the win.
@@ -651,7 +651,7 @@ export function RaceRoom({
         <div
           data-testid="poll-degraded-banner"
           role="alert"
-          className="flex items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
+          className="flex items-center justify-between gap-2 rounded-[var(--radius)] border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
         >
           <span>Having trouble syncing verdicts.</span>
           <Button type="button" variant="outline" size="xs" onClick={() => void refetch()}>
@@ -670,7 +670,7 @@ export function RaceRoom({
       {withVideo ? (
         <VideoTiles />
       ) : (
-        <div className="rounded-xl border border-border bg-card/40 p-4 text-xs text-muted-foreground">
+        <div className="panel p-4 text-xs text-muted-foreground">
           Video is unavailable.
         </div>
       )}
@@ -683,14 +683,14 @@ export function RaceRoom({
   );
 
   const problemPane = (
-    <section className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-xl border border-border bg-card/30 p-4">
+    <section className="panel flex min-h-0 flex-col gap-3 overflow-hidden p-4">
       <header className="flex flex-col gap-1">
-        <span className="text-xs font-medium tracking-[0.14em] text-muted-foreground uppercase">
+        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
           Problem
         </span>
         <h1
           data-testid="problem-title"
-          className="font-heading text-lg font-semibold tracking-tight"
+          className="font-display text-lg font-semibold tracking-tight"
         >
           {problem ? (
             <a
@@ -706,7 +706,7 @@ export function RaceRoom({
           )}
         </h1>
         {problem && (
-          <span className="text-xs text-muted-foreground">
+          <span className="font-mono text-xs text-muted-foreground">
             Rating {problem.rating}
           </span>
         )}
@@ -739,7 +739,7 @@ export function RaceRoom({
       </span>
       <div
         role="status"
-        className="mb-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 lg:hidden dark:text-amber-400"
+        className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-2.5 text-xs text-verdict-pending lg:hidden"
       >
         <MonitorSmartphone className="size-4 shrink-0" aria-hidden />
         The race room is designed for larger screens — some panes may be

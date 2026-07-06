@@ -30,15 +30,9 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { buildJoinUrl } from "@/lib/race/join-url";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
 import {
@@ -260,7 +254,7 @@ export function Lobby({
   if (loading && !snapshot) {
     return (
       <LobbyShell className={className}>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" aria-hidden />
           Loading race…
         </div>
@@ -271,7 +265,7 @@ export function Lobby({
   if (!snapshot) {
     return (
       <LobbyShell className={className}>
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="p-5 text-sm text-destructive">
           {error ?? "Race not found."}
         </p>
       </LobbyShell>
@@ -285,22 +279,65 @@ export function Lobby({
   const opponentReady = isP1 ? snapshot.p2Ready : snapshot.p1Ready;
   const nowMs = correctedNow(skewMs, tickNow);
 
+  // Pure display derivation (no new state) for the big broadcast countdown —
+  // statusHeading/statusSubheading already compute the equivalent seconds
+  // for the sr/status copy; this just surfaces it as the loud scoreboard
+  // number the design calls for.
+  const startedAtMs = snapshot.startedAt ? new Date(snapshot.startedAt).getTime() : null;
+  const counting =
+    snapshot.status === "active" && startedAtMs != null && nowMs < startedAtMs;
+  const secondsLeft = counting && startedAtMs != null
+    ? Math.max(0, Math.ceil((startedAtMs - nowMs) / 1000))
+    : null;
+
   return (
     <LobbyShell className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Swords className="size-4 text-primary" aria-hidden />
+      <div className="ticker justify-between px-4 py-2.5">
+        <span>lobby &middot; {snapshot.status}</span>
+        <span className="flex items-center gap-1.5 text-verdict-pending">
+          <span className="size-1.5 rounded-full bg-verdict-pending motion-safe:animate-pulse" />
+          live
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-1 p-5 pb-4">
+        <h2 className="flex items-center gap-2 font-display text-xl font-semibold tracking-tight">
+          <Swords className="size-4 text-player-self" aria-hidden />
           {statusHeading(snapshot, nowMs)}
-        </CardTitle>
-        <CardDescription>{statusSubheading(snapshot, nowMs)}</CardDescription>
-      </CardHeader>
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {statusSubheading(snapshot, nowMs)}
+        </p>
+      </div>
 
-      <CardContent className="flex flex-col gap-5">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <PlayerRow user={you} ready={youReady} label="You" />
-          <PlayerRow user={opponent} ready={opponentReady} label="Opponent" />
+      {counting && secondsLeft != null && (
+        <div className="flex flex-col items-center gap-1 border-t border-border py-5">
+          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            Starts in
+          </span>
+          <span className="font-display text-6xl font-semibold tabular-nums">
+            {secondsLeft}
+          </span>
         </div>
+      )}
 
+      <div className="relative grid gap-3 border-t border-border p-5 sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-border sm:p-0">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-1/2 z-10 hidden size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background font-display text-[11px] font-bold tracking-tight sm:flex"
+        >
+          VS
+        </div>
+        <PlayerRow user={you} ready={youReady} label="You" variant="self" />
+        <PlayerRow
+          user={opponent}
+          ready={opponentReady}
+          label="Opponent"
+          variant="opponent"
+        />
+      </div>
+
+      <div className="flex flex-col gap-5 p-5">
         {(snapshot.status === "pending" || snapshot.status === "ready") && (
           <FiltersSection
             filters={snapshot.filters}
@@ -318,10 +355,10 @@ export function Lobby({
           <>
             <Separator />
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+              <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
                 Share this link
               </p>
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
+              <div className="stat-plate flex items-center gap-2 p-2.5">
                 <code className="flex-1 truncate font-mono text-xs">
                   {buildJoinUrl(
                     typeof window !== "undefined" ? window.location.origin : "",
@@ -381,7 +418,7 @@ export function Lobby({
             {error}
           </p>
         )}
-      </CardContent>
+      </div>
     </LobbyShell>
   );
 }
@@ -393,25 +430,43 @@ function LobbyShell({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <Card className={className}>{children}</Card>;
+  return (
+    <div className={cn("panel clip-notch overflow-hidden", className)}>
+      {children}
+    </div>
+  );
 }
 
 function PlayerRow({
   user,
   ready,
   label,
+  variant,
 }: {
   user: PublicUser | null;
   ready: boolean;
   label: string;
+  variant: "self" | "opponent";
 }) {
+  const isSelf = variant === "self";
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card/40 p-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40 text-muted-foreground">
-        <UserRound className="size-4" aria-hidden />
+    <div className="flex items-center gap-3 p-3 sm:p-5">
+      <div
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-md font-display text-sm font-bold",
+          isSelf
+            ? "bg-player-self text-player-self-foreground"
+            : "bg-player-opponent text-player-opponent-foreground",
+        )}
+      >
+        {user ? (
+          user.username.charAt(0).toUpperCase()
+        ) : (
+          <UserRound className="size-4" aria-hidden />
+        )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+        <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
           {label}
         </p>
         {user ? (
@@ -426,7 +481,7 @@ function PlayerRow({
         )}
       </div>
       {user && (
-        <Badge variant={ready ? "default" : "outline"}>
+        <Badge variant={ready ? "verdict-ok" : "verdict-pending"}>
           {ready ? "Ready" : "Not ready"}
         </Badge>
       )}
@@ -677,9 +732,9 @@ function FiltersSection({
         />
       ) : (
         showSummary && (
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 p-3">
+          <div className="stat-plate flex items-center justify-between gap-2 p-3">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+              <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
                 Problem filters
               </span>
               <span className="truncate font-mono text-xs">
@@ -748,9 +803,9 @@ function FilterEditor({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/20 p-3">
+    <div className="stat-plate flex flex-col gap-4 p-3">
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
           Problem rating range
         </span>
         <div className="flex items-center gap-2">
@@ -790,7 +845,7 @@ function FilterEditor({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
+        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
           Contest date
         </span>
         <div className="flex flex-wrap gap-2">
