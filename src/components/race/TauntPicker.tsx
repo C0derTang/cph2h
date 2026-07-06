@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useDataChannel } from "@livekit/components-react";
+import { Mic } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { canTaunt, tauntCooldownRemainingMs } from "@/lib/race/taunts";
@@ -74,13 +75,14 @@ export function TauntPicker({ currentUserId, onSent, className }: TauntPickerPro
       className={cn("panel flex flex-col gap-2 p-3", className)}
     >
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-          Taunt
+        <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <Mic className="size-3.5 text-player-self" aria-hidden />
+          Spit a bar
         </span>
         {onCooldown && (
           <span
             data-testid="taunt-cooldown"
-            className="font-display text-xs tabular-nums text-muted-foreground"
+            className="font-mono text-xs tabular-nums text-muted-foreground"
           >
             {remainingSec}s
           </span>
@@ -96,7 +98,7 @@ export function TauntPicker({ currentUserId, onSent, className }: TauntPickerPro
             title={text}
             disabled={onCooldown}
             onClick={() => handlePick(id)}
-            className="truncate rounded-md border border-border bg-background px-2 py-1.5 text-left text-[11px] font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+            className="truncate border border-border bg-background px-2 py-1.5 text-left text-[11px] font-medium transition-colors hover:border-player-self/50 hover:bg-muted hover:text-player-self disabled:pointer-events-none disabled:opacity-50"
           >
             {text}
           </button>
@@ -112,7 +114,7 @@ export function TauntPicker({ currentUserId, onSent, className }: TauntPickerPro
             title={id}
             disabled={onCooldown}
             onClick={() => handlePick(id)}
-            className="flex items-center justify-center rounded-md border border-border bg-background py-1.5 text-lg transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+            className="flex items-center justify-center border border-border bg-background py-1.5 text-lg transition-colors hover:border-player-self/50 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
           >
             {glyph}
           </button>

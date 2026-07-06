@@ -73,59 +73,69 @@ export function RaceHUD({
   return (
     <div
       data-testid="race-hud"
-      className={cn("panel clip-notch flex flex-col gap-3 overflow-hidden p-4", className)}
+      className={cn("panel clip-notch flex flex-col overflow-hidden", className)}
     >
-      {counting ? (
-        <div className="flex flex-col items-center gap-1 py-2">
-          <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-            <Timer className="size-3.5" aria-hidden />
-            Starts in
-          </span>
-          <span
-            data-testid="race-countdown"
-            className="font-display text-4xl font-semibold tabular-nums"
-          >
-            {Math.max(0, Math.ceil(remainingToStart))}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            The problem unlocks when the countdown ends.
-          </span>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
+      <div className="ticker justify-between px-4 py-2">
+        <span>race &middot; clock</span>
+        <span className="flex items-center gap-1.5 text-verdict-pending">
+          <span className="size-1.5 rounded-full bg-verdict-pending motion-safe:animate-pulse" />
+          live
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-3 p-4">
+        {counting ? (
+          <div className="flex flex-col items-center gap-1 py-2">
             <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-              <Clock className="size-3.5" aria-hidden />
-              Remaining
+              <Timer className="size-3.5" aria-hidden />
+              Starts in
             </span>
             <span
-              data-testid="race-timer"
-              className={cn(
-                "font-display text-3xl font-semibold tabular-nums",
-                remaining <= 120 && "text-verdict-fail",
-              )}
+              data-testid="race-countdown"
+              className="font-mono text-4xl font-semibold tabular-nums"
             >
-              {fmtClock(remaining)}
+              {Math.max(0, Math.ceil(remainingToStart))}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              The problem unlocks when the countdown ends.
             </span>
           </div>
-          <div className="flex flex-col items-end text-right">
-            <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-              Elapsed
-            </span>
-            <span className="font-display text-sm tabular-nums text-muted-foreground">
-              {fmtClock(elapsed)}
-            </span>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+                <Clock className="size-3.5" aria-hidden />
+                Remaining
+              </span>
+              <span
+                data-testid="race-timer"
+                className={cn(
+                  "font-mono text-3xl font-semibold tabular-nums",
+                  remaining <= 120 && "text-verdict-fail",
+                )}
+              >
+                {fmtClock(remaining)}
+              </span>
+            </div>
+            <div className="flex flex-col items-end text-right">
+              <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+                Elapsed
+              </span>
+              <span className="font-mono text-sm tabular-nums text-muted-foreground">
+                {fmtClock(elapsed)}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs">
-        <PresenceRow label="You" name={you.username} present />
-        <PresenceRow
-          label="Opponent"
-          name={opponent?.username ?? "—"}
-          present={Boolean(opponent) && opponentPresent !== false}
-        />
+        <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs">
+          <PresenceRow label="You" name={you.username} present />
+          <PresenceRow
+            label="Opponent"
+            name={opponent?.username ?? "—"}
+            present={Boolean(opponent) && opponentPresent !== false}
+          />
+        </div>
       </div>
     </div>
   );

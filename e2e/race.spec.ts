@@ -163,8 +163,8 @@ test("challenge -> ready -> active -> verdict -> result -> elo", async ({
     // --- Both clients reflect the result ----------------------------------------
     await expect(pageA.getByTestId("result-card")).toBeVisible({ timeout: 20_000 });
     await expect(pageB.getByTestId("result-card")).toBeVisible({ timeout: 20_000 });
-    await expect(pageA.getByTestId("result-heading")).toHaveText("You won!");
-    await expect(pageB.getByTestId("result-heading")).toHaveText("You lost");
+    await expect(pageA.getByTestId("result-heading")).toHaveText("Bodied.");
+    await expect(pageB.getByTestId("result-heading")).toHaveText("You got bodied.");
     await expect(pageA.getByTestId("rematch-btn")).toBeVisible();
 
     // --- Elo moved in the right direction ---------------------------------------
