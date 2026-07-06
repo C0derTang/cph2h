@@ -122,7 +122,10 @@ export function VideoTiles({ className }: { className?: string }) {
 
         <div
           data-testid="self-tile"
-          className="absolute right-2 bottom-2 aspect-video w-[30%] min-w-20 overflow-hidden rounded-md bg-muted/60 shadow-lg ring-2 ring-player-self"
+          // bottom-7 (not bottom-2) so the PiP corner clears the opponent name
+          // chip's full-width bottom band (~22px tall) instead of clipping its
+          // colored bar underneath (PR #77 review polish note, issue #70).
+          className="absolute right-2 bottom-7 aspect-video w-[30%] min-w-20 overflow-hidden rounded-md bg-muted/60 shadow-lg ring-2 ring-player-self"
         >
           {pip?.live && isTrackReference(pip.track) ? (
             <VideoTrack trackRef={pip.track} className="size-full object-cover" />
