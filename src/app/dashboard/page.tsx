@@ -84,12 +84,15 @@ function computeRecord(recentRaces: RecentRace[], userId: string) {
   return { wins, losses, draws };
 }
 
-/** Verdict-token classes for a race outcome badge — win/loss/draw read as
- * outcomes, so they use the verdict axis, never the player identity axis. */
-function outcomeBadgeClasses(outcome: string) {
-  if (outcome === "Win") return "border-verdict-ok/40 bg-verdict-ok/10 text-verdict-ok";
-  if (outcome === "Loss") return "border-verdict-fail/40 bg-verdict-fail/10 text-verdict-fail";
-  return "border-verdict-pending/40 bg-verdict-pending/10 text-verdict-pending";
+/** Map a formatted race outcome to a shared Badge variant. Win/loss are judge
+ * outcomes (verdict axis); a draw is a settled, neutral result — not
+ * "pending" — so it gets the neutral outline treatment. */
+function outcomeBadgeVariant(
+  outcome: string
+): "verdict-ok" | "verdict-fail" | "outline" {
+  if (outcome === "Win") return "verdict-ok";
+  if (outcome === "Loss") return "verdict-fail";
+  return "outline";
 }
 
 function EloSparkline({ history }: { history: { eloAfter: number }[] }) {
@@ -242,8 +245,8 @@ function DashboardContent({
           value={`${record.wins}-${record.losses}`}
           hint={
             record.draws > 0
-              ? `${record.draws} draw${record.draws === 1 ? "" : "s"}`
-              : `last ${recentRaces.length || 0}`
+              ? `last ${recentRaces.length} · ${record.draws} draw${record.draws === 1 ? "" : "s"}`
+              : `last ${recentRaces.length}`
           }
         />
       </div>
@@ -317,10 +320,7 @@ function DashboardContent({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-3">
-                    <Badge
-                      variant="outline"
-                      className={outcomeBadgeClasses(outcome)}
-                    >
+                    <Badge variant={outcomeBadgeVariant(outcome)}>
                       {outcome}
                     </Badge>
                     <span

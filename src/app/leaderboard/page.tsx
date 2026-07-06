@@ -13,9 +13,6 @@ import {
   type LeaderboardPage,
 } from "@/lib/leaderboard";
 
-const ROW_GRID =
-  "grid grid-cols-[2.5rem_1fr_4.5rem_3.5rem] items-center gap-3 sm:grid-cols-[3rem_1fr_9rem_5rem_4rem] sm:gap-4";
-
 function EmptyLeaderboard() {
   return (
     <div className="shell py-12">
@@ -78,82 +75,79 @@ function LeaderboardTable({
 
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
-          <div className="min-w-[32rem]">
-            {/* Column header */}
-            <div
-              className={cn(
-                ROW_GRID,
-                "border-b border-border px-4 py-2.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase"
-              )}
-            >
-              <span>Rank</span>
-              <span>Player</span>
-              <span className="hidden sm:inline">Codeforces</span>
-              <span className="text-right">Elo</span>
-              <span className="text-right">Races</span>
-            </div>
-
-            {/* Rows */}
-            <div className="flex flex-col divide-y divide-border">
+          <table className="w-full min-w-[32rem] text-sm">
+            <thead>
+              <tr className="border-b border-border font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+                <th className="px-4 py-2.5 text-left font-medium">Rank</th>
+                <th className="px-4 py-2.5 text-left font-medium">Player</th>
+                <th className="hidden px-4 py-2.5 text-left font-medium sm:table-cell">
+                  Codeforces
+                </th>
+                <th className="px-4 py-2.5 text-right font-medium">Elo</th>
+                <th className="px-4 py-2.5 text-right font-medium">Races</th>
+              </tr>
+            </thead>
+            <tbody>
               {data.entries.map((entry) => {
                 const isCurrentUser = entry.user.id === currentUserId;
                 return (
-                  <div
+                  <tr
                     key={entry.user.id}
                     className={cn(
-                      ROW_GRID,
-                      "px-4 py-3 transition-colors",
+                      "border-b border-border transition-colors last:border-b-0",
                       isCurrentUser
                         ? "border-l-2 border-l-player-self bg-player-self/10"
                         : "hover:bg-muted/50"
                     )}
                   >
-                    <span className="font-display text-lg font-semibold tabular-nums">
+                    <td className="px-4 py-3 font-display text-lg font-semibold tabular-nums">
                       {entry.rank}
                       {entry.user.racesPlayed < 10 && (
                         <sup className="ml-0.5 font-mono text-[10px] font-normal text-muted-foreground">
                           P
                         </sup>
                       )}
-                    </span>
+                    </td>
 
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium">
-                        {entry.user.username}
-                      </span>
-                      {isCurrentUser && (
-                        <Badge variant="secondary" className="shrink-0">
-                          You
-                        </Badge>
-                      )}
-                    </div>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {entry.user.username}
+                        </span>
+                        {isCurrentUser && (
+                          <Badge variant="secondary" className="shrink-0">
+                            You
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
 
-                    <div className="hidden min-w-0 font-mono text-xs text-muted-foreground sm:block">
+                    <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">
                       {entry.user.cfHandle ? (
-                        <div className="truncate">
+                        <>
                           {entry.user.cfHandle}
                           {entry.user.cfRating && (
                             <span className="ml-1.5">
                               {entry.user.cfRating}
                             </span>
                           )}
-                        </div>
+                        </>
                       ) : (
                         <span>Not linked</span>
                       )}
-                    </div>
+                    </td>
 
-                    <span className="text-right font-display font-semibold tabular-nums">
+                    <td className="px-4 py-3 text-right font-display font-semibold tabular-nums">
                       {entry.user.elo}
-                    </span>
-                    <span className="text-right font-mono text-xs text-muted-foreground tabular-nums">
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground tabular-nums">
                       {entry.user.racesPlayed}
-                    </span>
-                  </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       </div>
 
