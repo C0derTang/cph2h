@@ -1,49 +1,57 @@
-# cph2h cartoon rebrand — "shittalk while doing Codeforces"
+# cph2h rebrand — "shittalk while doing Codeforces", rap-battle edition
 
-Approved 2026-07-06. Supersedes the broadcast/esports visual direction (docs/design.md v1); replaces it wholesale with a comic-book brawler system. Name stays **cph2h**. Profanity level: **full explicit** where it lands hardest (hero, taglines, result screens), not on every label.
+Approved 2026-07-06; REVISED same day: the cartoonish/comic-book direction is dead — replaced with a **serious rap-battle / battle-stage** aesthetic. Trash-talk branding stays and hits harder. Name stays **cph2h**. Profanity: **full explicit** where it lands hardest (hero, taglines, result screens), seasoning not wallpaper. This file supersedes the comic-brawler spec that briefly lived here.
 
 ## 1. Brand voice
 
 - Tagline: **"Shittalk your way to a higher rating."**
-- Voice: confident, insulting-your-friend energy. Explicit profanity is seasoning, not wallpaper — comedy needs contrast.
-- Canonical copy examples (writers extend in this voice):
-  - Landing hero: "Same problem. Same clock. Talk your shit."
-  - Empty leaderboard: "Nobody here. Scared, probably."
-  - No-match banner: "No problems match. Skill issue? Widen the filters."
-  - Forfeit button: "Rage quit"
+- Voice: battle-rap confidence — cold, superior, funny because it's deadpan. Not cartoonish, not jokey.
+- Canonical copy (writers extend this voice):
+  - Landing hero: "Same problem. Same clock. Catch these bars."
+  - Win result: **"BODIED."** / Loss result: "You got bodied."
+  - Empty leaderboard: "Nobody's stepped up."
+  - No-match banner: "No problems match. Widen the filters or keep hiding."
+  - Forfeit: "Throw in the towel"
   - Waiting for opponent: "They're stalling."
-  - Win result: "Told you." / Loss result: "You got cooked."
-- Data stays data: real CF verdict strings, ratings, and timestamps are never rewritten — attitude lives in surrounding copy.
+  - Leaderboard is called **"The Ladder"**; taunt picker action is **"Spit a bar"**.
+- Data stays data: CF verdict strings, ratings, timestamps never rewritten.
 
-## 2. Design system v2 (full replace)
+## 2. Design system v2 (full replace of the esports v1)
 
-`docs/design.md` is rewritten as the canonical spec. Token **names** and architecture survive (`--player-self`, `--player-opponent`, `--verdict-ok/-fail/-pending`, panel utilities); values and shapes are replaced.
+`docs/design.md` rewritten as canonical spec. Token **names** survive (`--player-self/-opponent` + fg, `--verdict-ok/-fail/-pending` + fg, panel utilities); values/shapes replaced.
 
-- **Motif: speech bubbles.** Panels are bubble surfaces with thick (~3px) solid outlines. Taunts render as literal comic bubbles pointed at video tiles. Verdict events render as burst shapes: AC = starburst, WA/RE/TLE = jagged splat.
-- **Palette:** hot saturated primaries (ink red-orange for self, electric blue/cyan for opponent — hue identities preserved from v1) on a cream/off-white paper base. **Light-first flip** (comic pages are light); dark mode = "night comic" deep navy with the same saturated inks. Both themes fully defined.
-- **Type:** chunky comic display font via next/font/google (Bangers, Titan One, or equivalent — builder picks for legibility at timer sizes, must have tabular-friendly numerals or timers fall back to the mono) for headings/timers/bursts; readable sans for body; mono stays for code/data.
-- **Texture & depth:** halftone-dot CSS backgrounds on hero surfaces; hard offset shadows (no blur) instead of glows; slight rotation (±1-3deg) on badges/bursts/stickers.
-- **Wordmark:** cph2h inside a speech bubble; the old terminal cursor becomes the bubble tail.
+- **Stage-dark first.** Near-black stage base, warm spotlight treatments (subtle radial gradients on hero surfaces). Light theme defined but secondary ("daytime cypher" — warm paper, same inks).
+- **Identity:** self = **gold/champagne** (champion), opponent = **crimson** (challenger). Versus surfaces are poster lockups: two corners, names in tall caps, a thin gold rule between.
+- **Type:** tall condensed poster display via next/font/google (Anton / Archivo Black / Oswald class — builder picks for timer legibility; uppercase for headings/lockups; timers keep `tabular-nums` or fall back to mono per documented rule). Clean sans body, mono for code/data.
+- **Motifs:** VS poster lockups; lower-third bars (broadcast-meets-stage) for tickers/status; stage panels — matte near-black with hairline gold borders, hard edges, minimal radius; stamp/stencil treatment for verdict moments ("BODIED." stamp on result hero, stencil AC/WA moments in the feed); mic iconography where an icon is earned (taunt picker), never scattered.
+- **Wordmark:** cph2h in tall caps with a gold underline-rule; terminal cursor motif retired.
+- No halftone, no speech bubbles, no rotation/sticker energy — this is a stage, not a comic.
 
-## 3. Taunt feature (the one new feature)
+## 3. Taunt feature (unchanged wire, restyled render)
 
-- ~12 preset text taunts + 6 emotes (💀 🔥 🤡 😭 🐐 🗑️). Presets only — no free text, so no moderation surface.
-- Wire: existing LiveKit data channel, new `RaceEvent` variant `{ type: "taunt"; byUserId: string; tauntId: string }`. Ephemeral: zero DB, zero persistence.
-- Render: comic speech bubble anchored to the sender's video tile; pops in, auto-dismisses ~4s. Emote taunts render large-glyph.
-- Cooldown: 3s, client-enforced (`TAUNT_COOLDOWN_MS`). Available in lobby and during the race (pending → active → finished).
-- Taunt events must NOT trigger the snapshot refetch that other RaceEvents cause (they are pure presentation); the in-room event handler filters them out before the refetch path.
-- Contract additions (master scaffold): the event variant, `TAUNT_PRESETS`/`TAUNT_EMOTES`, `TAUNT_COOLDOWN_MS` in `src/lib/types.ts`.
+- ~12 preset taunts + 6 emotes (💀 🔥 🤡 😭 🐐 🗑️). Presets only — no free text, no moderation surface. (Preset TEXTS in types.ts may be revoiced to battle-rap flavor in a later copy pass; ids stable.)
+- Wire: existing LiveKit data channel, `RaceEvent` `{ type: "taunt"; byUserId; tauntId }`. Ephemeral, zero DB.
+- Render: **"bar" card** — lower-third style text card that slides in anchored to the sender's video tile, mic glyph, auto-dismisses ~4s (`TAUNT_DISPLAY_MS`). Emotes large-glyph. Same-sender replaces previous.
+- Cooldown 3s client-enforced. Taunt events never trigger snapshot refetch.
+- Picker labeled "Spit a bar".
 
-## 4. Delivery
+## 4. Site structure changes
 
-Established master → builder → reviewer flow:
+- **Play hub:** signed-in home replaces the stats-dump dashboard. Composition: big PLAY actions front and center (quick match + challenge-a-friend with the filter form INLINE — `/challenge/new` becomes redundant; keep the route as a redirect or slim page), recent-races strip and compact stat plates beside/below. Stats remain, demoted from hero to supporting cast.
+- **Nav/IA:** simplified to **Play** (hub) / **The Ladder** (leaderboard) / wordmark home; settings/profile stays wherever Clerk userButton lives. Entries in brand voice.
+- **Race room:** 3-col grid bones stay; retheme only (stage panels, lower-third HUD treatment allowed within the existing column structure).
+- **Landing (signed-out):** battle poster — hero lockup, tagline, one CTA.
 
-- **Scaffold (master, direct):** types.ts taunt contract; commit this spec.
+## 5. Delivery
+
+Master → builder → reviewer flow:
+
+- Scaffold: taunt contract (landed pre-pivot; unchanged).
 - **Wave 1 (parallel):**
-  - J (opus): design system v2 — design.md rewrite, globals.css token/shape/texture overhaul, fonts, light-first flip, nav + landing rebuilt as exemplar with explicit brand copy.
-  - K (sonnet): taunt feature end-to-end (picker, send, bubble render, cooldown, event-filter so taunts don't refetch), minimally styled; wave 2 rethemes it.
+  - #83 (opus): design system v2 per §2 + landing/nav exemplar per §4 — REDIRECTED from comic to rap-battle mid-flight.
+  - #84 (sonnet): taunt feature per §3 — wire/logic unchanged by the pivot; minimal styling, wave 2 rethemes.
 - **Wave 2 (parallel):**
-  - L (sonnet): race surfaces retheme (Lobby, RaceHUD, ResultCard, VerdictFeed, RaceRoom shell, VideoTiles, taunt bubbles) + race-surface copy pass.
-  - M (sonnet): dashboard, leaderboard, challenge flow retheme + copy pass + remaining misc pages + site metadata (title/description in brand voice).
+  - L (sonnet): race surfaces retheme + race copy pass (stage panels, poster lockup lobby, BODIED result, bar-card taunts).
+  - M (sonnet): **play hub restructure** (dashboard → hub, inline challenge form, redirect old route) + The Ladder retheme + remaining pages copy/metadata.
 
-Verification: three checks per PR; screenshot review of landing/dashboard/race; two-browser taunt smoke (bubble appears on opponent's screen, no snapshot refetch storm); light + dark.
+Verification: three checks per PR; screenshot review (landing, hub, ladder, lobby, race, result) in dark primary; two-browser taunt smoke; no off-token colors.
