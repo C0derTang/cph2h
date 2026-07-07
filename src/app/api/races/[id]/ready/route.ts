@@ -91,10 +91,12 @@ export async function POST(
     return NextResponse.json(await buildRaceSnapshot(afterReady), { status: 200 });
   }
 
-  // Both ready: best-effort refresh of each player's CF solve history (issue
-  // #69) so problems solved since their last sync are excluded from this
-  // selection. Never allowed to fail or stall the ready path past the soft
-  // timeout above — CF being slow or down still lets the race start.
+  // Both ready: best-effort, unconditional refresh of each player's CF solve
+  // history (issue #69, always-refresh fix #98) so problems solved since
+  // their last sync — including moments ago, with a still-fresh `syncedAt`
+  // — are excluded from this selection. Never allowed to fail or stall the
+  // ready path past the soft timeout above — CF being slow or down still
+  // lets the race start.
   await refreshBothPlayersSeenProblems(afterReady);
 
   // Both ready: attempt to select a filter-conforming, unseen problem BEFORE

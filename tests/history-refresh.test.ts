@@ -1,11 +1,16 @@
 /**
- * Tests for the ready-time incremental solve-history refresh (issue #69):
+ * Tests for the ready-time incremental solve-history refresh (issue #69,
+ * always-refresh fix #98):
  *  - `isSolveHistoryStale` — the pure staleness predicate.
  *  - `importSolveHistoryIncremental` — pagination cutoff over fake
  *    `user.status` pages: stops at the first submission older than
  *    `syncedAt`, respects the incremental page cap, and a null `syncedAt`
  *    falls back to the full import path.
  *  - `refreshSolveHistoryIfStale` — no-op when fresh/unlinked, never throws.
+ *  - `refreshSolveHistoryForce` (issue #98) — used on the both-ready path:
+ *    always refreshes (even when `syncedAt` is fresh) so a problem solved
+ *    moments ago is excluded from this selection; still no-ops when
+ *    unlinked, and still never throws when CF is down.
  *
  * `@/lib/cf/client` and `@/lib/db` are mocked (no network/DB); the pagination
  * loop and staleness math are the real implementation under test.
@@ -60,6 +65,7 @@ vi.mock("@/lib/db", () => ({
 import { importSolveHistoryIncremental } from "../src/lib/cf/history";
 import {
   isSolveHistoryStale,
+  refreshSolveHistoryForce,
   refreshSolveHistoryIfStale,
 } from "../src/lib/cf/history-refresh";
 
@@ -318,6 +324,59 @@ describe("refreshSolveHistoryIfStale", () => {
         id: USER_ID,
         cfHandle: HANDLE,
         solveHistorySyncedAt: staleSyncedAt,
+      }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("refreshSolveHistoryForce (issue #98)", () => {
+  it("fresh-solve-excluded: refreshes even when solveHistorySyncedAt is fresh, and the just-solved problem lands in user_problems", async () => {
+    // A player solved a problem 10 minutes ago; their sync stamp is from just
+    // before that solve, well within the staleness window (so
+    // `refreshSolveHistoryIfStale` would no-op here) — but the force path
+    // must still pick it up so problem selection excludes it.
+    const now = new Date();
+    const syncedAt = new Date(now.getTime() - 11 * 60 * 1000); // 11 min ago
+    const freshSolveSec = Math.floor((now.getTime() - 10 * 60 * 1000) / 1000); // 10 min ago
+
+    const page = [sub(1, freshSolveSec, "OK")];
+    getUserStatusMock.mockResolvedValueOnce(page);
+    dbState.knownProblemIds = new Set(
+      page.map((s) => `${s.problem.contestId}${s.problem.index}`),
+    );
+
+    // Sanity: the staleness-gated entry point would no-op here.
+    expect(isSolveHistoryStale(syncedAt, now)).toBe(false);
+
+    await refreshSolveHistoryForce({
+      id: USER_ID,
+      cfHandle: HANDLE,
+      solveHistorySyncedAt: syncedAt,
+    });
+
+    expect(getUserStatusMock).toHaveBeenCalledTimes(1);
+    const recordedProblemIds = dbState.insertBatches
+      .flat()
+      .map((row) => (row as { problemId: string }).problemId);
+    expect(recordedProblemIds).toContain(
+      `${page[0].problem.contestId}${page[0].problem.index}`,
+    );
+  });
+
+  it("still no-ops when the user has no linked CF handle", async () => {
+    await refreshSolveHistoryForce({ id: USER_ID, cfHandle: null, solveHistorySyncedAt: null });
+    expect(getUserStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("CF down: never throws, so the ready path (and race start) is unaffected", async () => {
+    const freshSyncedAt = new Date();
+    getUserStatusMock.mockRejectedValueOnce(new Error("codeforces is down"));
+
+    await expect(
+      refreshSolveHistoryForce({
+        id: USER_ID,
+        cfHandle: HANDLE,
+        solveHistorySyncedAt: freshSyncedAt,
       }),
     ).resolves.toBeUndefined();
   });

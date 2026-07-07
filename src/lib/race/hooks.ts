@@ -17,7 +17,7 @@ import {
 import { pickProblem, targetRating } from "@/lib/cf/problem-picker";
 import { getOrScrapeStatement } from "@/lib/cf/statements";
 import {
-  refreshSolveHistoryIfStale,
+  refreshSolveHistoryForce,
   type SolveHistoryUser,
 } from "@/lib/cf/history-refresh";
 import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
@@ -147,11 +147,13 @@ export type RefreshSeenProblems = (user: SolveHistoryUser) => Promise<void>;
 /**
  * Best-effort, per-player refresh of `user_problems` right before problem
  * selection so recently solved problems are excluded on this ready-up (see
- * `src/lib/cf/history-refresh.ts`). No-ops when the user's history is still
- * fresh or unlinked; never throws — the ready route wraps the parallel call
+ * `src/lib/cf/history-refresh.ts`). Always runs (issue #98) — no staleness
+ * gate here, since a solve just before ready-up can still have a fresh
+ * `syncedAt` and must still be excluded. No-ops only when the user has no
+ * linked CF handle; never throws — the ready route wraps the parallel call
  * for both players in a soft timeout regardless.
  */
-export const refreshSeenProblems: RefreshSeenProblems = refreshSolveHistoryIfStale;
+export const refreshSeenProblems: RefreshSeenProblems = refreshSolveHistoryForce;
 
 // ---------------------------------------------------------------------------
 // #8 — LiveKit event publishing
