@@ -34,6 +34,15 @@ const MAX_HISTORY_PAGES = 20;
  * the full walk since it only needs to reach back to the last sync, and it
  * runs on the ready-request path where CF's rate limit and a soft timeout
  * both apply.
+ *
+ * If this cap is hit before the cutoff is reached (a user with more than
+ * `MAX_INCREMENTAL_PAGES * HISTORY_PAGE_SIZE` submissions since the last
+ * sync), `importSolveHistoryIncremental` stamps `solveHistorySyncedAt` to
+ * the oldest *processed* submission's `creationTimeSeconds` instead of
+ * `now`. That leaves the un-imported gap (everything older than what this
+ * run reached, down to the real `syncedAt`) still "unsynced", so the next
+ * ready-time refresh picks it up instead of the gap being silently and
+ * permanently skipped.
  */
 const MAX_INCREMENTAL_PAGES = 2;
 /** Batch size for `user_problems` upserts. */
@@ -125,9 +134,12 @@ export async function importSolveHistory(userId: string, handle: string): Promis
  * falls back to the existing full walk (`importSolveHistory`) so the very
  * first refresh still captures complete history.
  *
- * Stamps `users.solveHistorySyncedAt = now` on success in both branches. Can
- * throw (CF/API/db errors) — callers on the ready path must guard with a
- * timeout/try-catch (see `refreshSolveHistoryIfStale`).
+ * Stamps `users.solveHistorySyncedAt` on success in both branches: `now` when
+ * the walk genuinely caught up (cutoff reached, or CF's history exhausted),
+ * or the oldest *processed* submission's `creationTimeSeconds` when
+ * {@link MAX_INCREMENTAL_PAGES} was hit first — see the comment on that
+ * constant for why. Can throw (CF/API/db errors) — callers on the ready path
+ * must guard with a timeout/try-catch (see `refreshSolveHistoryIfStale`).
  */
 export async function importSolveHistoryIncremental(
   userId: string,
@@ -144,6 +156,14 @@ export async function importSolveHistoryIncremental(
 
   const cutoffSec = Math.floor(syncedAt.getTime() / 1000);
   const attempts = new Map<string, boolean>();
+  // Oldest submission actually processed this run. Pages are walked
+  // newest-first, so this is simply the last submission seen — overwritten
+  // each page, ending at the true minimum once the loop exits.
+  let oldestProcessedSec: number | null = null;
+  // True only when the loop ran out of allowed pages while every fetched
+  // page was still full and the cutoff was never found — i.e. the cap, not
+  // the cutoff, ended the walk.
+  let cappedOut = false;
 
   for (let page = 0; page < MAX_INCREMENTAL_PAGES; page++) {
     const from = page * HISTORY_PAGE_SIZE + 1;
@@ -161,12 +181,21 @@ export async function importSolveHistoryIncremental(
       const solved = sub.verdict === "OK";
       attempts.set(problemId, (attempts.get(problemId) ?? false) || solved);
     }
+    if (pageSubmissions.length > 0) {
+      oldestProcessedSec = pageSubmissions[pageSubmissions.length - 1].creationTimeSeconds;
+    }
 
     // Hit the cutoff within this page — everything older is already synced.
     if (cutoffIndex !== -1) break;
     if (submissions.length < HISTORY_PAGE_SIZE) break;
+
+    // Still full with no cutoff found, and this was the last page we're
+    // allowed to fetch — the cap ended the walk, not real completion.
+    if (page === MAX_INCREMENTAL_PAGES - 1) cappedOut = true;
   }
 
   await upsertAttempts(userId, attempts);
-  await stampSyncedAt(userId, now);
+  const stampedAt =
+    cappedOut && oldestProcessedSec !== null ? new Date(oldestProcessedSec * 1000) : now;
+  await stampSyncedAt(userId, stampedAt);
 }
