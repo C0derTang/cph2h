@@ -18,6 +18,14 @@ import type { RaceSubmissionInfo } from "@/lib/types";
 interface VerdictFeedProps {
   submissions: RaceSubmissionInfo[];
   currentUserId: string;
+  /**
+   * Seconds since the last successful verdict-poll response (including a
+   * `{ skipped: true }` mutex miss — that still proves the loop is alive),
+   * or null before the first response has landed. Drives the "Watching CF"
+   * auto-poll indicator (issue #107) so the invisible background poll isn't
+   * mistaken for the UI being stuck.
+   */
+  lastCheckedSecondsAgo: number | null;
   className?: string;
 }
 
@@ -28,6 +36,7 @@ function isAccepted(verdict: string | null): boolean {
 export function VerdictFeed({
   submissions,
   currentUserId,
+  lastCheckedSecondsAgo,
   className,
 }: VerdictFeedProps) {
   // Most recent first.
@@ -43,9 +52,22 @@ export function VerdictFeed({
     >
       <div className="ticker justify-between px-4 py-2">
         <span>verdicts</span>
-        <span className="flex items-center gap-1.5 text-verdict-pending">
+        <span
+          data-testid="verdict-poll-indicator"
+          className="flex items-center gap-1.5 text-verdict-pending"
+        >
           <span className="size-1.5 rounded-full bg-verdict-pending motion-safe:animate-pulse" />
-          live
+          {lastCheckedSecondsAgo != null ? (
+            <>
+              Watching CF · checked{" "}
+              <span className="font-mono tabular-nums">
+                {lastCheckedSecondsAgo}s
+              </span>{" "}
+              ago
+            </>
+          ) : (
+            "Watching CF"
+          )}
         </span>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
