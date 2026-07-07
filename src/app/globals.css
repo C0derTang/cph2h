@@ -164,19 +164,28 @@
   --chart-5: oklch(0.5 0.02 75);
   --radius: 0.25rem;
 
-  /* Player identity. */
-  --player-self: oklch(0.66 0.12 82);
-  --player-self-foreground: oklch(0.18 0.02 80);
+  /* Player identity. Self gold is darkened + slightly richened from v2
+     ("antique gold ink on paper") to clear WCAG AA 4.5:1 as text on
+     --background (was ~2.72:1) — see docs/design.md "identity contrast rule
+     (light)". Because the fill is now medium-dark rather than bright, its
+     -foreground pair flips to a light ink (was a dark ink meant for a bright
+     fill) to keep passing 4.5:1 on the new fill. */
+  --player-self: oklch(0.5 0.13 82);
+  --player-self-foreground: oklch(0.98 0.02 80);
   --player-opponent: oklch(0.5 0.2 18);
   --player-opponent-foreground: oklch(0.98 0.02 20);
 
-  /* Verdict semantics. */
-  --verdict-ok: oklch(0.58 0.15 150);
+  /* Verdict semantics. verdict-ok and verdict-pending are darkened from v2 to
+     clear WCAG AA 4.5:1 as text on --background (were ~3.90:1 / ~2.38:1).
+     verdict-pending-foreground flips to a light ink for the same reason as
+     player-self-foreground above; verdict-ok-foreground was already light and
+     only gains headroom on the darker fill. */
+  --verdict-ok: oklch(0.46 0.15 150);
   --verdict-ok-foreground: oklch(0.99 0.02 150);
   --verdict-fail: oklch(0.55 0.22 27);
   --verdict-fail-foreground: oklch(0.99 0.02 27);
-  --verdict-pending: oklch(0.7 0.14 65);
-  --verdict-pending-foreground: oklch(0.2 0.05 65);
+  --verdict-pending: oklch(0.5 0.15 65);
+  --verdict-pending-foreground: oklch(0.98 0.02 65);
 
   --sidebar: oklch(0.98 0.008 85);
   --sidebar-foreground: oklch(0.2 0.014 60);
