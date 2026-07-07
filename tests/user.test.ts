@@ -179,7 +179,7 @@ describe("ensureUser", () => {
     });
   });
 
-  it("falls back to email when username and firstName are absent", async () => {
+  it("falls back to the email local part (never the full email) when username and firstName are absent", async () => {
     authMock.mockResolvedValue({ userId: "clerk-c" });
     mockSelectSequence([[]]);
     insertOnConflictMock.mockReturnValue({ returning: vi.fn().mockResolvedValue([makeUser()]) });
@@ -192,7 +192,26 @@ describe("ensureUser", () => {
     await ensureUser();
     expect(insertValuesMock).toHaveBeenLastCalledWith({
       clerkId: "clerk-c",
-      username: "c@example.com",
+      username: "c",
+    });
+  });
+
+  it("truncates a long email local part to 20 characters", async () => {
+    authMock.mockResolvedValue({ userId: "clerk-long" });
+    mockSelectSequence([[]]);
+    insertOnConflictMock.mockReturnValue({ returning: vi.fn().mockResolvedValue([makeUser()]) });
+
+    currentUserMock.mockResolvedValue({
+      username: null,
+      firstName: null,
+      emailAddresses: [
+        { emailAddress: "this.is.a.very.long.local.part@example.com" },
+      ],
+    });
+    await ensureUser();
+    expect(insertValuesMock).toHaveBeenLastCalledWith({
+      clerkId: "clerk-long",
+      username: "this.is.a.very.long.",
     });
   });
 
