@@ -21,18 +21,81 @@
  * safe.
  */
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { raceSubmissions, users, type Race } from "@/lib/db/schema";
+import { races, raceSubmissions, users, type Race } from "@/lib/db/schema";
 import { getUserStatus } from "@/lib/cf/client";
 import { findRaceVerdicts } from "@/lib/cf/verdicts";
 import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
 import type { CfSubmission } from "@/lib/types";
 import { finishRace } from "@/lib/race/finish";
+import { isAbsenceForfeit } from "@/lib/race/presence";
 
 interface AcceptedHit {
   userId: string;
   submission: CfSubmission;
+}
+
+/**
+ * Stamp the calling participant's presence heartbeat (issue #105).
+ *
+ * Runs on EVERY participant poll — *before and independent of* the poll mutex —
+ * so a mutex-skipped poll (most of them) still proves the caller is present. A
+ * single atomic `UPDATE` keyed by caller side, guarded on `status='active'`
+ * (neon-http-safe: no read-then-write). Never stamps a non-active race, and the
+ * cron sweep never calls this, so a heartbeat can only be set by the player it
+ * belongs to actually polling — presence can't be faked.
+ */
+export async function stampHeartbeat(
+  raceId: string,
+  callerIsP1: boolean,
+): Promise<void> {
+  await db
+    .update(races)
+    .set(
+      callerIsP1
+        ? { p1LastSeenAt: sql`now()` }
+        : { p2LastSeenAt: sql`now()` },
+    )
+    .where(and(eq(races.id, raceId), eq(races.status, "active")));
+}
+
+/**
+ * Absence-forfeit check for a participant poll (issue #105).
+ *
+ * MUST run only for an authenticated participant caller (never the sweep cron,
+ * which has no caller and thus never absence-forfeits) and only AFTER verdicts
+ * have had their turn — `pollActiveRace` already ran this request, so a solve or
+ * timeout finish flips `status` away from `active` and this no-ops (verdict
+ * precedence). While the race is still `active` and past the countdown, if the
+ * OPPONENT's effective last-seen (floored at `startedAt`) is older than the
+ * grace window, finish with the present caller as the winner. The caller just
+ * stamped their own heartbeat this request, so an absent caller can never
+ * forfeit their opponent by merely polling. `finishRace`'s `WHERE
+ * status='active'` claim makes concurrent/repeat forfeits idempotent. Returns
+ * `true` iff a forfeit finish was attempted.
+ */
+export async function maybeAbsenceForfeit(
+  race: Race,
+  callerIsP1: boolean,
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (race.status !== "active" || !race.startedAt) return false;
+
+  const opponentLastSeen = callerIsP1 ? race.p2LastSeenAt : race.p1LastSeenAt;
+  const lastSeenMs = opponentLastSeen ? opponentLastSeen.getTime() : null;
+
+  if (!isAbsenceForfeit(lastSeenMs, race.startedAt.getTime(), now.getTime())) {
+    return false;
+  }
+
+  await finishRace({
+    raceId: race.id,
+    outcome: callerIsP1 ? "p1_win" : "p2_win",
+    winnerId: callerIsP1 ? race.p1Id : race.p2Id,
+    reason: "forfeit",
+  });
+  return true;
 }
 
 /**
