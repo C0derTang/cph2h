@@ -5,9 +5,12 @@
  *
  * Owns the client-side race state and wires the already-built pieces together:
  *   - pending/ready  → the standalone {@link Lobby} (#16)
- *   - active         → 3-pane race: {@link ProblemPane} (#9) | {@link CppEditor}
- *                      (#12) + {@link RunPanel} (#13) | {@link VideoTiles} +
- *                      {@link RaceHUD} + {@link VerdictFeed}
+ *   - active         → the stage (issue #99): {@link ProblemPane} (#9) beside a
+ *                      dominant center stage of {@link VideoTiles} (opponent
+ *                      spotlight + self PiP) with the {@link TauntPicker} and
+ *                      big Submit/Check actions attached, and a {@link RaceHUD}
+ *                      + {@link VerdictFeed} rail. No in-room editor: racers
+ *                      write in their own environment and submit on codeforces.com.
  *   - finished/aborted → {@link ResultCard}
  *
  * The `GET /api/races/[id]` snapshot is the single source of truth. LiveKit
@@ -28,21 +31,17 @@ import {
 } from "@livekit/components-react";
 import {
   Check,
-  Copy,
   ExternalLink,
   Flag,
   Handshake,
   Loader2,
   MonitorSmartphone,
   RefreshCw,
-  RotateCcw,
   WifiOff,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { CppEditor, type CppEditorHandle } from "@/components/editor/CppEditor";
 import { ProblemPane } from "@/components/race/ProblemPane";
-import { RunPanel } from "@/components/race/RunPanel";
 import { Lobby } from "@/components/race/Lobby";
 import { RaceHUD } from "@/components/race/RaceHUD";
 import { VerdictFeed } from "@/components/race/VerdictFeed";
@@ -58,6 +57,7 @@ import {
 import {
   classifyPollResponse,
   computeSkewMs,
+  correctedNow,
   nextRetryDelay,
   unlockRescheduleDelay,
 } from "@/lib/race/countdown";
@@ -68,8 +68,6 @@ interface RaceRoomProps {
   raceId: string;
   currentUserId: string;
   initialSnapshot: RaceSnapshot;
-  /** The viewer's saved C++ template — preloaded into the editor at race start. */
-  cppTemplate: string;
 }
 
 interface LivekitConn {
@@ -94,20 +92,16 @@ export function RaceRoom({
   raceId,
   currentUserId,
   initialSnapshot,
-  cppTemplate,
 }: RaceRoomProps) {
   const [snapshot, setSnapshot] = useState<RaceSnapshot>(initialSnapshot);
-  const [code, setCode] = useState<string>(cppTemplate);
   const [lk, setLk] = useState<LivekitConn | null>(null);
   const [checking, setChecking] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [opponentLive, setOpponentLive] = useState(true);
   const [forfeiting, setForfeiting] = useState(false);
   const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
   const [taunts, setTaunts] = useState<TauntBubbles>({});
-  const editorRef = useRef<CppEditorHandle>(null);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailuresRef = useRef(0);
 
@@ -361,17 +355,6 @@ export function RaceRoom({
     }
   }, [checking, raceId, refetch, applySnapshot]);
 
-  const copyCode = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCodeCopied(true);
-      toast.success("Code copied to clipboard.");
-      setTimeout(() => setCodeCopied(false), 1500);
-    } catch {
-      toast.error("Couldn't copy — your browser may be blocking clipboard access.");
-    }
-  }, [code]);
-
   // --- Forfeit (existing abort route; caller forfeits, opponent wins) ----
   const handleForfeit = useCallback(async () => {
     if (forfeiting) return;
@@ -527,23 +510,29 @@ export function RaceRoom({
   const statement = snapshot.statement;
   const problem = snapshot.problem;
 
-  const editorPane = (
-    <section className="flex min-h-0 flex-col gap-3">
-      <div className="panel min-h-[320px] flex-1 overflow-hidden">
-        <CppEditor
-          ref={editorRef}
-          value={code}
-          onChange={setCode}
-          draftKey={`race:${raceId}`}
-          className="size-full"
-        />
-      </div>
+  // Once the skew-corrected clock reaches startedAt the countdown is over and
+  // the statement is merely still in flight — showing the pre-start "unlocks
+  // when the countdown ends" copy then is misleading, so swap to a loading
+  // state (issue #99). Render-only: the existing unlock-timer refetch / poll
+  // loop re-renders drive this flip; the unlock-timer effect is untouched.
+  const startedAtMs = snapshot.startedAt ? Date.parse(snapshot.startedAt) : null;
+  const countdownEnded = startedAtMs != null && correctedNow(skewMs) >= startedAtMs;
 
-      <div className="flex flex-wrap items-center gap-2">
+  const selfTaunt = taunts[currentUserId] ?? null;
+  const opponentTaunt = opponent ? taunts[opponent.id] ?? null : null;
+
+  // Big, impossible-to-miss action bar — the two things a racer actually does
+  // (submit on codeforces.com, then have us check the verdict) are the loud
+  // primary pair; draw / forfeit are prominent secondary. Handlers unchanged.
+  const actions = (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2 sm:flex-row">
         {problem && (
           <Button
             type="button"
+            size="lg"
             data-testid="submit-btn"
+            className="h-11 flex-1 text-sm"
             nativeButton={false}
             render={
               <a
@@ -559,8 +548,9 @@ export function RaceRoom({
         )}
         <Button
           type="button"
-          variant="outline"
+          size="lg"
           data-testid="check-now-btn"
+          className="h-11 flex-1 text-sm"
           onClick={handleCheckNow}
           disabled={checking}
         >
@@ -571,27 +561,14 @@ export function RaceRoom({
           )}
           {checking ? "Checking…" : "I submitted — check now"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={copyCode}
-          data-testid="copy-code-btn"
-        >
-          <Copy aria-hidden />
-          {codeCopied ? "Copied" : "Copy code"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => editorRef.current?.reset(cppTemplate)}
-        >
-          <RotateCcw aria-hidden />
-          Reset
-        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
         {!iOfferedDraw && !opponentOfferedDraw && (
           <Button
             type="button"
             variant="outline"
+            size="lg"
             data-testid="draw-offer-btn"
             onClick={() => void handleDrawAction("offer")}
             disabled={drawActionPending}
@@ -617,8 +594,9 @@ export function RaceRoom({
         )}
         <Button
           type="button"
-          variant="ghost"
-          className="ml-auto text-destructive hover:text-destructive"
+          variant="destructive"
+          size="lg"
+          className="ml-auto"
           onClick={handleForfeit}
           disabled={forfeiting}
           data-testid="forfeit-btn"
@@ -633,23 +611,100 @@ export function RaceRoom({
       </div>
 
       <p className="text-xs leading-5 text-muted-foreground">
-        Submit your solution on Codeforces (your browser passes their
-        Cloudflare check), then hit{" "}
+        Submit your solution on Codeforces — your browser passes their
+        Cloudflare check — then hit{" "}
         <span className="font-medium">&ldquo;I submitted — check now&rdquo;</span>{" "}
-        — we detect the verdict automatically. Use <span className="font-medium">Copy code</span>{" "}
-        to paste your editor draft into the Codeforces submit form.
+        and we detect the verdict automatically.
       </p>
+    </div>
+  );
 
-      {statement && (
-        <RunPanel raceId={raceId} code={code} samples={statement.samples} />
+  // Center stage — the opponent's face under the spotlight is the dominant
+  // element (issue #99): the video spotlight + attached "Spit a bar" picker,
+  // with the big action bar directly beneath. VideoTiles / TauntPicker read
+  // LiveKit room context, so they only mount when video is connected.
+  const centerStage = (withVideo: boolean) => (
+    <section className="relative flex min-h-0 flex-col gap-3 overflow-y-auto">
+      <div
+        aria-hidden
+        className="spotlight pointer-events-none absolute inset-0 -z-10"
+      />
+      {withVideo ? (
+        <>
+          <VideoTiles
+            selfTaunt={selfTaunt}
+            opponentTaunt={opponentTaunt}
+            onSelfTauntExpire={
+              selfTaunt
+                ? () => handleTauntExpire(currentUserId, selfTaunt.sentAt)
+                : undefined
+            }
+            onOpponentTauntExpire={
+              opponentTaunt && opponent
+                ? () => handleTauntExpire(opponent.id, opponentTaunt.sentAt)
+                : undefined
+            }
+          />
+          <TauntPicker currentUserId={currentUserId} onSent={handleTauntSent} />
+        </>
+      ) : (
+        <div className="panel flex aspect-video items-center justify-center p-4 text-xs text-muted-foreground">
+          Video is unavailable.
+        </div>
+      )}
+      {actions}
+    </section>
+  );
+
+  const problemPane = (
+    <section className="panel flex min-h-0 flex-col gap-3 overflow-hidden p-4">
+      <header className="flex flex-col gap-1">
+        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          Problem
+        </span>
+        <h1
+          data-testid="problem-title"
+          className="font-display text-lg tracking-tight uppercase"
+        >
+          {problem ? (
+            <a
+              href={problem.url}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-primary hover:underline"
+            >
+              {problem.id} · {problem.name}
+            </a>
+          ) : (
+            "Problem locked"
+          )}
+        </h1>
+        {problem && (
+          <span className="font-mono text-xs text-muted-foreground">
+            Rating {problem.rating}
+          </span>
+        )}
+      </header>
+      {statement ? (
+        <ProblemPane statement={statement} className="flex-1" />
+      ) : countdownEnded ? (
+        <div
+          data-testid="problem-loading"
+          role="status"
+          className="flex flex-1 items-center justify-center gap-2 text-center text-sm text-muted-foreground"
+        >
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Pulling up the problem…
+        </div>
+      ) : (
+        <div className="flex flex-1 items-center justify-center text-center text-sm text-muted-foreground">
+          The problem unlocks when the countdown ends.
+        </div>
       )}
     </section>
   );
 
-  const selfTaunt = taunts[currentUserId] ?? null;
-  const opponentTaunt = opponent ? taunts[opponent.id] ?? null : null;
-
-  const rightRail = (withVideo: boolean) => (
+  const sideRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
       {opponentOfferedDraw && (
         <div
@@ -721,29 +776,6 @@ export function RaceRoom({
         opponentPresent={withVideo ? opponentLive : undefined}
         skewMs={skewMs}
       />
-      {withVideo ? (
-        <VideoTiles
-          selfTaunt={selfTaunt}
-          opponentTaunt={opponentTaunt}
-          onSelfTauntExpire={
-            selfTaunt
-              ? () => handleTauntExpire(currentUserId, selfTaunt.sentAt)
-              : undefined
-          }
-          onOpponentTauntExpire={
-            opponentTaunt && opponent
-              ? () => handleTauntExpire(opponent.id, opponentTaunt.sentAt)
-              : undefined
-          }
-        />
-      ) : (
-        <div className="panel p-4 text-xs text-muted-foreground">
-          Video is unavailable.
-        </div>
-      )}
-      {withVideo && (
-        <TauntPicker currentUserId={currentUserId} onSent={handleTauntSent} />
-      )}
       <VerdictFeed
         submissions={snapshot.submissions}
         currentUserId={currentUserId}
@@ -752,53 +784,16 @@ export function RaceRoom({
     </aside>
   );
 
-  const problemPane = (
-    <section className="panel flex min-h-0 flex-col gap-3 overflow-hidden p-4">
-      <header className="flex flex-col gap-1">
-        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-          Problem
-        </span>
-        <h1
-          data-testid="problem-title"
-          className="font-display text-lg tracking-tight uppercase"
-        >
-          {problem ? (
-            <a
-              href={problem.url}
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-primary hover:underline"
-            >
-              {problem.id} · {problem.name}
-            </a>
-          ) : (
-            "Problem locked"
-          )}
-        </h1>
-        {problem && (
-          <span className="font-mono text-xs text-muted-foreground">
-            Rating {problem.rating}
-          </span>
-        )}
-      </header>
-      {statement ? (
-        <ProblemPane statement={statement} className="flex-1" />
-      ) : (
-        <div className="flex flex-1 items-center justify-center text-center text-sm text-muted-foreground">
-          The problem unlocks when the countdown ends.
-        </div>
-      )}
-    </section>
-  );
-
+  // Opponent spotlight dominates the middle; the problem pane sits to its left
+  // (narrower), the HUD + verdict feed rail to its right.
   const panes = (withVideo: boolean) => (
     <div
       data-testid="race-room"
-      className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,340px)]"
+      className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,320px)]"
     >
       {problemPane}
-      {editorPane}
-      {rightRail(withVideo)}
+      {centerStage(withVideo)}
+      {sideRail(withVideo)}
     </div>
   );
 
