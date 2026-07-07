@@ -47,6 +47,7 @@ import { Lobby } from "@/components/race/Lobby";
 import { RaceHUD } from "@/components/race/RaceHUD";
 import { VerdictFeed } from "@/components/race/VerdictFeed";
 import { ResultCard } from "@/components/race/ResultCard";
+import { RaceEndOverlay } from "@/components/race/RaceEndOverlay";
 import { VideoTiles } from "@/components/race/VideoTiles";
 import { TauntPicker } from "@/components/race/TauntPicker";
 import { useMicPermission } from "@/components/race/useMicPermission";
@@ -69,6 +70,7 @@ import {
 } from "@/lib/race/presence";
 import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
 import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
+import { detectOverlayOutcome, type OverlayOutcome } from "@/lib/race/overlay";
 
 interface RaceRoomProps {
   raceId: string;
@@ -79,6 +81,14 @@ interface RaceRoomProps {
 interface LivekitConn {
   token: string;
   url: string;
+}
+
+/** Captured-at-transition content for the race-end overlay (issue #113). */
+interface OverlayState {
+  outcome: Exclude<OverlayOutcome, "none">;
+  opponentUsername: string | null;
+  eloDelta: number | null;
+  byForfeit: boolean;
 }
 
 /** How long the opponent's video track must be absent before we surface a
@@ -119,6 +129,19 @@ export function RaceRoom({
   const [nowTick, setNowTick] = useState(() => Date.now());
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailuresRef = useRef(0);
+
+  // --- Race-end overlay (issue #113) --------------------------------------
+  // A game-like VICTORY/DEFEAT/DRAW slam shown ONLY when this client observes
+  // the race transition out of `active` while mounted — a direct load onto an
+  // already-finished race shows nothing (the persistent ResultCard suffices).
+  // Snapshot is the source of truth; the overlay content is captured from it
+  // at transition time (never from a trusted event payload).
+  const [overlay, setOverlay] = useState<OverlayState | null>(null);
+  const prevStatusRef = useRef<RaceSnapshot["status"]>(initialSnapshot.status);
+  // Voice teardown notice (issue #113): a visible "reconnecting" banner when
+  // LiveKit drops while the race is genuinely still active, instead of a
+  // silent mic death.
+  const [voiceDisconnected, setVoiceDisconnected] = useState(false);
 
   const status = snapshot.status;
 
@@ -169,6 +192,36 @@ export function RaceRoom({
     setSnapshot(data);
   }, []);
 
+  // Fire the race-end overlay on an observed `active → finished|aborted`
+  // transition. Runs on every snapshot receipt: the pure detector returns
+  // "none" for anything that isn't a live terminal transition (including the
+  // very first render and a direct load onto a finished race), so only a real
+  // transition sets the overlay. Content is derived from the snapshot here.
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = snapshot.status;
+    const outcome = detectOverlayOutcome(prev, snapshot, currentUserId);
+    if (outcome === "none") return;
+
+    const viewerIsP1 = snapshot.p1.id === currentUserId;
+    const opp = viewerIsP1 ? snapshot.p2 : snapshot.p1;
+    const eloDelta = viewerIsP1 ? snapshot.eloDeltaP1 : snapshot.eloDeltaP2;
+    // A "solve" win has a recorded CF submission by the winner; its absence
+    // means the win came by forfeit / absence, which the overlay phrases
+    // differently. Draws are never a forfeit variant.
+    const solved =
+      snapshot.winnerId != null &&
+      snapshot.submissions.some(
+        (s) => s.userId === snapshot.winnerId && s.cfSubmissionId != null,
+      );
+    setOverlay({
+      outcome,
+      opponentUsername: opp?.username ?? null,
+      eloDelta,
+      byForfeit: outcome !== "draw" && !solved,
+    });
+  }, [snapshot, currentUserId]);
+
   // --- Snapshot refetch (source of truth) --------------------------------
   const refetch = useCallback(async () => {
     try {
@@ -186,6 +239,24 @@ export function RaceRoom({
   useEffect(() => {
     const id = setTimeout(() => void refetch(), 0);
     return () => clearTimeout(id);
+  }, [refetch]);
+
+  // LiveKit voice teardown (issue #113): when the room drops we can't tell a
+  // real network blip from the server deleting the room because the race just
+  // ended — so refetch the authoritative snapshot immediately (un-throttled)
+  // and only surface a "reconnecting" banner if we're genuinely still active.
+  const handleVoiceDisconnected = useCallback(() => {
+    if (snapshotRef.current.status === "active") {
+      setVoiceDisconnected(true);
+      void refetch();
+    }
+  }, [refetch]);
+
+  // On (re)connect, clear the voice notice and refetch (connection state is
+  // server-driven — deliberately not throttled).
+  const handleReconnected = useCallback(() => {
+    setVoiceDisconnected(false);
+    void refetch();
   }, [refetch]);
 
   // --- LiveKit token (best-effort; race still works without video) --------
@@ -554,6 +625,15 @@ export function RaceRoom({
           {status}
         </span>
         <ResultCard snapshot={snapshot} currentUserId={currentUserId} />
+        {overlay && (
+          <RaceEndOverlay
+            outcome={overlay.outcome}
+            opponentUsername={overlay.opponentUsername}
+            eloDelta={overlay.eloDelta}
+            byForfeit={overlay.byForfeit}
+            onDismiss={() => setOverlay(null)}
+          />
+        )}
       </main>
     );
   }
@@ -856,6 +936,16 @@ export function RaceRoom({
 
   const sideRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+      {voiceDisconnected && (
+        <div
+          data-testid="voice-disconnected-banner"
+          role="alert"
+          className="flex items-center gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
+        >
+          <WifiOff className="size-4 shrink-0" aria-hidden />
+          Voice disconnected — reconnecting…
+        </div>
+      )}
       {micRevokedMidRace && (
         <div
           data-testid="mic-revoked-banner"
@@ -1020,11 +1110,12 @@ export function RaceRoom({
           connect
           audio
           video
+          onDisconnected={handleVoiceDisconnected}
           className="flex min-h-0 flex-1 flex-col"
         >
           <RaceEvents
             onEvent={refetch}
-            onReconnected={refetch}
+            onReconnected={handleReconnected}
             onTaunt={handleTauntReceived}
           />
           {opponent && (
@@ -1095,6 +1186,15 @@ function RaceEvents({
       if (senderId && senderId === event.byUserId) {
         onTaunt(event.byUserId, event.tauntId);
       }
+      return;
+    }
+    if (event.type === "race_finished") {
+      // The finish is the one event we never throttle (issue #113): the
+      // loser's mic is about to cut, so refetch the authoritative snapshot
+      // immediately so the victory/defeat overlay fires within ~2s. Record
+      // the time so an immediately-following event still respects the window.
+      lastRefetch.current = Date.now();
+      onEventRef.current();
       return;
     }
     // We only need to know a (non-taunt) event arrived — the snapshot is
