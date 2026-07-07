@@ -51,6 +51,7 @@ import { RaceEndOverlay } from "@/components/race/RaceEndOverlay";
 import { VideoTiles } from "@/components/race/VideoTiles";
 import { TauntPicker } from "@/components/race/TauntPicker";
 import { useMicPermission } from "@/components/race/useMicPermission";
+import { RaceAudio } from "@/components/race/RaceAudio";
 import {
   CLIENT_POLL_INTERVAL_MS,
   LIVEKIT_DATA_TOPIC,
@@ -604,6 +605,7 @@ export function RaceRoom({
   if (status === "pending" || status === "ready") {
     return (
       <main className="shell-narrow flex flex-1 flex-col py-12 md:py-16">
+        <RaceAudio snapshot={snapshot} youId={currentUserId} />
         <span data-testid="race-status" className="sr-only">
           {status}
         </span>
@@ -621,6 +623,7 @@ export function RaceRoom({
   if (status === "finished" || status === "aborted") {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-12">
+        <RaceAudio snapshot={snapshot} youId={currentUserId} />
         <span data-testid="race-status" className="sr-only">
           {status}
         </span>
@@ -1091,6 +1094,7 @@ export function RaceRoom({
 
   return (
     <main className="flex flex-1 flex-col px-4 py-4">
+      <RaceAudio snapshot={snapshot} youId={currentUserId} />
       <span data-testid="race-status" className="sr-only">
         {status}
       </span>
