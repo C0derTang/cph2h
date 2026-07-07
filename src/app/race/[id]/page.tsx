@@ -14,8 +14,6 @@ import { RaceRoom } from "@/components/race/RaceRoom";
  * {@link buildRaceSnapshot} (the source of truth), then hand off to the client
  * {@link RaceRoom} orchestrator which handles every status (lobby / active /
  * result), LiveKit video + data-channel hints, verdict polling, and submit.
- * The viewer's saved `cppTemplate` is passed through so it preloads into the
- * editor at race start.
  */
 export default async function RacePage({
   params,
@@ -51,7 +49,6 @@ export default async function RacePage({
       raceId={race.id}
       currentUserId={session.user.id}
       initialSnapshot={snapshot}
-      cppTemplate={session.user.cppTemplate}
     />
   );
 }
