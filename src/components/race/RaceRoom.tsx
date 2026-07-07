@@ -107,6 +107,12 @@ export function RaceRoom({
   const [forfeiting, setForfeiting] = useState(false);
   const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
+  // Stamped (local `Date.now()`) on every successful verdict-poll response —
+  // including `{ skipped: true }`, which still proves the loop is alive
+  // (issue #107). Drives the "checked Xs ago" auto-poll indicator; compared
+  // against `nowTick` (already ticking every 1s while active) rather than a
+  // dedicated interval.
+  const [lastCheckedAt, setLastCheckedAt] = useState<number | null>(null);
   const [taunts, setTaunts] = useState<TauntBubbles>({});
   // Local 1s tick, only while active, so the absence-forfeit countdown ticks
   // down between snapshot receipts (the server still decides the actual finish).
@@ -255,19 +261,24 @@ export function RaceRoom({
           } else if (
             classified.kind === "skipped" &&
             snapshotRef.current.status === "active" &&
-            snapshotRef.current.statement == null
+            snapshotRef.current.problem == null
           ) {
             // We lost the poll mutex (someone else claimed it) and we're
-            // still locked out of the statement — don't just drop the tick,
+            // still locked out of the problem — don't just drop the tick,
             // fall back to a plain refetch so a losing streak can't strand
             // us behind the winner (issue #62).
             void refetch();
           }
         }
         // A response (even `{ skipped: true }`) means the connection to our
-        // own API is healthy — clear any "having trouble" banner.
+        // own API is healthy — clear any "having trouble" banner and stamp
+        // the auto-poll indicator (issue #107) so the UI proves the loop is
+        // alive even on ticks that find nothing new.
         pollFailuresRef.current = 0;
-        if (!cancelled) setPollDegraded(false);
+        if (!cancelled) {
+          setPollDegraded(false);
+          setLastCheckedAt(Date.now());
+        }
       } catch {
         // Snapshot refetch on the next event/tick covers a single blip; only
         // surface UI after several consecutive failures.
@@ -297,10 +308,15 @@ export function RaceRoom({
   // --- Unlock timer --------------------------------------------------------
   // Bridges the gap between countdown end and the next verdict-poll mutex
   // win: fires a plain (non-mutex) refetch right at the skew-corrected unlock
-  // instant, then retries per UNLOCK_REFETCH_BACKOFF_MS until the statement
-  // shows up (or the race leaves `active`). Reads live state via refs rather
-  // than depending on `snapshot.statement`/skew directly so a losing-streak
-  // backoff isn't reset by unrelated snapshot updates (issue #62).
+  // instant, then retries per UNLOCK_REFETCH_BACKOFF_MS until the problem
+  // shows up (or the race leaves `active`). Keyed on `problem`, not
+  // `statement` (issue #107): the `ProblemRef` comes from our own DB via the
+  // CF API and is never Cloudflare-blocked, whereas the scraped statement is
+  // best-effort and may never arrive — keying the unlock signal on it caused
+  // an infinite retry storm when the scrape was blocked. Reads live state via
+  // refs rather than depending on `snapshot.problem`/skew directly so a
+  // losing-streak backoff isn't reset by unrelated snapshot updates (issue
+  // #62).
   //
   // `rescheduleUnlockRef` (issue #75) lets the effect below rearm the pending
   // *initial* wait when `skewMs` is corrected (e.g. by the mount refetch
@@ -313,14 +329,14 @@ export function RaceRoom({
     if (status !== "active") return;
     const startedAtIso = snapshot.startedAt;
     if (!startedAtIso) return;
-    if (snapshot.statement) return; // already unlocked — nothing to schedule
+    if (snapshot.problem) return; // already unlocked — nothing to schedule
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     let initialFired = false;
 
     const stillLocked = () =>
-      snapshotRef.current.status === "active" && snapshotRef.current.statement == null;
+      snapshotRef.current.status === "active" && snapshotRef.current.problem == null;
 
     const attempt = (attemptNumber: number, delayMs: number) => {
       timer = setTimeout(async () => {
@@ -346,7 +362,7 @@ export function RaceRoom({
       clearTimeout(timer);
       rescheduleUnlockRef.current = null;
     };
-  }, [status, snapshot.startedAt, snapshot.statement, refetch]);
+  }, [status, snapshot.startedAt, snapshot.problem, refetch]);
 
   // Rearm the pending initial unlock wait whenever skew is corrected (e.g.
   // the mount refetch healing SSR-hydration latency baked into the initial
@@ -576,6 +592,14 @@ export function RaceRoom({
   const selfTaunt = taunts[currentUserId] ?? null;
   const opponentTaunt = opponent ? taunts[opponent.id] ?? null : null;
 
+  // Auto-poll indicator (issue #107): seconds since the last successful
+  // verdict-poll response, ticking via the same 1s `nowTick` the absence
+  // countdown uses. Null until the first poll response lands.
+  const checkedSecondsAgo =
+    lastCheckedAt != null
+      ? Math.max(0, Math.round((nowTick - lastCheckedAt) / 1000))
+      : null;
+
   // Big, impossible-to-miss action bar — the two things a racer actually does
   // (submit on codeforces.com, then have us check the verdict) are the loud
   // primary pair; draw / forfeit are prominent secondary. Handlers unchanged.
@@ -711,6 +735,12 @@ export function RaceRoom({
     </section>
   );
 
+  // Link-first (issue #107): once `problem` is present (our own DB via the CF
+  // API — never Cloudflare-blocked), the big "Open on Codeforces" button is
+  // the pane's main affordance. The embedded, scraped `statement` is an
+  // enhancement layered below when it's present; when it isn't (scrape
+  // blocked/best-effort), a one-liner replaces it — no spinner, no retry
+  // loop for the statement itself beyond the existing snapshot refetches.
   const problemPane = (
     <section className="panel flex min-h-0 flex-col gap-3 overflow-hidden p-4">
       <header className="flex flex-col gap-1">
@@ -721,18 +751,7 @@ export function RaceRoom({
           data-testid="problem-title"
           className="font-display text-lg tracking-tight uppercase"
         >
-          {problem ? (
-            <a
-              href={problem.url}
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-primary hover:underline"
-            >
-              {problem.id} · {problem.name}
-            </a>
-          ) : (
-            "Problem locked"
-          )}
+          {problem ? `${problem.id} · ${problem.name}` : "Problem locked"}
         </h1>
         {problem && (
           <span className="font-mono text-xs text-muted-foreground">
@@ -740,8 +759,27 @@ export function RaceRoom({
           </span>
         )}
       </header>
-      {statement ? (
-        <ProblemPane statement={statement} className="flex-1" />
+      {problem ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <Button
+            type="button"
+            size="lg"
+            data-testid="problem-link"
+            className="h-11 w-full text-sm"
+            nativeButton={false}
+            render={<a href={problem.url} target="_blank" rel="noreferrer" />}
+          >
+            <ExternalLink aria-hidden />
+            Open on Codeforces
+          </Button>
+          {statement ? (
+            <ProblemPane statement={statement} className="flex-1" />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Statement&apos;s on CF — link above.
+            </p>
+          )}
+        </div>
       ) : countdownEnded ? (
         <div
           data-testid="problem-loading"
@@ -869,6 +907,7 @@ export function RaceRoom({
       <VerdictFeed
         submissions={snapshot.submissions}
         currentUserId={currentUserId}
+        lastCheckedSecondsAgo={checkedSecondsAgo}
         className="flex-1"
       />
     </aside>
