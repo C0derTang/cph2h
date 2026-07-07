@@ -5,6 +5,7 @@ import {
   msUntilUnlock,
   nextRetryDelay,
   classifyPollResponse,
+  unlockRescheduleDelay,
 } from "@/lib/race/countdown";
 import { UNLOCK_REFETCH_BACKOFF_MS, type RaceSnapshot } from "@/lib/types";
 
@@ -96,6 +97,48 @@ describe("nextRetryDelay", () => {
 
   it("clamps negative attempt numbers to the first delay", () => {
     expect(nextRetryDelay(-1)).toBe(UNLOCK_REFETCH_BACKOFF_MS[0]);
+  });
+});
+
+describe("unlockRescheduleDelay", () => {
+  const startedAtIso = "2026-01-01T00:00:10.000Z";
+  const startedAtMs = Date.parse(startedAtIso);
+
+  it("returns null once the initial unlock attempt has already fired", () => {
+    // No matter what the skew says, a fired initial attempt must not be
+    // rearmed — retry cadence beyond that point is attempt/backoff-based,
+    // not skew-based (issue #62's invariant).
+    expect(unlockRescheduleDelay(startedAtIso, 30_000, true, startedAtMs)).toBeNull();
+    expect(unlockRescheduleDelay(startedAtIso, -30_000, true, startedAtMs - 5_000)).toBeNull();
+  });
+
+  it("recomputes a shorter delay when an inflated skew is corrected downward", () => {
+    // Simulates the SSR-hydration bug: skew was inflated by page-delivery
+    // latency, so the originally-scheduled delay was too long. Once skew is
+    // corrected (smaller), rescheduling must shrink the remaining wait.
+    const nowMs = startedAtMs - 20_000; // 20s of "real" time before unlock
+    const inflatedSkew = 15_000; // stale reading baked in ~15s of latency
+    const correctedSkew = 2_000; // true skew after the mount refetch heals it
+
+    const staleDelay = msUntilUnlock(startedAtIso, inflatedSkew, nowMs);
+    const rescheduled = unlockRescheduleDelay(startedAtIso, correctedSkew, false, nowMs);
+
+    expect(rescheduled).not.toBeNull();
+    expect(rescheduled as number).toBeLessThan(staleDelay);
+    expect(rescheduled).toBe(msUntilUnlock(startedAtIso, correctedSkew, nowMs));
+  });
+
+  it("never returns a negative delay — a correction can rearm at most to 'now', never early", () => {
+    const nowMs = startedAtMs + 1_000; // already past unlock per corrected skew
+    expect(unlockRescheduleDelay(startedAtIso, 0, false, nowMs)).toBe(0);
+  });
+
+  it("matches msUntilUnlock (floored at 0) when the initial attempt hasn't fired", () => {
+    const nowMs = startedAtMs - 8_000;
+    const skewMs = 3_000;
+    expect(unlockRescheduleDelay(startedAtIso, skewMs, false, nowMs)).toBe(
+      Math.max(0, msUntilUnlock(startedAtIso, skewMs, nowMs)),
+    );
   });
 });
 

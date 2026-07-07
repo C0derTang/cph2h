@@ -96,6 +96,22 @@ export function Lobby({
     skewMsRef.current = skewMs;
   }, [skewMs]);
 
+  // Applies any freshly-received `RaceSnapshot` — whether from the polling
+  // `refresh()` fetch or a direct action response (`handleReady`,
+  // `handleCancel`, `handleSaveFilters`) — through one path so clock-skew
+  // correction and the "opponent joined" toast happen on every snapshot
+  // receipt, not just the poll (mirrors `RaceRoom`'s `applySnapshot`; issue
+  // #75 — previously the action handlers set the snapshot directly and never
+  // recomputed skew, so a stale skew could linger through ready/cancel).
+  const applySnapshot = useCallback((data: RaceSnapshot) => {
+    setSkewMs(computeSkewMs(data.now, Date.now()));
+    if (data.p2 && !seenOpponentIdRef.current) {
+      toast.success(`${data.p2.username} joined — get ready!`);
+    }
+    seenOpponentIdRef.current = data.p2?.id ?? seenOpponentIdRef.current;
+    setSnapshot(data);
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(`/api/races/${raceId}`, { cache: "no-store" });
@@ -104,12 +120,7 @@ export function Lobby({
         return;
       }
       const data = (await res.json()) as RaceSnapshot;
-      setSkewMs(computeSkewMs(data.now, Date.now()));
-      if (data.p2 && !seenOpponentIdRef.current) {
-        toast.success(`${data.p2.username} joined — get ready!`);
-      }
-      seenOpponentIdRef.current = data.p2?.id ?? seenOpponentIdRef.current;
-      setSnapshot(data);
+      applySnapshot(data);
       setError(null);
     } catch {
       setError("Couldn't reach the server. Retrying…");
@@ -117,7 +128,7 @@ export function Lobby({
       fetchedOnceRef.current = true;
       setLoading(false);
     }
-  }, [raceId]);
+  }, [raceId, applySnapshot]);
 
   // Initial fetch (if not seeded by the server) + poll while the race is
   // still in the lobby (pending/ready).
@@ -170,10 +181,10 @@ export function Lobby({
         const message = readyErrorMessage(data?.error);
         setError(message);
         toast.error(message);
-        if (data?.race) setSnapshot(data.race as RaceSnapshot);
+        if (data?.race) applySnapshot(data.race as RaceSnapshot);
         return;
       }
-      setSnapshot(data as RaceSnapshot);
+      applySnapshot(data as RaceSnapshot);
     } catch {
       const message = "Couldn't mark ready — check your connection and try again.";
       setError(message);
@@ -195,10 +206,10 @@ export function Lobby({
         const message = abortErrorMessage(data?.error);
         setError(message);
         toast.error(message);
-        if (data?.race) setSnapshot(data.race as RaceSnapshot);
+        if (data?.race) applySnapshot(data.race as RaceSnapshot);
         return;
       }
-      setSnapshot(data as RaceSnapshot);
+      applySnapshot(data as RaceSnapshot);
     } catch {
       const message = "Couldn't cancel the race — check your connection and try again.";
       setError(message);
@@ -222,10 +233,10 @@ export function Lobby({
         const message = filtersErrorMessage(data?.error);
         setError(message);
         toast.error(message);
-        if (data?.race) setSnapshot(data.race as RaceSnapshot);
+        if (data?.race) applySnapshot(data.race as RaceSnapshot);
         return;
       }
-      setSnapshot(data as RaceSnapshot);
+      applySnapshot(data as RaceSnapshot);
       setEditingFilters(false);
       toast.success("Filters updated — ready up again to start.");
     } catch {

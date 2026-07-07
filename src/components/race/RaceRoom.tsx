@@ -58,8 +58,8 @@ import {
 import {
   classifyPollResponse,
   computeSkewMs,
-  msUntilUnlock,
   nextRetryDelay,
+  unlockRescheduleDelay,
 } from "@/lib/race/countdown";
 import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
 import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
@@ -279,6 +279,14 @@ export function RaceRoom({
   // shows up (or the race leaves `active`). Reads live state via refs rather
   // than depending on `snapshot.statement`/skew directly so a losing-streak
   // backoff isn't reset by unrelated snapshot updates (issue #62).
+  //
+  // `rescheduleUnlockRef` (issue #75) lets the effect below rearm the pending
+  // *initial* wait when `skewMs` is corrected (e.g. by the mount refetch
+  // healing SSR-hydration-latency-inflated skew) without this effect
+  // depending on `skewMs` directly — that would re-run on every snapshot
+  // receipt and reset the backoff progression the #62 comment above protects.
+  const rescheduleUnlockRef = useRef<((skew: number) => void) | null>(null);
+
   useEffect(() => {
     if (status !== "active") return;
     const startedAtIso = snapshot.startedAt;
@@ -287,6 +295,7 @@ export function RaceRoom({
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+    let initialFired = false;
 
     const stillLocked = () =>
       snapshotRef.current.status === "active" && snapshotRef.current.statement == null;
@@ -294,20 +303,36 @@ export function RaceRoom({
     const attempt = (attemptNumber: number, delayMs: number) => {
       timer = setTimeout(async () => {
         if (cancelled) return;
+        if (attemptNumber === 0) initialFired = true;
         await refetch();
         if (cancelled || !stillLocked()) return;
         attempt(attemptNumber + 1, nextRetryDelay(attemptNumber));
       }, delayMs);
     };
 
-    const initialDelay = Math.max(0, msUntilUnlock(startedAtIso, skewMsRef.current));
-    attempt(0, initialDelay);
+    rescheduleUnlockRef.current = (skew: number) => {
+      const delay = unlockRescheduleDelay(startedAtIso, skew, initialFired);
+      if (delay === null || cancelled) return;
+      clearTimeout(timer);
+      attempt(0, delay);
+    };
+
+    rescheduleUnlockRef.current(skewMsRef.current);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      rescheduleUnlockRef.current = null;
     };
   }, [status, snapshot.startedAt, snapshot.statement, refetch]);
+
+  // Rearm the pending initial unlock wait whenever skew is corrected (e.g.
+  // the mount refetch healing SSR-hydration latency baked into the initial
+  // skew reading) — a no-op once the initial attempt has already fired or no
+  // wait is currently pending (see `unlockRescheduleDelay`).
+  useEffect(() => {
+    rescheduleUnlockRef.current?.(skewMs);
+  }, [skewMs]);
 
   // --- Manual submission: check now ---------------------------------------
   // Users submit on codeforces.com themselves (their real browser passes

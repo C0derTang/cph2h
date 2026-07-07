@@ -49,6 +49,35 @@ export function msUntilUnlock(
 }
 
 /**
+ * Reschedule decision for the pending *initial* unlock-timer wait (issue #75).
+ *
+ * Root cause: the initial skew computed from the SSR `initialSnapshot` at
+ * hydration bakes in page-delivery latency between server render and client
+ * hydration, inflating the apparent skew and thus the initial unlock delay.
+ * That inflated delay self-heals once the mount refetch corrects `skewMs` —
+ * but only if the pending timer is actually rescheduled with the corrected
+ * value; otherwise the at-unlock refetch fires late (up to ~page-age).
+ *
+ * Only the *initial* wait (before the first unlock attempt has fired) is
+ * skew-sensitive: once `nextRetryDelay` backoff attempts are underway, the
+ * retry cadence is deliberately immune to unrelated skew corrections so a
+ * losing poll-mutex streak isn't reset by every intervening snapshot
+ * (issue #62's invariant). Returns `null` when there is nothing to
+ * reschedule (the initial attempt already fired); otherwise the new
+ * skew-corrected delay (ms, floored at 0 so a correction can never schedule
+ * a negative wait, i.e. never fires early relative to server-corrected time).
+ */
+export function unlockRescheduleDelay(
+  startedAtIso: string,
+  skewMs: number,
+  initialFired: boolean,
+  nowMs: number = Date.now(),
+): number | null {
+  if (initialFired) return null;
+  return Math.max(0, msUntilUnlock(startedAtIso, skewMs, nowMs));
+}
+
+/**
  * The unlock-refetch retry delay (ms) for the given 0-indexed attempt number.
  * Attempt 0 is the first *retry* after the initial at-unlock refetch (i.e. the
  * first entry of {@link UNLOCK_REFETCH_BACKOFF_MS}); once attempts run past
