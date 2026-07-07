@@ -4,8 +4,10 @@
  * Loads the caller's `handle_verifications` row and looks for a COMPILATION_ERROR
  * submission to the target problem, created within the challenge window, via
  * the public `user.status` API. On success it links the handle (sets
- * `users.cfHandle/cfRating/cfLinkedAt`), imports solve history, and clears the
- * pending row. NO password is involved.
+ * `users.cfHandle/cfRating/cfLinkedAt`), syncs `users.username` to the same
+ * handle (issue #120 — display name follows the linked CF handle; no more
+ * editable username), imports solve history, and clears the pending row. NO
+ * password is involved.
  *
  * AUTH: same as verify/start — the user isn't linked yet, so `ensureUser`
  * resolves/creates the row rather than `requireLinkedUser`.
@@ -91,13 +93,16 @@ export async function POST(): Promise<NextResponse> {
     if (!(err instanceof CfApiError)) throw err;
   }
 
-  // 3. Link the handle. The unique constraint on `users.cf_handle` is the
-  //    source of truth — map its violation to a friendly 409 (a concurrent
-  //    link of the same handle can slip past the verify/start pre-check).
+  // 3. Link the handle, and set the display name to match it (issue #120 —
+  //    username follows the linked CF handle; matches `handle` exactly, same
+  //    casing as `cfHandle`). The unique constraint on `users.cf_handle` is
+  //    the source of truth — map its violation to a friendly 409 (a
+  //    concurrent link of the same handle can slip past the verify/start
+  //    pre-check).
   try {
     await db
       .update(users)
-      .set({ cfHandle: handle, cfRating, cfLinkedAt: new Date() })
+      .set({ cfHandle: handle, cfRating, cfLinkedAt: new Date(), username: handle })
       .where(eq(users.id, user.id));
   } catch (err) {
     if (isUniqueViolation(err, CF_HANDLE_UNIQUE_CONSTRAINT)) {
