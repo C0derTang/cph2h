@@ -13,9 +13,10 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, type User } from "@/lib/db/schema";
+import { emailLocalPart } from "@/lib/username";
 
 /** Fallback username when Clerk has no username, first name, or email. */
-const DEFAULT_USERNAME = "racer";
+export const DEFAULT_USERNAME = "racer";
 
 /**
  * Resolve the signed-in Clerk user to their `users` row, creating it on
@@ -58,14 +59,18 @@ export async function ensureUser(): Promise<User | null> {
 /**
  * Best-effort username derivation from the Clerk backend user. Never
  * throws — a Clerk API hiccup should not block provisioning the row.
+ *
+ * Falls back to the email's local part (never the full address — issue
+ * #111) when Clerk has no username or first name.
  */
 async function deriveUsername(): Promise<string> {
   try {
     const clerkUser = await currentUser();
+    const email = clerkUser?.emailAddresses[0]?.emailAddress;
     return (
       clerkUser?.username ??
       clerkUser?.firstName ??
-      clerkUser?.emailAddresses[0]?.emailAddress ??
+      (email ? emailLocalPart(email) : undefined) ??
       DEFAULT_USERNAME
     );
   } catch {

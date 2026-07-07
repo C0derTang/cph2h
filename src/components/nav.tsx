@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { Show, UserButton } from "@clerk/nextjs";
+import { Link2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// Simplified battle IA: the play hub and the ladder. Settings/profile live in
-// the Clerk user button. "Play" lands on the signed-in hub (wave 2 restructures
-// /dashboard into that hub); "The Ladder" is the leaderboard, renamed in voice.
+// Simplified battle IA: the play hub and the ladder. Settings/profile live as
+// custom links in the Clerk user button (issue #111). "Play" lands on the
+// signed-in hub (wave 2 restructures /dashboard into that hub); "The Ladder"
+// is the leaderboard, renamed in voice.
 const LINKS = [
   { href: "/dashboard", label: "Play" },
   { href: "/queue", label: "Race" },
@@ -81,7 +83,20 @@ export function Nav() {
               </>
             }
           >
-            <UserButton />
+            <UserButton>
+              <UserButton.MenuItems>
+                <UserButton.Link
+                  label="Display name"
+                  labelIcon={<UserRound className="size-4" aria-hidden />}
+                  href="/settings/profile"
+                />
+                <UserButton.Link
+                  label="Codeforces account"
+                  labelIcon={<Link2 className="size-4" aria-hidden />}
+                  href="/settings/cf"
+                />
+              </UserButton.MenuItems>
+            </UserButton>
           </Show>
         </div>
       </div>

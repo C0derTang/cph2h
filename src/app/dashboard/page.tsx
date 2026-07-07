@@ -6,11 +6,12 @@ import { eq, or, and, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Stat } from "@/components/ui/stat";
-import { ExternalLink, Link2, Swords, TrendingUp, TrendingDown } from "lucide-react";
+import { ExternalLink, Link2, Pencil, Swords, TrendingUp, TrendingDown } from "lucide-react";
 import { formatOutcome, formatEloDelta } from "@/lib/format";
 import { ensureUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
 import { NewChallengeForm } from "@/components/challenge/new-challenge-form";
+import { EmailUsernameBanner } from "./username-banner";
 import type { RaceOutcome } from "@/lib/types";
 
 async function getRecentRaces(userId: string) {
@@ -237,6 +238,13 @@ function PlayHubContent({
         </h1>
         <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted-foreground">
           <span>{user.username}</span>
+          <Link
+            href="/settings/profile"
+            aria-label="Edit display name"
+            className="inline-flex items-center text-muted-foreground hover:text-player-self"
+          >
+            <Pencil className="size-3" />
+          </Link>
           {user.cfHandle ? (
             <>
               <span aria-hidden>&middot;</span>
@@ -258,6 +266,8 @@ function PlayHubContent({
           )}
         </p>
       </div>
+
+      <EmailUsernameBanner username={user.username} />
 
       {!user.cfHandle && <LinkCfBanner />}
 
