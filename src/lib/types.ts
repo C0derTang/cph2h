@@ -40,6 +40,13 @@ export const SOLVE_HISTORY_STALE_SEC = 21600;
  */
 export const UNLOCK_REFETCH_BACKOFF_MS = [500, 1000, 2000] as const;
 
+/**
+ * How long a player may be absent (no poll heartbeat) during an active race
+ * before the present opponent wins by forfeit. Generous enough to survive a
+ * refresh or a network blip; a closed tab stays absent and forfeits.
+ */
+export const ABSENCE_FORFEIT_SEC = 60;
+
 /** Client-enforced minimum gap between taunts sent by one player. */
 export const TAUNT_COOLDOWN_MS = 3000;
 
@@ -215,6 +222,13 @@ export interface RaceSnapshot {
    * on decline, withdraw, or when the race ends.
    */
   drawOfferBy: string | null;
+  /**
+   * Per-player presence heartbeats (ISO), stamped by each client's polls
+   * while active. Clients render the absence-forfeit countdown from the
+   * opponent's stamp using skew-corrected time. Null before a first poll.
+   */
+  p1LastSeenAt: string | null;
+  p2LastSeenAt: string | null;
   /** Challenger-chosen problem filters; null when the race has none. */
   filters: RaceProblemFilters | null;
   /**

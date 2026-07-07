@@ -190,6 +190,14 @@ export const races = pgTable(
     eloDeltaP1: integer("elo_delta_p1"),
     eloDeltaP2: integer("elo_delta_p2"),
     lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+    /**
+     * Per-player presence heartbeats, stamped by each client's verdict-poll
+     * requests while the race is active. An opponent stamp staler than
+     * ABSENCE_FORFEIT_SEC (with startedAt as the floor) forfeits the race to
+     * the present player. Null until a player's first poll.
+     */
+    p1LastSeenAt: timestamp("p1_last_seen_at", { withTimezone: true }),
+    p2LastSeenAt: timestamp("p2_last_seen_at", { withTimezone: true }),
     livekitRoom: text("livekit_room").notNull(),
     /** Player with an outstanding draw offer (mutual-consent draw); null when none. */
     drawOfferBy: uuid("draw_offer_by").references(() => users.id),
