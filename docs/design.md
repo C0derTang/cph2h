@@ -155,8 +155,8 @@ recipe) — the neutral `--border` is for plain dividers.
 
 | Token | Dark | Light | Meaning | Utilities |
 | --- | --- | --- | --- | --- |
-| `--player-self` | `oklch(0.82 0.12 90)` | `oklch(0.66 0.12 82)` | Champion (gold) — you | `bg/text/border-player-self` |
-| `--player-self-foreground` | `oklch(0.17 0.02 80)` | `oklch(0.18 0.02 80)` | text on gold | `text-player-self-foreground` |
+| `--player-self` | `oklch(0.82 0.12 90)` | `oklch(0.5 0.13 82)` | Champion (gold) — you | `bg/text/border-player-self` |
+| `--player-self-foreground` | `oklch(0.17 0.02 80)` | `oklch(0.98 0.02 80)` | text on gold | `text-player-self-foreground` |
 | `--player-opponent` | `oklch(0.64 0.19 18)` | `oklch(0.5 0.2 18)` | Challenger (crimson) | `bg/text/border-player-opponent` |
 | `--player-opponent-foreground` | `oklch(0.16 0.03 20)` | `oklch(0.98 0.02 20)` | text on crimson | `text-player-opponent-foreground` |
 
@@ -176,6 +176,17 @@ follow the same pattern. Don't dim identity-colored *copy* with opacity
 put identity-colored text on a surface darker than `--card` without
 re-checking 4.5:1.
 
+**Identity contrast rule (light/daytime cypher).** `--player-self` was
+`oklch(0.66 0.12 82)` in v2 — 2.72:1 on `--background`, failing even the 3:1
+large-text floor. It's darkened and slightly richened to `oklch(0.5 0.13 82)`
+("antique gold ink on paper"): **5.23:1 on `--background`, 5.72:1 on
+`--card`**. Because the fill went from bright to medium-dark, its
+`-foreground` pair flips from a dark ink (which no longer has enough contrast
+against the darker fill) to a light one: `oklch(0.98 0.02 80)`, **5.70:1** on
+the new `--player-self` fill. `--player-opponent` was already compliant
+(5.78:1 on `--background`) and is unchanged. Ratios computed via an
+OKLCH→linear-sRGB→WCAG-relative-luminance script (see PR #87).
+
 ### Verdict semantics — the single source for judge outcomes
 
 Later issues must replace **all** ad-hoc `emerald/green-600` (accepted),
@@ -184,9 +195,9 @@ race and dashboard code with these.
 
 | Token | Dark | Light | Meaning | Utilities |
 | --- | --- | --- | --- | --- |
-| `--verdict-ok` | `oklch(0.75 0.16 150)` | `oklch(0.58 0.15 150)` | Accepted / passing | `text/bg-verdict-ok` |
+| `--verdict-ok` | `oklch(0.75 0.16 150)` | `oklch(0.46 0.15 150)` | Accepted / passing | `text/bg-verdict-ok` |
 | `--verdict-fail` | `oklch(0.62 0.22 27)` | `oklch(0.55 0.22 27)` | WA / RE / TLE / rejected | `text/bg-verdict-fail` |
-| `--verdict-pending` | `oklch(0.76 0.15 65)` | `oklch(0.7 0.14 65)` | running / queued / awaiting | `text/bg-verdict-pending` |
+| `--verdict-pending` | `oklch(0.76 0.15 65)` | `oklch(0.5 0.15 65)` | running / queued / awaiting | `text/bg-verdict-pending` |
 
 Each has a `-foreground` pair for text sitting on the filled color. Two identity
 clashes are handled by hue and saturation on purpose — **fail red (hue ~27) is
@@ -195,6 +206,19 @@ hotter (orange-lean) and more saturated than the rosier Challenger crimson
 (hue ~90)** — but never lean on hue alone: verdict colors describe **what
 happened**, identity colors describe **who**. A pending opponent shows
 *Challenger crimson* for their name and *verdict-pending* for their status.
+
+**Light-theme verdict contrast (follow-up #87, supersedes #76).**
+`--verdict-ok` was `oklch(0.58 0.15 150)` (~3.90:1, carried over from v1) and
+`--verdict-pending` was `oklch(0.7 0.14 65)` (~2.38:1) — both failed WCAG AA
+4.5:1 on `--background`. Darkened, same hue/chroma family:
+`--verdict-ok` → `oklch(0.46 0.15 150)`, **5.62:1 on `--background`, 6.14:1 on
+`--card`**; `--verdict-pending` → `oklch(0.5 0.15 65)`, **5.36:1 on
+`--background`, 5.86:1 on `--card`**. `--verdict-ok-foreground`
+(`oklch(0.99 0.02 150)`, unchanged) gains headroom on the darker fill
+(6.33:1). `--verdict-pending-foreground` flips from a dark ink to
+`oklch(0.98 0.02 65)` for the same reason as `--player-self-foreground` above
+(5.81:1 on the new fill). `--verdict-fail` (4.70:1) and `--player-opponent`
+(5.78:1) were already compliant and are unchanged.
 
 ### Radius & fonts
 
