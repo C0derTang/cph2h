@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { classifyVideoLayout } from "@/lib/race/video-layout";
 import { TauntBubble } from "@/components/race/TauntBubble";
 import { useOpponentVolume, VolumeSlider } from "@/components/race/VolumeControl";
+import { AudioToggleButtons } from "@/components/race/AudioControls";
 import type { TauntBubbleState } from "@/lib/race/taunts";
 
 export interface VideoTilesProps {
@@ -232,7 +233,15 @@ export function VideoTiles({
         </TrackToggle>
       </div>
 
-      <VolumeSlider volume={volume} onChange={setVolume} testId="volume-slider-race" />
+      <div className="flex items-center gap-2">
+        <VolumeSlider
+          volume={volume}
+          onChange={setVolume}
+          testId="volume-slider-race"
+          className="flex-1"
+        />
+        <AudioToggleButtons testIdSuffix="race" />
+      </div>
     </div>
   );
 }

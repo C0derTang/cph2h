@@ -41,6 +41,7 @@ import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
 import { canCompete } from "@/lib/race/av-requirements";
 import { useMicPermission } from "@/components/race/useMicPermission";
 import { useOpponentVolume, VolumeSlider } from "@/components/race/VolumeControl";
+import { AudioToggleButtons } from "@/components/race/AudioControls";
 import {
   CLIENT_POLL_INTERVAL_MS,
   PROBLEM_RATING_CEIL,
@@ -560,6 +561,7 @@ function CompeteGate({
           className="flex-1"
           testId="volume-slider-lobby"
         />
+        <AudioToggleButtons testIdSuffix="lobby" />
       </div>
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
