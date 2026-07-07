@@ -24,6 +24,12 @@
  * active taunt) render exactly as before. Each bubble is keyed on its
  * `sentAt` so a same-sender replacement remounts `TauntBubble` fresh,
  * restarting its pop-in + auto-dismiss timer.
+ *
+ * Opponent-audio volume (issue #100): `RoomAudioRenderer`'s `volume` prop is
+ * driven by the persisted setting from `useOpponentVolume` (checked at
+ * ready-up by the compete gate — see `Lobby.tsx`), with a matching
+ * `VolumeSlider` docked beside the mic/cam toggles so it stays adjustable
+ * without leaving the stage mid-race.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -41,6 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 import { classifyVideoLayout } from "@/lib/race/video-layout";
 import { TauntBubble } from "@/components/race/TauntBubble";
+import { useOpponentVolume, VolumeSlider } from "@/components/race/VolumeControl";
 import type { TauntBubbleState } from "@/lib/race/taunts";
 
 export interface VideoTilesProps {
@@ -67,6 +74,7 @@ export function VideoTiles({
     { onlySubscribed: false },
   );
   const { isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
+  const { volume, setVolume } = useOpponentVolume();
 
   const { spotlight, pip } = classifyVideoLayout(tracks);
 
@@ -93,7 +101,7 @@ export function VideoTiles({
       data-testid="video-tiles"
       className={cn("panel flex flex-col gap-2 p-3", className)}
     >
-      <RoomAudioRenderer />
+      <RoomAudioRenderer volume={volume} />
 
       <div
         data-testid="opponent-tile"
@@ -223,6 +231,8 @@ export function VideoTiles({
           {isCameraEnabled ? "Camera" : "Camera off"}
         </TrackToggle>
       </div>
+
+      <VolumeSlider volume={volume} onChange={setVolume} testId="volume-slider-race" />
     </div>
   );
 }

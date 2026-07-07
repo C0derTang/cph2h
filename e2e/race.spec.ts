@@ -83,8 +83,12 @@ test("challenge -> ready -> active -> verdict -> result -> elo", async ({
   const racerA = await seedRacer(USER_A);
   const racerB = await seedRacer(USER_B);
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  // The compete gate (issue #100) requires a granted, live microphone before
+  // "I'm ready" is enabled — grant it up front so this flow-smoke test isn't
+  // also asserting the (separately unit-tested) gate. Chromium serves fake
+  // media devices in this mode, so the getUserMedia probe resolves live.
+  const contextA = await browser.newContext({ permissions: ["microphone"] });
+  const contextB = await browser.newContext({ permissions: ["microphone"] });
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 

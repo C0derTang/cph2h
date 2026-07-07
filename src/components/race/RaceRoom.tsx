@@ -35,6 +35,7 @@ import {
   Flag,
   Handshake,
   Loader2,
+  MicOff,
   MonitorSmartphone,
   RefreshCw,
   WifiOff,
@@ -48,6 +49,7 @@ import { VerdictFeed } from "@/components/race/VerdictFeed";
 import { ResultCard } from "@/components/race/ResultCard";
 import { VideoTiles } from "@/components/race/VideoTiles";
 import { TauntPicker } from "@/components/race/TauntPicker";
+import { useMicPermission } from "@/components/race/useMicPermission";
 import {
   CLIENT_POLL_INTERVAL_MS,
   LIVEKIT_DATA_TOPIC,
@@ -106,6 +108,25 @@ export function RaceRoom({
   const pollFailuresRef = useRef(0);
 
   const status = snapshot.status;
+
+  // --- Mid-race mic revocation (issue #100) --------------------------------
+  // The compete gate only blocks the ready button; once a race is active it
+  // is grace-only, per the issue — a revoked mic never forfeits or blocks
+  // play, it just surfaces a banner. `everGrantedMic` tracks "we saw it
+  // granted at some point this mount" (mirrors `VideoTiles`'
+  // `everConnected` pattern) so a browser that never had the Permissions API
+  // (permissionState stays `null` throughout) never shows a false "revoked"
+  // banner it was never in a position to detect.
+  const mic = useMicPermission();
+  const everGrantedMicRef = useRef(false);
+  const [everGrantedMic, setEverGrantedMic] = useState(false);
+  useEffect(() => {
+    if (mic.micGranted && !everGrantedMicRef.current) {
+      everGrantedMicRef.current = true;
+      setEverGrantedMic(true);
+    }
+  }, [mic.micGranted]);
+  const micRevokedMidRace = status === "active" && everGrantedMic && !mic.micGranted;
 
   // --- Clock skew correction ----------------------------------------------
   // The server's `now` (snapshot build time) vs. the local clock at receipt —
@@ -706,6 +727,18 @@ export function RaceRoom({
 
   const sideRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+      {micRevokedMidRace && (
+        <div
+          data-testid="mic-revoked-banner"
+          role="alert"
+          className="flex items-center gap-2 rounded-[var(--radius)] border border-verdict-fail/40 bg-verdict-fail/10 p-3 text-xs text-verdict-fail"
+        >
+          <MicOff className="size-4 shrink-0" aria-hidden />
+          Your mic permission was revoked. Trash talk paused — you&apos;re
+          still in the race, re-grant it from your browser&apos;s site
+          settings whenever you want back in.
+        </div>
+      )}
       {opponentOfferedDraw && (
         <div
           data-testid="draw-offer-banner"
