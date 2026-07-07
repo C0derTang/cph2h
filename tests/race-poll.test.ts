@@ -9,17 +9,24 @@ import type { Race, User } from "../src/lib/db/schema";
 import type { CfSubmission } from "../src/lib/types";
 import fixture from "./fixtures/user-status.json";
 
-const { dbState, getUserStatusMock, finishRaceMock, publishMock, insertValuesMock } =
-  vi.hoisted(() => {
-    const dbState = { userRows: [] as unknown[], selectCall: 0 };
-    return {
-      dbState,
-      getUserStatusMock: vi.fn(),
-      finishRaceMock: vi.fn().mockResolvedValue(undefined),
-      publishMock: vi.fn().mockResolvedValue(undefined),
-      insertValuesMock: vi.fn().mockResolvedValue(undefined),
-    };
-  });
+const {
+  dbState,
+  getUserStatusMock,
+  finishRaceMock,
+  publishMock,
+  insertValuesMock,
+  updateSetMock,
+} = vi.hoisted(() => {
+  const dbState = { userRows: [] as unknown[], selectCall: 0 };
+  return {
+    dbState,
+    getUserStatusMock: vi.fn(),
+    finishRaceMock: vi.fn().mockResolvedValue(undefined),
+    publishMock: vi.fn().mockResolvedValue(undefined),
+    insertValuesMock: vi.fn().mockResolvedValue(undefined),
+    updateSetMock: vi.fn(() => ({ where: () => Promise.resolve(undefined) })),
+  };
+});
 
 // The poll issues exactly one `select` for the player rows, then one existence
 // `select` per observed submission (against `race_submissions`). Return the
@@ -39,9 +46,7 @@ vi.mock("@/lib/db", () => ({
       }),
     }),
     insert: () => ({ values: insertValuesMock }),
-    update: () => ({
-      set: () => ({ where: () => Promise.resolve(undefined) }),
-    }),
+    update: () => ({ set: updateSetMock }),
   },
 }));
 
@@ -49,7 +54,12 @@ vi.mock("@/lib/cf/client", () => ({ getUserStatus: getUserStatusMock }));
 vi.mock("@/lib/race/finish", () => ({ finishRace: finishRaceMock }));
 vi.mock("@/lib/livekit", () => ({ publishRaceEvent: publishMock }));
 
-import { pollActiveRace } from "../src/lib/race/poll";
+import {
+  pollActiveRace,
+  stampHeartbeat,
+  maybeAbsenceForfeit,
+} from "../src/lib/race/poll";
+import { ABSENCE_FORFEIT_SEC } from "../src/lib/types";
 
 const submissions = fixture.result as CfSubmission[];
 const PROBLEM_ID = "1794C";
@@ -117,6 +127,7 @@ beforeEach(() => {
   finishRaceMock.mockClear();
   publishMock.mockClear();
   insertValuesMock.mockClear();
+  updateSetMock.mockClear();
 });
 
 describe("pollActiveRace", () => {
@@ -202,5 +213,116 @@ describe("pollActiveRace", () => {
       winnerId: null,
       reason: "timeout",
     });
+  });
+
+  // Sweep interaction (issue #105): the cron sweep drives races solely through
+  // pollActiveRace. It must never stamp a heartbeat (fake presence) nor
+  // absence-forfeit on behalf of an absent player — pollActiveRace has no such
+  // code, so it only ever finishes on solve/timeout.
+  it("never stamps a heartbeat or absence-forfeits (sweep-safe path)", async () => {
+    getUserStatusMock.mockResolvedValueOnce([]);
+
+    await pollActiveRace(makeRace(), new Date(STARTED_AT.getTime() + 60 * 1000));
+
+    // No `races` UPDATE (heartbeat) issued by the shared poll path.
+    expect(updateSetMock).not.toHaveBeenCalled();
+    // And nothing finishes here, let alone with a forfeit reason.
+    expect(finishRaceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("stampHeartbeat", () => {
+  it("stamps the caller's own side (p1) while active", async () => {
+    await stampHeartbeat("race-1", true);
+    expect(updateSetMock).toHaveBeenCalledTimes(1);
+    const arg = (updateSetMock.mock.calls[0] as unknown[])[0] as Record<
+      string,
+      unknown
+    >;
+    expect("p1LastSeenAt" in arg).toBe(true);
+    expect("p2LastSeenAt" in arg).toBe(false);
+  });
+
+  it("stamps the caller's own side (p2) while active", async () => {
+    await stampHeartbeat("race-1", false);
+    const arg = (updateSetMock.mock.calls[0] as unknown[])[0] as Record<
+      string,
+      unknown
+    >;
+    expect("p2LastSeenAt" in arg).toBe(true);
+    expect("p1LastSeenAt" in arg).toBe(false);
+  });
+});
+
+describe("maybeAbsenceForfeit", () => {
+  const START = STARTED_AT;
+  const past = (s: number) => new Date(START.getTime() + s * 1000);
+
+  it("forfeits the opponent to the present caller once past the grace window", async () => {
+    // p1 is polling; p2 has never been seen → floored at startedAt.
+    const race = makeRace({ p1LastSeenAt: null, p2LastSeenAt: null });
+    const result = await maybeAbsenceForfeit(
+      race,
+      true,
+      past(ABSENCE_FORFEIT_SEC + 1),
+    );
+
+    expect(result).toBe(true);
+    expect(finishRaceMock).toHaveBeenCalledTimes(1);
+    expect(finishRaceMock).toHaveBeenCalledWith({
+      raceId: "race-1",
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      reason: "forfeit",
+    });
+  });
+
+  it("credits the p2 caller when p1 is the absent one", async () => {
+    const race = makeRace({ p1LastSeenAt: null, p2LastSeenAt: null });
+    const result = await maybeAbsenceForfeit(
+      race,
+      false,
+      past(ABSENCE_FORFEIT_SEC + 1),
+    );
+
+    expect(result).toBe(true);
+    expect(finishRaceMock).toHaveBeenCalledWith({
+      raceId: "race-1",
+      outcome: "p2_win",
+      winnerId: "user-p2",
+      reason: "forfeit",
+    });
+  });
+
+  it("does not forfeit within the grace window (a refresh is safe)", async () => {
+    const race = makeRace({
+      p2LastSeenAt: past(100), // opponent seen recently
+    });
+    const result = await maybeAbsenceForfeit(race, true, past(108));
+
+    expect(result).toBe(false);
+    expect(finishRaceMock).not.toHaveBeenCalled();
+  });
+
+  it("does not forfeit during the countdown (now before startedAt)", async () => {
+    const race = makeRace({ startedAt: past(10), p2LastSeenAt: null });
+    const result = await maybeAbsenceForfeit(race, true, past(5));
+
+    expect(result).toBe(false);
+    expect(finishRaceMock).not.toHaveBeenCalled();
+  });
+
+  it("no-ops once a verdict already finished the race (verdict precedence)", async () => {
+    // pollActiveRace runs first in the route; a solve/timeout flips status,
+    // so the re-read the route hands us is no longer 'active'.
+    const race = makeRace({ status: "finished", p2LastSeenAt: null });
+    const result = await maybeAbsenceForfeit(
+      race,
+      true,
+      past(ABSENCE_FORFEIT_SEC + 1),
+    );
+
+    expect(result).toBe(false);
+    expect(finishRaceMock).not.toHaveBeenCalled();
   });
 });

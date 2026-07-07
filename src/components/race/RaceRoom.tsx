@@ -63,6 +63,10 @@ import {
   nextRetryDelay,
   unlockRescheduleDelay,
 } from "@/lib/race/countdown";
+import {
+  absenceSecondsRemaining,
+  shouldShowAbsenceCountdown,
+} from "@/lib/race/presence";
 import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
 import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
 
@@ -104,6 +108,9 @@ export function RaceRoom({
   const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
   const [taunts, setTaunts] = useState<TauntBubbles>({});
+  // Local 1s tick, only while active, so the absence-forfeit countdown ticks
+  // down between snapshot receipts (the server still decides the actual finish).
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailuresRef = useRef(0);
 
@@ -488,6 +495,14 @@ export function RaceRoom({
     };
   }, []);
 
+  // Drive the absence-forfeit countdown: a 1s tick while the race is active so
+  // the banner counts down between snapshot receipts. Idle otherwise.
+  useEffect(() => {
+    if (status !== "active") return;
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [status]);
+
   const isP1 = currentUserId === snapshot.p1.id;
   const you = isP1 ? snapshot.p1 : snapshot.p2 ?? snapshot.p1;
   const opponent = isP1 ? snapshot.p2 : snapshot.p1;
@@ -538,6 +553,25 @@ export function RaceRoom({
   // loop re-renders drive this flip; the unlock-timer effect is untouched.
   const startedAtMs = snapshot.startedAt ? Date.parse(snapshot.startedAt) : null;
   const countdownEnded = startedAtMs != null && correctedNow(skewMs) >= startedAtMs;
+
+  // Absence-forfeit countdown (issue #105): once the opponent's snapshot
+  // heartbeat (skew-corrected) has gone stale past the escalation threshold,
+  // the generic disconnect banner escalates into a "victory in Xs" countdown.
+  // Display only — the server's poll path decides the actual forfeit.
+  const opponentLastSeenIso = isP1
+    ? snapshot.p2LastSeenAt
+    : snapshot.p1LastSeenAt;
+  const opponentLastSeenMs = opponentLastSeenIso
+    ? Date.parse(opponentLastSeenIso)
+    : null;
+  const absenceNowMs = correctedNow(skewMs, nowTick);
+  const showAbsenceCountdown =
+    startedAtMs != null &&
+    shouldShowAbsenceCountdown(opponentLastSeenMs, startedAtMs, absenceNowMs);
+  const absenceSecondsLeft =
+    startedAtMs != null
+      ? absenceSecondsRemaining(opponentLastSeenMs, startedAtMs, absenceNowMs)
+      : 0;
 
   const selfTaunt = taunts[currentUserId] ?? null;
   const opponentTaunt = opponent ? taunts[opponent.id] ?? null : null;
@@ -772,22 +806,45 @@ export function RaceRoom({
           </div>
         </div>
       )}
-      {opponentDisconnected && (
+      {showAbsenceCountdown ? (
         <div
-          data-testid="opponent-disconnected-banner"
+          data-testid="absence-forfeit-banner"
           role="alert"
-          className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
+          className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-ok/40 bg-verdict-ok/10 p-3 text-xs text-verdict-ok"
         >
           <div className="flex items-center gap-2 font-medium">
             <WifiOff className="size-4 shrink-0" aria-hidden />
-            Your opponent appears to have disconnected.
+            They bailed.
           </div>
-          <p className="text-verdict-pending/90">
-            They may reconnect at any time. If they don&apos;t come back,
-            you can forfeit to end the race — your opponent would be awarded
-            the win.
+          <p className="text-verdict-ok/90">
+            Victory in{" "}
+            <span
+              data-testid="absence-forfeit-seconds"
+              className="font-mono font-semibold tabular-nums"
+            >
+              {absenceSecondsLeft}s
+            </span>{" "}
+            unless they show back up.
           </p>
         </div>
+      ) : (
+        opponentDisconnected && (
+          <div
+            data-testid="opponent-disconnected-banner"
+            role="alert"
+            className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
+          >
+            <div className="flex items-center gap-2 font-medium">
+              <WifiOff className="size-4 shrink-0" aria-hidden />
+              Your opponent appears to have disconnected.
+            </div>
+            <p className="text-verdict-pending/90">
+              They may reconnect at any time. If they don&apos;t come back,
+              you can forfeit to end the race — your opponent would be awarded
+              the win.
+            </p>
+          </div>
+        )
       )}
       {pollDegraded && (
         <div
