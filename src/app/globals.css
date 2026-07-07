@@ -71,138 +71,152 @@
 }
 
 /* ----------------------------------------------------------------------------
-   DARK — "the stage". The hero theme: near-black warm stage, a warm spotlight
-   on hero surfaces, gold champion vs crimson challenger, hairline gold trim.
-   This is what we design and screenshot against. `:root.dark` (not `.dark`)
-   so the stage wins the cascade over `:root` regardless of source order.
+   DARK — "the grid". The hero theme: a cold near-black ground lit by an ambient
+   cyan/magenta glow field, frosted liquid-glass panels floating over it,
+   electric-cyan self vs hot-magenta opponent, neon-tuned verdicts. This is what
+   we design and screenshot against. `:root.dark` (not `.dark`) so the stage
+   wins the cascade over `:root` regardless of source order.
 ---------------------------------------------------------------------------- */
 :root.dark {
-  --background: oklch(0.145 0.006 60); /* near-black warm stage */
-  --foreground: oklch(0.95 0.01 85);
-  --card: oklch(0.19 0.008 60); /* matte panel, barely lifted off the stage */
-  --card-foreground: oklch(0.95 0.01 85);
-  --popover: oklch(0.18 0.008 60);
-  --popover-foreground: oklch(0.95 0.01 85);
-  /* Champion gold — primary CTA / focus / self-identity. */
-  --primary: oklch(0.82 0.12 90);
-  --primary-foreground: oklch(0.17 0.02 80);
-  --secondary: oklch(0.24 0.008 60);
-  --secondary-foreground: oklch(0.95 0.01 85);
-  --muted: oklch(0.24 0.008 60);
-  --muted-foreground: oklch(0.68 0.014 75);
-  --accent: oklch(0.27 0.01 60);
-  --accent-foreground: oklch(0.95 0.01 85);
-  --destructive: oklch(0.62 0.22 27);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.82 0.12 90);
-  --chart-1: oklch(0.82 0.12 90);
-  --chart-2: oklch(0.64 0.19 18);
-  --chart-3: oklch(0.75 0.16 150);
-  --chart-4: oklch(0.76 0.15 65);
-  --chart-5: oklch(0.6 0.02 75);
-  --radius: 0.25rem; /* hard edges — minimal rounding */
+  --background: oklch(0.145 0.022 262); /* cold near-black, blue-violet tint */
+  --foreground: oklch(0.95 0.008 240);
+  --card: oklch(0.215 0.03 262); /* base fill tinted down into translucent glass */
+  --card-foreground: oklch(0.95 0.008 240);
+  --popover: oklch(0.2 0.028 262);
+  --popover-foreground: oklch(0.95 0.008 240);
+  /* Electric cyan — primary CTA / focus / self-identity. */
+  --primary: oklch(0.82 0.13 200);
+  --primary-foreground: oklch(0.16 0.03 220);
+  --secondary: oklch(0.27 0.03 262);
+  --secondary-foreground: oklch(0.95 0.008 240);
+  --muted: oklch(0.27 0.03 262);
+  --muted-foreground: oklch(0.73 0.028 250);
+  --accent: oklch(0.31 0.04 264);
+  --accent-foreground: oklch(0.96 0.008 240);
+  --destructive: oklch(0.66 0.25 20);
+  --border: oklch(0.86 0.05 250 / 14%); /* translucent cool hairline */
+  --input: oklch(0.9 0.04 250 / 18%);
+  --ring: oklch(0.82 0.13 200);
+  --chart-1: oklch(0.82 0.13 200);
+  --chart-2: oklch(0.7 0.24 350);
+  --chart-3: oklch(0.84 0.2 150);
+  --chart-4: oklch(0.83 0.16 85);
+  --chart-5: oklch(0.6 0.03 250);
+  --radius: 0.5rem; /* softer glass rounding */
 
-  /* Player identity — champion gold vs challenger crimson. Both identity inks
-     are bright enough to clear WCAG AA 4.5:1 as text on --background AND
-     --card (crimson: 5.36 / 5.00), and both -foreground pairs are dark inks on
-     the bright fills (5.28 on crimson, 10.94 on gold). Don't darken these for
-     text use — see docs/design.md "identity contrast rule". */
-  --player-self: oklch(0.82 0.12 90);
-  --player-self-foreground: oklch(0.17 0.02 80);
-  --player-opponent: oklch(0.64 0.19 18);
-  --player-opponent-foreground: oklch(0.16 0.03 20);
+  /* Player identity — electric cyan (self) vs hot magenta (opponent). Both
+     identity inks are bright enough to clear WCAG AA 4.5:1 as text on
+     --background AND the translucent glass fill, and both -foreground pairs are
+     dark inks on the bright fills. The two anchor hues (cyan ~200, magenta
+     ~350) are the whole visual language — they never swap. */
+  --player-self: oklch(0.82 0.13 200);
+  --player-self-foreground: oklch(0.16 0.03 220);
+  --player-opponent: oklch(0.7 0.24 350);
+  --player-opponent-foreground: oklch(0.15 0.03 350);
 
-  /* Verdict semantics. Fail red is hotter (hue ~27, orange-lean) and more
-     saturated than the rosier challenger crimson (hue ~18) so a failing
-     verdict never reads as the opponent's identity. */
-  --verdict-ok: oklch(0.75 0.16 150);
-  --verdict-ok-foreground: oklch(0.16 0.04 155);
-  --verdict-fail: oklch(0.62 0.22 27);
-  --verdict-fail-foreground: oklch(0.99 0.02 27);
-  --verdict-pending: oklch(0.76 0.15 65);
-  --verdict-pending-foreground: oklch(0.2 0.05 65);
+  /* Verdict semantics — neon-tuned against the dark ground. Fail red (hue ~20,
+     orange-lean) is well clear of the opponent's magenta (hue ~350) so a
+     failing verdict never reads as the opponent's identity. */
+  --verdict-ok: oklch(0.84 0.2 150);
+  --verdict-ok-foreground: oklch(0.16 0.05 155);
+  --verdict-fail: oklch(0.66 0.25 20);
+  --verdict-fail-foreground: oklch(0.99 0.02 20);
+  --verdict-pending: oklch(0.83 0.16 85);
+  --verdict-pending-foreground: oklch(0.2 0.05 85);
 
-  --sidebar: oklch(0.18 0.008 60);
-  --sidebar-foreground: oklch(0.95 0.01 85);
-  --sidebar-primary: oklch(0.82 0.12 90);
-  --sidebar-primary-foreground: oklch(0.17 0.02 80);
-  --sidebar-accent: oklch(0.27 0.01 60);
-  --sidebar-accent-foreground: oklch(0.95 0.01 85);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.82 0.12 90);
+  --sidebar: oklch(0.2 0.028 262);
+  --sidebar-foreground: oklch(0.95 0.008 240);
+  --sidebar-primary: oklch(0.82 0.13 200);
+  --sidebar-primary-foreground: oklch(0.16 0.03 220);
+  --sidebar-accent: oklch(0.31 0.04 264);
+  --sidebar-accent-foreground: oklch(0.96 0.008 240);
+  --sidebar-border: oklch(0.86 0.05 250 / 14%);
+  --sidebar-ring: oklch(0.82 0.13 200);
 }
 
 /* ----------------------------------------------------------------------------
-   LIGHT — "daytime cypher". Warm paper, the same inks; fully defined but
-   secondary — the stage is the hero. Kept accessible for a future toggle.
+   LIGHT — "daylight grid". Cool frost paper, the same cyan/magenta inks
+   darkened for contrast; fully defined but secondary — the dark grid is the
+   hero. Kept accessible for a future toggle.
 ---------------------------------------------------------------------------- */
 :root {
-  --background: oklch(0.95 0.014 85); /* warm paper */
-  --foreground: oklch(0.2 0.014 60);
-  --card: oklch(0.98 0.008 85);
-  --card-foreground: oklch(0.2 0.014 60);
-  --popover: oklch(0.98 0.008 85);
-  --popover-foreground: oklch(0.2 0.014 60);
-  /* Gold reads dark on paper for CTA contrast. */
-  --primary: oklch(0.62 0.11 80);
-  --primary-foreground: oklch(0.98 0.02 85);
-  --secondary: oklch(0.92 0.014 85);
-  --secondary-foreground: oklch(0.24 0.014 60);
-  --muted: oklch(0.92 0.014 85);
-  --muted-foreground: oklch(0.46 0.014 60);
-  --accent: oklch(0.9 0.02 85);
-  --accent-foreground: oklch(0.24 0.014 60);
-  --destructive: oklch(0.55 0.22 27);
-  --border: oklch(0 0 0 / 10%);
-  --input: oklch(0 0 0 / 12%);
-  --ring: oklch(0.62 0.11 80);
-  --chart-1: oklch(0.62 0.11 80);
-  --chart-2: oklch(0.5 0.2 18);
-  --chart-3: oklch(0.58 0.15 150);
-  --chart-4: oklch(0.7 0.14 65);
-  --chart-5: oklch(0.5 0.02 75);
-  --radius: 0.25rem;
+  --background: oklch(0.97 0.008 240); /* cool frost paper */
+  --foreground: oklch(0.2 0.02 260);
+  --card: oklch(0.99 0.005 240);
+  --card-foreground: oklch(0.2 0.02 260);
+  --popover: oklch(0.99 0.005 240);
+  --popover-foreground: oklch(0.2 0.02 260);
+  /* Cyan reads dark on paper for CTA contrast. */
+  --primary: oklch(0.54 0.14 220);
+  --primary-foreground: oklch(0.99 0.01 220);
+  --secondary: oklch(0.93 0.01 240);
+  --secondary-foreground: oklch(0.24 0.02 260);
+  --muted: oklch(0.93 0.01 240);
+  --muted-foreground: oklch(0.46 0.02 255);
+  --accent: oklch(0.91 0.02 240);
+  --accent-foreground: oklch(0.24 0.02 260);
+  --destructive: oklch(0.55 0.24 22);
+  --border: oklch(0.2 0.03 260 / 12%);
+  --input: oklch(0.2 0.03 260 / 14%);
+  --ring: oklch(0.54 0.14 220);
+  --chart-1: oklch(0.54 0.14 220);
+  --chart-2: oklch(0.52 0.24 350);
+  --chart-3: oklch(0.5 0.16 150);
+  --chart-4: oklch(0.62 0.15 85);
+  --chart-5: oklch(0.5 0.03 255);
+  --radius: 0.5rem;
 
-  /* Player identity. Self gold is darkened + slightly richened from v2
-     ("antique gold ink on paper") to clear WCAG AA 4.5:1 as text on
-     --background (was ~2.72:1) — see docs/design.md "identity contrast rule
-     (light)". Because the fill is now medium-dark rather than bright, its
-     -foreground pair flips to a light ink (was a dark ink meant for a bright
-     fill) to keep passing 4.5:1 on the new fill. */
-  --player-self: oklch(0.5 0.13 82);
-  --player-self-foreground: oklch(0.98 0.02 80);
-  --player-opponent: oklch(0.5 0.2 18);
-  --player-opponent-foreground: oklch(0.98 0.02 20);
+  /* Player identity. Cyan self and magenta opponent are darkened from the dark
+     theme's bright inks to clear WCAG AA 4.5:1 as text on the light --background;
+     their -foreground pairs are light inks for use on those medium-dark fills. */
+  --player-self: oklch(0.52 0.15 222);
+  --player-self-foreground: oklch(0.99 0.01 220);
+  --player-opponent: oklch(0.52 0.24 350);
+  --player-opponent-foreground: oklch(0.99 0.01 350);
 
-  /* Verdict semantics. verdict-ok and verdict-pending are darkened from v2 to
-     clear WCAG AA 4.5:1 as text on --background (were ~3.90:1 / ~2.38:1).
-     verdict-pending-foreground flips to a light ink for the same reason as
-     player-self-foreground above; verdict-ok-foreground was already light and
-     only gains headroom on the darker fill. */
-  --verdict-ok: oklch(0.46 0.15 150);
+  /* Verdict semantics, darkened to clear WCAG AA 4.5:1 as text on the light
+     --background; fail red (hue ~22) stays clear of the opponent magenta. */
+  --verdict-ok: oklch(0.5 0.16 150);
   --verdict-ok-foreground: oklch(0.99 0.02 150);
-  --verdict-fail: oklch(0.55 0.22 27);
-  --verdict-fail-foreground: oklch(0.99 0.02 27);
-  --verdict-pending: oklch(0.5 0.15 65);
-  --verdict-pending-foreground: oklch(0.98 0.02 65);
+  --verdict-fail: oklch(0.55 0.24 22);
+  --verdict-fail-foreground: oklch(0.99 0.02 22);
+  --verdict-pending: oklch(0.52 0.14 82);
+  --verdict-pending-foreground: oklch(0.99 0.02 82);
 
-  --sidebar: oklch(0.98 0.008 85);
-  --sidebar-foreground: oklch(0.2 0.014 60);
-  --sidebar-primary: oklch(0.62 0.11 80);
-  --sidebar-primary-foreground: oklch(0.98 0.02 85);
-  --sidebar-accent: oklch(0.9 0.02 85);
-  --sidebar-accent-foreground: oklch(0.24 0.014 60);
-  --sidebar-border: oklch(0 0 0 / 10%);
-  --sidebar-ring: oklch(0.62 0.11 80);
+  --sidebar: oklch(0.99 0.005 240);
+  --sidebar-foreground: oklch(0.2 0.02 260);
+  --sidebar-primary: oklch(0.54 0.14 220);
+  --sidebar-primary-foreground: oklch(0.99 0.01 220);
+  --sidebar-accent: oklch(0.91 0.02 240);
+  --sidebar-accent-foreground: oklch(0.24 0.02 260);
+  --sidebar-border: oklch(0.2 0.03 260 / 12%);
+  --sidebar-ring: oklch(0.54 0.14 220);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  /* The ambient glow field: a cold base color washed with a cyan pool from the
+     top-left and a magenta pool from the bottom-right — the light the frosted
+     glass panels float over. Painted on the body (fixed) so it stays put on
+     scroll and shows through every translucent surface; no blur here (cheap). */
   body {
-    @apply bg-background text-foreground;
+    color: var(--foreground);
+    background-color: var(--background);
+    background-image:
+      radial-gradient(
+        68% 55% at 10% -6%,
+        color-mix(in oklch, var(--player-self) 15%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        62% 55% at 108% 106%,
+        color-mix(in oklch, var(--player-opponent) 15%, transparent),
+        transparent 62%
+      );
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
   html {
     @apply font-sans;
@@ -226,36 +240,47 @@
 }
 
 /* ----------------------------------------------------------------------------
-   Named surface recipes. Battle-stage: matte near-black panels, hairline gold
-   trim, hard edges, minimal radius. Prefer these over ad-hoc cards.
+   Named surface recipes. Liquid glass: frosted translucent panels floating over
+   the ambient glow field, hairline translucent borders, a specular top-edge
+   highlight, a soft floor shadow. Prefer these over ad-hoc cards.
+
+   Backdrop-blur is intentionally modest (10px) and only on `panel` — the glass
+   look is carried mostly by translucency + border + specular highlight, so the
+   compositing cost stays bounded even on views with several always-on panels.
 ---------------------------------------------------------------------------- */
 
-/* panel — the primary content surface: a matte stage panel with a hairline
-   gold border, a whisper of gold top-light, and a deep soft floor shadow so it
-   reads as lit set dressing, not a soft app card. */
+/* panel — the primary content surface: a frosted translucent pane. A hairline
+   translucent border, a bright specular line along the top edge, a soft floor
+   shadow, and a bounded backdrop-blur so the glow field diffuses through it. */
 @utility panel {
   border-radius: var(--radius);
-  border: 1px solid color-mix(in oklch, var(--player-self) 40%, transparent);
+  border: 1px solid color-mix(in oklch, white 12%, transparent);
   background: linear-gradient(
     180deg,
-    color-mix(in oklch, var(--card), white 3%),
-    var(--card)
+    color-mix(in oklch, var(--card) 78%, transparent),
+    color-mix(in oklch, var(--card) 60%, transparent)
   );
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  backdrop-filter: blur(10px) saturate(1.4);
   box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, var(--player-self) 16%, transparent),
-    0 30px 60px -40px rgb(0 0 0 / 0.85);
+    inset 0 1px 0 0 color-mix(in oklch, white 22%, transparent),
+    0 22px 48px -30px rgb(0 0 0 / 0.75);
 }
 
-/* stat-plate — a recessed matte plate for a single number + label. */
+/* stat-plate — a recessed translucent plate for a single number + label. Sits
+   inside a panel, so it reads as carved into the glass (dark inset, no blur of
+   its own). */
 @utility stat-plate {
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: color-mix(in oklch, var(--card), black 25%);
-  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  border-radius: calc(var(--radius) * 0.8);
+  border: 1px solid color-mix(in oklch, white 7%, transparent);
+  background: color-mix(in oklch, var(--background) 55%, transparent);
+  box-shadow:
+    inset 0 1px 3px 0 rgb(0 0 0 / 0.5),
+    inset 0 1px 0 0 color-mix(in oklch, white 5%, transparent);
 }
 
 /* ticker — a broadcast lower-third bar: mono, uppercase, wide-tracked, with a
-   thin gold rule along its top edge. Header/footer status strip for a HUD. */
+   thin cyan (self) rule along its top edge. Header/footer status strip for a HUD. */
 @utility ticker {
   display: flex;
   align-items: center;
@@ -266,24 +291,32 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted-foreground);
-  background: color-mix(in oklch, var(--card), black 22%);
+  background: color-mix(in oklch, var(--background) 42%, transparent);
   border-block: 1px solid var(--border);
-  border-top-color: color-mix(in oklch, var(--player-self) 42%, transparent);
+  border-top-color: color-mix(in oklch, var(--player-self) 50%, transparent);
 }
 
-/* spotlight — a warm overhead stage light. Layer behind hero content (-z-10);
-   the gold wash pools from the top-center and falls off into the stage dark. */
+/* spotlight — the ambient glow, focused. Layer behind hero content (-z-10): a
+   cyan pool from the top-center and a magenta counter-pool from the far corner,
+   the two anchor hues washing into the dark. */
 @utility spotlight {
-  background: radial-gradient(
-    62% 52% at 50% -8%,
-    color-mix(in oklch, var(--player-self) 16%, transparent),
-    transparent 70%
-  );
+  background:
+    radial-gradient(
+      58% 50% at 50% -8%,
+      color-mix(in oklch, var(--player-self) 20%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      48% 42% at 88% 112%,
+      color-mix(in oklch, var(--player-opponent) 15%, transparent),
+      transparent 72%
+    );
 }
 
 /* stamp — a rubber-stamp / stencil frame for verdict moments ("BODIED.", an
-   AC/WA stencil). Upright, boxed, uppercase; caller sets the ink via text
-   color (e.g. `text-player-self`, `text-verdict-fail`). */
+   AC/WA stencil). Upright, boxed, uppercase, with a neon glow bloomed off the
+   frame; caller sets the ink via text color (e.g. `text-player-self`,
+   `text-verdict-fail`). */
 @utility stamp {
   display: inline-flex;
   align-items: center;
@@ -295,6 +328,25 @@
   border: 3px solid currentColor;
   border-radius: var(--radius);
   padding: 0.14em 0.4em;
+  filter: drop-shadow(
+    0 0 14px color-mix(in oklch, currentColor 45%, transparent)
+  );
+}
+
+/* glow-self / glow-opponent — a soft neon halo for elevated/interactive
+   surfaces, in each identity's hue. Apply alongside `panel`. */
+@utility glow-self {
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklch, white 22%, transparent),
+    0 22px 48px -30px rgb(0 0 0 / 0.75),
+    0 0 32px -14px color-mix(in oklch, var(--player-self) 70%, transparent);
+}
+
+@utility glow-opponent {
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklch, white 22%, transparent),
+    0 22px 48px -30px rgb(0 0 0 / 0.75),
+    0 0 32px -14px color-mix(in oklch, var(--player-opponent) 70%, transparent);
 }
 
 /* Signature chamfer — clips two corners for the occasional poster plate.
