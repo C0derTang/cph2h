@@ -189,7 +189,7 @@ function VersusPoster() {
             Champion
           </p>
           <p className="mt-2 font-display text-2xl tracking-tight text-foreground uppercase">
-            quinn
+            chris
           </p>
           <p className="font-mono text-[13px] font-semibold text-player-self tabular-nums">
             1540
@@ -206,7 +206,7 @@ function VersusPoster() {
             Challenger
           </p>
           <p className="mt-2 font-display text-2xl tracking-tight text-foreground uppercase">
-            kade
+            jeff
           </p>
           <p className="font-mono text-[13px] font-semibold text-player-opponent tabular-nums">
             1565
