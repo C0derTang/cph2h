@@ -66,7 +66,7 @@ vi.mock("@/lib/livekit", () => ({
   deleteRoom: deleteRoomMock,
 }));
 
-import { finishRace, ROOM_TEARDOWN_DELAY_MS } from "../src/lib/race/finish";
+import { finishRace } from "../src/lib/race/finish";
 
 const RACE_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
@@ -140,16 +140,13 @@ describe("finishRace", () => {
       makeUser({ id: "user-p2", elo: 1200, racesPlayed: 0 }),
     ];
 
-    await finishRace(
-      {
-        raceId: RACE_ID,
-        outcome: "p1_win",
-        winnerId: "user-p1",
-        winningSubmissionId: 42,
-        reason: "solved",
-      },
-      { teardownDelayMs: 0 },
-    );
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      winningSubmissionId: 42,
+      reason: "solved",
+    });
 
     // updateCalls: [0] claim, [1] p1 user, [2] p2 user, [3] race deltas.
     expect(dbState.updateCalls[0].values).toMatchObject({
@@ -199,12 +196,10 @@ describe("finishRace", () => {
       winnerId: "user-p1",
       eloDeltas: { "user-p1": 32, "user-p2": -32 },
     });
-    expect(deleteRoomMock).toHaveBeenCalledWith("room-1");
-    // The finish event must be published BEFORE the room is torn down, so the
-    // event (and the clients' refetch) can land before the mic cuts (#113).
-    expect(publishMock.mock.invocationCallOrder[0]).toBeLessThan(
-      deleteRoomMock.mock.invocationCallOrder[0],
-    );
+    // Issue #121 supersedes the #113/#114 teardown: the room is NOT deleted at
+    // finish — both players stay on the call for post-race banter, and the
+    // empty room self-destructs via its `emptyTimeout`.
+    expect(deleteRoomMock).not.toHaveBeenCalled();
   });
 
   it("applies a symmetric draw (0/0 at equal ratings)", async () => {
@@ -214,15 +209,12 @@ describe("finishRace", () => {
       makeUser({ id: "user-p2", elo: 1200, racesPlayed: 0 }),
     ];
 
-    await finishRace(
-      {
-        raceId: RACE_ID,
-        outcome: "draw",
-        winnerId: null,
-        reason: "timeout",
-      },
-      { teardownDelayMs: 0 },
-    );
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "draw",
+      winnerId: null,
+      reason: "timeout",
+    });
 
     expect(dbState.updateCalls[3].values).toEqual({
       eloDeltaP1: 0,
@@ -238,34 +230,25 @@ describe("finishRace", () => {
     );
   });
 
-  it("waits the teardown grace period before deleting the room (#113)", async () => {
-    vi.useFakeTimers();
-    try {
-      dbState.claimResult = [makeRace({ winnerId: "user-p1", outcome: "p1_win" })];
-      dbState.userRows = [
-        makeUser({ id: "user-p1", elo: 1200, racesPlayed: 0 }),
-        makeUser({ id: "user-p2", elo: 1200, racesPlayed: 0 }),
-      ];
+  it("never tears down the room at finish (issue #121): publishes then returns", async () => {
+    dbState.claimResult = [makeRace({ winnerId: "user-p1", outcome: "p1_win" })];
+    dbState.userRows = [
+      makeUser({ id: "user-p1", elo: 1200, racesPlayed: 0 }),
+      makeUser({ id: "user-p2", elo: 1200, racesPlayed: 0 }),
+    ];
 
-      const done = finishRace({
-        raceId: RACE_ID,
-        outcome: "p1_win",
-        winnerId: "user-p1",
-        reason: "solved",
-      });
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      reason: "solved",
+    });
 
-      // Flush the awaited DB/publish microtasks up to the teardown sleep.
-      await vi.advanceTimersByTimeAsync(0);
-      expect(publishMock).toHaveBeenCalledTimes(1);
-      expect(deleteRoomMock).not.toHaveBeenCalled();
-
-      // Only after the grace period does the room get torn down.
-      await vi.advanceTimersByTimeAsync(ROOM_TEARDOWN_DELAY_MS);
-      await done;
-      expect(deleteRoomMock).toHaveBeenCalledWith("room-1");
-    } finally {
-      vi.useRealTimers();
-    }
+    // The finish event is still published exactly once...
+    expect(publishMock).toHaveBeenCalledTimes(1);
+    // ...but the room is left alive for the post-race call (no deleteRoom, and
+    // no teardown-delay plumbing remains on finishRace).
+    expect(deleteRoomMock).not.toHaveBeenCalled();
   });
 
   it("is idempotent: a lost/second claim applies no Elo and publishes nothing", async () => {

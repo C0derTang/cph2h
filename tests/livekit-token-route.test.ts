@@ -5,16 +5,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Race, User } from "../src/lib/db/schema";
 
-const { authMock, selectMock, addGrantMock, toJwtMock, accessTokenCtor } = vi.hoisted(() => {
-  const authMock = vi.fn();
-  const selectMock = vi.fn();
-  const addGrantMock = vi.fn();
-  const toJwtMock = vi.fn().mockResolvedValue("mock-jwt-token");
-  const accessTokenCtor = vi.fn().mockImplementation(function AccessToken() {
-    return { addGrant: addGrantMock, toJwt: toJwtMock };
+const { authMock, selectMock, addGrantMock, toJwtMock, accessTokenCtor, createRoomMock, roomServiceCtor } =
+  vi.hoisted(() => {
+    const authMock = vi.fn();
+    const selectMock = vi.fn();
+    const addGrantMock = vi.fn();
+    const toJwtMock = vi.fn().mockResolvedValue("mock-jwt-token");
+    const accessTokenCtor = vi.fn().mockImplementation(function AccessToken() {
+      return { addGrant: addGrantMock, toJwt: toJwtMock };
+    });
+    const createRoomMock = vi.fn().mockResolvedValue({ name: "room-1" });
+    const roomServiceCtor = vi.fn().mockImplementation(function RoomServiceClient() {
+      return { createRoom: createRoomMock };
+    });
+    return { authMock, selectMock, addGrantMock, toJwtMock, accessTokenCtor, createRoomMock, roomServiceCtor };
   });
-  return { authMock, selectMock, addGrantMock, toJwtMock, accessTokenCtor };
-});
 
 vi.mock("@clerk/nextjs/server", () => ({
   auth: authMock,
@@ -29,10 +34,12 @@ vi.mock("livekit-server-sdk", async () => {
   return {
     ...actual,
     AccessToken: accessTokenCtor,
+    RoomServiceClient: roomServiceCtor,
   };
 });
 
 import { POST } from "../src/app/api/livekit/token/route";
+import { ROOM_EMPTY_TIMEOUT_SEC } from "../src/lib/livekit";
 
 const RACE_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
@@ -115,6 +122,8 @@ beforeEach(() => {
   addGrantMock.mockClear();
   toJwtMock.mockClear();
   accessTokenCtor.mockClear();
+  createRoomMock.mockClear();
+  roomServiceCtor.mockClear();
 });
 
 describe("POST /api/livekit/token", () => {
@@ -133,6 +142,12 @@ describe("POST /api/livekit/token", () => {
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
+    });
+    // Pins the empty-room timeout before the client connects (issue #121) so
+    // the room self-destructs once both players leave the post-race call.
+    expect(createRoomMock).toHaveBeenCalledWith({
+      name: "room-1",
+      emptyTimeout: ROOM_EMPTY_TIMEOUT_SEC,
     });
   });
 
@@ -161,6 +176,8 @@ describe("POST /api/livekit/token", () => {
 
     expect(res.status).toBe(403);
     expect(accessTokenCtor).not.toHaveBeenCalled();
+    // A non-participant must not provision the room either.
+    expect(createRoomMock).not.toHaveBeenCalled();
   });
 
   it("returns 401 when the caller is not authenticated", async () => {

@@ -35,7 +35,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { eloHistory, races, users } from "@/lib/db/schema";
 import { applyResult } from "@/lib/elo";
-import { publishRaceEvent as publishToRoom, deleteRoom } from "@/lib/livekit";
+import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
 import type { RaceOutcome } from "@/lib/types";
 
 export interface FinishRaceInput {
@@ -50,34 +50,11 @@ export interface FinishRaceInput {
 }
 
 /**
- * Grace period between publishing `race_finished` and tearing the LiveKit
- * room down (issue #113). Forcibly deleting the room hard-disconnects both
- * participants' audio; without this delay the deletion can beat the data
- * event, so the loser's mic just cuts with no notice. This gives the event
- * time to land (and the clients time to refetch and show the result overlay)
- * before the room disappears. Runs inline in the poll-route invocation; the
- * added latency is acceptable.
- */
-export const ROOM_TEARDOWN_DELAY_MS = 2000;
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Injectable options — only the teardown delay, overridable in tests. */
-export interface FinishRaceOptions {
-  /** Override the {@link ROOM_TEARDOWN_DELAY_MS} grace period (tests). */
-  teardownDelayMs?: number;
-}
-
-/**
  * Finalize a race exactly once and apply Elo. No-op (returns early) if the race
  * is not currently `active` — i.e. a second call, or a call that lost the claim
  * to a concurrent finisher, never double-applies Elo.
  */
-export async function finishRace(
-  input: FinishRaceInput,
-  options: FinishRaceOptions = {},
-): Promise<void> {
+export async function finishRace(input: FinishRaceInput): Promise<void> {
   const { raceId, outcome, winnerId, winningSubmissionId } = input;
   const now = new Date();
 
@@ -169,7 +146,12 @@ export async function finishRace(
     }
   }
 
-  // --- After the writes: fan out the finish event, then clean up the room. ---
+  // --- After the writes: fan out the finish event. ---
+  // The LiveKit room is deliberately NOT torn down here (issue #121, superseding
+  // the #113 teardown-delay + deleteRoom): both players stay on the call for
+  // post-race banter on the result screen, disconnecting only when they navigate
+  // away. The empty room self-destructs via its `emptyTimeout` (see
+  // `ROOM_EMPTY_TIMEOUT_SEC` / `ensureRoom` in `src/lib/livekit.ts`).
   const eloDeltas: Record<string, number> = { [p1Id]: d1 };
   if (p2Id) {
     eloDeltas[p2Id] = d2;
@@ -181,14 +163,4 @@ export async function finishRace(
     winnerId,
     eloDeltas,
   });
-
-  // Give the finish event time to land and the clients time to refetch +
-  // notify before the room is forcibly torn down (issue #113) — otherwise the
-  // deletion can beat the event and the loser's mic cuts with no notice.
-  await sleep(options.teardownDelayMs ?? ROOM_TEARDOWN_DELAY_MS);
-
-  // Best-effort room teardown. There is no durable timer in a serverless
-  // function, so we delete inline after the grace period above. Errors are
-  // swallowed by `deleteRoom`, so a cleanup failure is never fatal.
-  await deleteRoom(race.livekitRoom);
 }

@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { races, users } from "@/lib/db/schema";
-import { mintToken } from "@/lib/livekit";
+import { ensureRoom, mintToken } from "@/lib/livekit";
 
 const bodySchema = z.object({
   raceId: z.uuid(),
@@ -46,6 +46,11 @@ export async function POST(req: Request) {
   if (race.p1Id !== user.id && race.p2Id !== user.id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+
+  // Pin an explicit empty-room timeout before the client connects, so the room
+  // self-destructs once both players leave the post-race call (issue #121)
+  // instead of inheriting LiveKit's implicit-on-join default. Best-effort.
+  await ensureRoom(race.livekitRoom);
 
   const token = await mintToken({
     room: race.livekitRoom,
