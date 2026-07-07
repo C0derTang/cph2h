@@ -702,8 +702,12 @@ export function RaceRoom({
   // element (issue #99): the video spotlight + attached "Spit a bar" picker,
   // with the big action bar directly beneath. VideoTiles / TauntPicker read
   // LiveKit room context, so they only mount when video is connected.
+  // `flex-1` is a no-op as a direct CSS grid child (the 3-col
+  // statement-present layout below) and makes this pane grow to fill the
+  // remaining height when nested inside the stage-column flex wrapper (issue
+  // #109's 2-col, statement-absent layout) — safe to apply unconditionally.
   const centerStage = (withVideo: boolean) => (
-    <section className="relative flex min-h-0 flex-col gap-3 overflow-y-auto">
+    <section className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
       <div
         aria-hidden
         className="spotlight pointer-events-none absolute inset-0 -z-10"
@@ -793,6 +797,59 @@ export function RaceRoom({
         <div className="flex flex-1 items-center justify-center text-center text-sm text-muted-foreground">
           The problem unlocks when the countdown ends.
         </div>
+      )}
+    </section>
+  );
+
+  // Compact problem header (issue #109): when the embedded statement never
+  // arrives (the common case — Cloudflare-blocked scrape), the full
+  // `problemPane` column collapses and this single-row bar takes its place,
+  // sitting above the stage instead of beside it. Same testids, same
+  // pre-unlock copy as `problemPane` above — composition only, no new state.
+  const compactProblemHeader = (
+    <section className="panel flex shrink-0 flex-wrap items-center justify-between gap-3 p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1
+            data-testid="problem-title"
+            className="font-display text-lg tracking-tight uppercase"
+          >
+            {problem ? `${problem.id} · ${problem.name}` : "Problem locked"}
+          </h1>
+          {problem && (
+            <span className="font-mono text-xs text-muted-foreground">
+              Rating {problem.rating}
+            </span>
+          )}
+        </div>
+        {!problem &&
+          (countdownEnded ? (
+            <div
+              data-testid="problem-loading"
+              role="status"
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              Pulling up the problem…
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              The problem unlocks when the countdown ends.
+            </p>
+          ))}
+      </div>
+      {problem && (
+        <Button
+          type="button"
+          size="lg"
+          data-testid="problem-link"
+          className="h-11 shrink-0 text-sm"
+          nativeButton={false}
+          render={<a href={problem.url} target="_blank" rel="noreferrer" />}
+        >
+          <ExternalLink aria-hidden />
+          Open on Codeforces
+        </Button>
       )}
     </section>
   );
@@ -913,18 +970,34 @@ export function RaceRoom({
     </aside>
   );
 
-  // Opponent spotlight dominates the middle; the problem pane sits to its left
-  // (narrower), the HUD + verdict feed rail to its right.
-  const panes = (withVideo: boolean) => (
-    <div
-      data-testid="race-room"
-      className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,320px)]"
-    >
-      {problemPane}
-      {centerStage(withVideo)}
-      {sideRail(withVideo)}
-    </div>
-  );
+  // Opponent spotlight dominates the middle; when a scraped `statement` is
+  // present the full problem pane sits to its left (narrower, 3-col), the HUD
+  // + verdict feed rail to its right. Otherwise (issue #109 — the common
+  // case, since the CF scrape is best-effort) the problem column collapses:
+  // the compact header bar sits above the stage instead, and the stage
+  // reclaims that column's width in a 2-col grid (stage | rail).
+  const panes = (withVideo: boolean) =>
+    statement ? (
+      <div
+        data-testid="race-room"
+        className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,320px)]"
+      >
+        {problemPane}
+        {centerStage(withVideo)}
+        {sideRail(withVideo)}
+      </div>
+    ) : (
+      <div
+        data-testid="race-room"
+        className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]"
+      >
+        <div className="flex min-h-0 flex-col gap-4">
+          {compactProblemHeader}
+          {centerStage(withVideo)}
+        </div>
+        {sideRail(withVideo)}
+      </div>
+    );
 
   return (
     <main className="flex flex-1 flex-col px-4 py-4">
