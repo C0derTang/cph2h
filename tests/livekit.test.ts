@@ -4,27 +4,36 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { sendDataMock, deleteRoomMock, roomServiceClientCtor, addGrantMock, toJwtMock, accessTokenCtor } =
-  vi.hoisted(() => {
-    const sendDataMock = vi.fn().mockResolvedValue(undefined);
-    const deleteRoomMock = vi.fn().mockResolvedValue(undefined);
-    const roomServiceClientCtor = vi.fn().mockImplementation(function RoomServiceClient() {
-      return { sendData: sendDataMock, deleteRoom: deleteRoomMock };
-    });
-    const addGrantMock = vi.fn();
-    const toJwtMock = vi.fn().mockResolvedValue("mock-jwt-token");
-    const accessTokenCtor = vi.fn().mockImplementation(function AccessToken() {
-      return { addGrant: addGrantMock, toJwt: toJwtMock };
-    });
-    return {
-      sendDataMock,
-      deleteRoomMock,
-      roomServiceClientCtor,
-      addGrantMock,
-      toJwtMock,
-      accessTokenCtor,
-    };
+const {
+  sendDataMock,
+  deleteRoomMock,
+  createRoomMock,
+  roomServiceClientCtor,
+  addGrantMock,
+  toJwtMock,
+  accessTokenCtor,
+} = vi.hoisted(() => {
+  const sendDataMock = vi.fn().mockResolvedValue(undefined);
+  const deleteRoomMock = vi.fn().mockResolvedValue(undefined);
+  const createRoomMock = vi.fn().mockResolvedValue({ name: "room-1" });
+  const roomServiceClientCtor = vi.fn().mockImplementation(function RoomServiceClient() {
+    return { sendData: sendDataMock, deleteRoom: deleteRoomMock, createRoom: createRoomMock };
   });
+  const addGrantMock = vi.fn();
+  const toJwtMock = vi.fn().mockResolvedValue("mock-jwt-token");
+  const accessTokenCtor = vi.fn().mockImplementation(function AccessToken() {
+    return { addGrant: addGrantMock, toJwt: toJwtMock };
+  });
+  return {
+    sendDataMock,
+    deleteRoomMock,
+    createRoomMock,
+    roomServiceClientCtor,
+    addGrantMock,
+    toJwtMock,
+    accessTokenCtor,
+  };
+});
 
 vi.mock("livekit-server-sdk", async () => {
   const actual = await vi.importActual<typeof import("livekit-server-sdk")>("livekit-server-sdk");
@@ -36,7 +45,13 @@ vi.mock("livekit-server-sdk", async () => {
 });
 
 import { DataPacket_Kind } from "livekit-server-sdk";
-import { mintToken, publishRaceEvent, deleteRoom } from "../src/lib/livekit";
+import {
+  mintToken,
+  publishRaceEvent,
+  deleteRoom,
+  ensureRoom,
+  ROOM_EMPTY_TIMEOUT_SEC,
+} from "../src/lib/livekit";
 import { LIVEKIT_DATA_TOPIC, decodeRaceEvent, type RaceEvent } from "../src/lib/types";
 
 beforeEach(() => {
@@ -45,6 +60,7 @@ beforeEach(() => {
   process.env.LIVEKIT_API_SECRET = "lk-secret";
   sendDataMock.mockClear();
   deleteRoomMock.mockClear();
+  createRoomMock.mockClear();
   roomServiceClientCtor.mockClear();
   addGrantMock.mockClear();
   toJwtMock.mockClear();
@@ -97,6 +113,26 @@ describe("publishRaceEvent", () => {
     await expect(
       publishRaceEvent("missing-room", { type: "aborted", byUserId: "user-1" })
     ).resolves.toBeUndefined();
+
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+});
+
+describe("ensureRoom", () => {
+  it("creates the room with an explicit empty-room timeout (issue #121)", async () => {
+    await ensureRoom("room-1");
+    expect(createRoomMock).toHaveBeenCalledWith({
+      name: "room-1",
+      emptyTimeout: ROOM_EMPTY_TIMEOUT_SEC,
+    });
+  });
+
+  it("is best-effort: swallows errors instead of throwing", async () => {
+    createRoomMock.mockRejectedValueOnce(new Error("boom"));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(ensureRoom("room-1")).resolves.toBeUndefined();
 
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();

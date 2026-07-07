@@ -21,6 +21,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { ConnectionState } from "livekit-client";
 import {
@@ -72,6 +73,7 @@ import {
 import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
 import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
 import { detectOverlayOutcome, type OverlayOutcome } from "@/lib/race/overlay";
+import { shouldKeepCallMounted } from "@/lib/race/call-persistence";
 
 interface RaceRoomProps {
   raceId: string;
@@ -145,6 +147,26 @@ export function RaceRoom({
   const [voiceDisconnected, setVoiceDisconnected] = useState(false);
 
   const status = snapshot.status;
+
+  // --- Post-race call persistence (issue #121) -----------------------------
+  // Keep the LiveKit call alive on the result screen for players who watched
+  // the race go live (post-race banter), but never connect on a direct load of
+  // an already-finished race. `terminalAtMount` gates the token fetch so a
+  // finished-on-load race never even mints a token. `sawActive` is a monotonic
+  // latch recording that this client observed `active` while mounted. It is
+  // set *during render* (the documented React "store info from previous
+  // renders" pattern — a guarded `setState` in the render body, which React
+  // resolves synchronously before committing) rather than in an effect: an
+  // effect would lag one render and briefly unmount <LiveKitRoom> on the
+  // active → finished flip, causing exactly the disconnect/reconnect blip this
+  // feature must avoid.
+  const [terminalAtMount] = useState(
+    () =>
+      initialSnapshot.status === "finished" ||
+      initialSnapshot.status === "aborted",
+  );
+  const [sawActive, setSawActive] = useState(initialSnapshot.status === "active");
+  if (status === "active" && !sawActive) setSawActive(true);
 
   // --- Mid-race mic revocation (issue #100) --------------------------------
   // The compete gate only blocks the ready button; once a race is active it
@@ -261,7 +283,11 @@ export function RaceRoom({
   }, [refetch]);
 
   // --- LiveKit token (best-effort; race still works without video) --------
+  // Skipped entirely when the race is already terminal at mount (issue #121):
+  // a direct load onto a finished race must never fetch a token or connect —
+  // the persistent ResultCard suffices, there is no live call to preserve.
   useEffect(() => {
+    if (terminalAtMount) return;
     let cancelled = false;
     (async () => {
       try {
@@ -282,7 +308,7 @@ export function RaceRoom({
     return () => {
       cancelled = true;
     };
-  }, [raceId]);
+  }, [raceId, terminalAtMount]);
 
   // --- Lobby snapshot poll (pending/ready only, jittered) -----------------
   // `Lobby` polls its own copy of the snapshot to drive its own UI, but that
@@ -620,7 +646,18 @@ export function RaceRoom({
   }
 
   // --- Result (finished / aborted) ---------------------------------------
-  if (status === "finished" || status === "aborted") {
+  const terminal = status === "finished" || status === "aborted";
+  // Keep the post-race call alive on the result screen (issue #121) only for a
+  // player who watched the race go live AND still holds a live LiveKit token.
+  // A direct load (terminalAtMount → token fetch skipped → `lk` null) or a race
+  // that was never observed active takes the plain path below: ResultCard only,
+  // no connection. When we DO keep it, the SAME <LiveKitRoom> element from the
+  // active branch persists through the unified return further down (no
+  // disconnect/reconnect blip).
+  const keepCallOnResult =
+    terminal && shouldKeepCallMounted(sawActive, status) && lk != null;
+
+  if (terminal && !keepCallOnResult) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-12">
         <RaceAudio snapshot={snapshot} youId={currentUserId} />
@@ -1092,21 +1129,81 @@ export function RaceRoom({
       </div>
     );
 
+  // Result screen with the post-race call kept alive (issue #121): the video
+  // tiles (mic/cam toggles intact) sit above the ResultCard so both players
+  // can keep talking, with a clear "leave" affordance that navigates home —
+  // unmounting the room, which is what actually disconnects this player (the
+  // other stays on the call until they leave too). `withVideo` is always true
+  // here in practice (this only renders inside <LiveKitRoom>), but the flag
+  // keeps it symmetric with `panes` and safe if ever rendered call-less.
+  const resultView = (withVideo: boolean) => (
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 py-8">
+      {withVideo && (
+        <div className="flex w-full max-w-md flex-col gap-2">
+          <VideoTiles />
+          {!opponentLive && (
+            <p
+              data-testid="opponent-left-call"
+              className="text-center text-xs text-muted-foreground"
+            >
+              Your opponent left the call.
+            </p>
+          )}
+        </div>
+      )}
+      <ResultCard snapshot={snapshot} currentUserId={currentUserId} />
+      {withVideo && (
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          data-testid="leave-call-btn"
+          render={<Link href="/dashboard" />}
+          nativeButton={false}
+        >
+          Leave call &amp; back to home
+        </Button>
+      )}
+      {overlay && (
+        <RaceEndOverlay
+          outcome={overlay.outcome}
+          opponentUsername={overlay.opponentUsername}
+          eloDelta={overlay.eloDelta}
+          byForfeit={overlay.byForfeit}
+          onDismiss={() => setOverlay(null)}
+        />
+      )}
+    </div>
+  );
+
+  // Unified return for both the active race and the terminal-with-call result
+  // screen. The <LiveKitRoom> element sits at a stable position across the
+  // active → finished|aborted transition (only its children swap), so a
+  // connected player never disconnects/reconnects when the race ends — the
+  // whole point of issue #121.
   return (
-    <main className="flex flex-1 flex-col px-4 py-4">
+    <main
+      className={
+        terminal
+          ? "flex flex-1 flex-col items-center justify-center px-4 py-8"
+          : "flex flex-1 flex-col px-4 py-4"
+      }
+    >
       <RaceAudio snapshot={snapshot} youId={currentUserId} />
       <span data-testid="race-status" className="sr-only">
         {status}
       </span>
-      <div
-        role="status"
-        className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-2.5 text-xs text-verdict-pending lg:hidden"
-      >
-        <MonitorSmartphone className="size-4 shrink-0" aria-hidden />
-        The race room is designed for larger screens — some panes may be
-        cramped here. Rotate or switch to a laptop/desktop for the best
-        experience.
-      </div>
+      {!terminal && (
+        <div
+          role="status"
+          className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-2.5 text-xs text-verdict-pending lg:hidden"
+        >
+          <MonitorSmartphone className="size-4 shrink-0" aria-hidden />
+          The race room is designed for larger screens — some panes may be
+          cramped here. Rotate or switch to a laptop/desktop for the best
+          experience.
+        </div>
+      )}
       {lk ? (
         <LiveKitRoom
           serverUrl={lk.url}
@@ -1115,7 +1212,11 @@ export function RaceRoom({
           audio
           video
           onDisconnected={handleVoiceDisconnected}
-          className="flex min-h-0 flex-1 flex-col"
+          className={
+            terminal
+              ? "flex w-full flex-col items-center"
+              : "flex min-h-0 flex-1 flex-col"
+          }
         >
           <RaceEvents
             onEvent={refetch}
@@ -1128,8 +1229,10 @@ export function RaceRoom({
               onPresenceChange={handlePresenceChange}
             />
           )}
-          {panes(true)}
+          {terminal ? resultView(true) : panes(true)}
         </LiveKitRoom>
+      ) : terminal ? (
+        resultView(false)
       ) : (
         panes(false)
       )}
