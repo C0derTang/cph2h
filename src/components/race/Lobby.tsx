@@ -25,9 +25,12 @@ import {
   Check,
   Copy,
   Loader2,
+  Mic,
   SlidersHorizontal,
   Swords,
   UserRound,
+  Video,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +38,9 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { buildJoinUrl } from "@/lib/race/join-url";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
+import { canCompete } from "@/lib/race/av-requirements";
+import { useMicPermission } from "@/components/race/useMicPermission";
+import { useOpponentVolume, VolumeSlider } from "@/components/race/VolumeControl";
 import {
   CLIENT_POLL_INTERVAL_MS,
   PROBLEM_RATING_CEIL,
@@ -95,6 +101,19 @@ export function Lobby({
   useEffect(() => {
     skewMsRef.current = skewMs;
   }, [skewMs]);
+
+  // Compete gate (issue #100): a client-side-only requirement, checked here
+  // so the "I'm ready" button can't be pressed muted or deaf. `useMicPermission`
+  // works without any LiveKit context (the Lobby renders standalone, before
+  // `LiveKitRoom` mounts in the active branch — see `RaceRoom.tsx`); the
+  // opponent-volume setting persists across that transition via localStorage.
+  const mic = useMicPermission();
+  const opponentVolume = useOpponentVolume();
+  const meetsCompeteGate = canCompete({
+    micGranted: mic.micGranted,
+    micLive: mic.micLive,
+    volumeAudible: opponentVolume.volumeAudible,
+  });
 
   // Applies any freshly-received `RaceSnapshot` — whether from the polling
   // `refresh()` fetch or a direct action response (`handleReady`,
@@ -368,6 +387,10 @@ export function Lobby({
           />
         )}
 
+        {(snapshot.status === "pending" || snapshot.status === "ready") && (
+          <CompeteGate mic={mic} opponentVolume={opponentVolume} />
+        )}
+
         {snapshot.status === "pending" && snapshot.challengeToken && (
           <>
             <Separator />
@@ -395,7 +418,8 @@ export function Lobby({
           <Button
             type="button"
             onClick={handleReady}
-            disabled={readying || cancelling || youReady}
+            disabled={readying || cancelling || youReady || !meetsCompeteGate}
+            data-testid="ready-btn"
           >
             {readying ? (
               <>
@@ -404,6 +428,8 @@ export function Lobby({
               </>
             ) : youReady ? (
               "They're stalling…"
+            ) : !meetsCompeteGate ? (
+              "Mic on. Volume up."
             ) : (
               "I'm ready"
             )}
@@ -450,6 +476,96 @@ function LobbyShell({
   return (
     <div className={cn("panel clip-notch overflow-hidden", className)}>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Compete-gate checklist (issue #100): "Mic on. Volume up. No excuses."
+ * Shows mic ✓/✗ with a "Grant mic" action and volume ✓/✗ with the live
+ * slider right there — camera is explicitly called out as not required.
+ * Pure presentation; the actual gating predicate (`canCompete`) lives with
+ * the hooks in the parent so it can also disable the ready button.
+ */
+function CompeteGate({
+  mic,
+  opponentVolume,
+}: {
+  mic: ReturnType<typeof useMicPermission>;
+  opponentVolume: ReturnType<typeof useOpponentVolume>;
+}) {
+  const micOk = mic.micGranted && mic.micLive;
+  const micLabel = !mic.supported
+    ? "Mic unsupported in this browser"
+    : mic.permissionState === "denied"
+      ? "Mic blocked — allow it in your browser's site settings"
+      : "Grant mic";
+
+  return (
+    <div className="stat-plate flex flex-col gap-3 p-3" data-testid="compete-gate">
+      <div className="flex flex-col gap-0.5">
+        <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          Compete requirements
+        </p>
+        <p className="text-sm">Mic on. Volume up. No excuses.</p>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span
+          className={cn(
+            "flex items-center gap-1.5 text-sm",
+            micOk ? "text-verdict-ok" : "text-verdict-fail",
+          )}
+          data-testid="mic-requirement"
+        >
+          {micOk ? <Check className="size-4" aria-hidden /> : <X className="size-4" aria-hidden />}
+          {micOk ? "Mic on" : "Mic off"}
+        </span>
+        {!micOk && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void mic.requestMic()}
+            disabled={mic.requesting || !mic.supported}
+            data-testid="grant-mic-btn"
+          >
+            {mic.requesting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <Mic className="size-4" aria-hidden />
+            )}
+            {micLabel}
+          </Button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "shrink-0",
+            opponentVolume.volumeAudible ? "text-verdict-ok" : "text-verdict-fail",
+          )}
+          data-testid="volume-requirement"
+        >
+          {opponentVolume.volumeAudible ? (
+            <Check className="size-4" aria-hidden />
+          ) : (
+            <X className="size-4" aria-hidden />
+          )}
+        </span>
+        <VolumeSlider
+          volume={opponentVolume.volume}
+          onChange={opponentVolume.setVolume}
+          className="flex-1"
+          testId="volume-slider-lobby"
+        />
+      </div>
+
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Video className="size-3.5 shrink-0" aria-hidden />
+        Camera&apos;s optional — nobody needs to see you rage-quit.
+      </p>
     </div>
   );
 }
