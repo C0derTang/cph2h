@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 // /dashboard into that hub); "The Ladder" is the leaderboard, renamed in voice.
 const LINKS = [
   { href: "/dashboard", label: "Play" },
+  { href: "/queue", label: "Race" },
+  { href: "/challenge/new", label: "Challenge" },
   { href: "/leaderboard", label: "The Ladder" },
 ];
 
