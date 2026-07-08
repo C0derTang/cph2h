@@ -26,6 +26,7 @@
  */
 
 import { importSolveHistoryIncremental } from "@/lib/cf/history";
+import type { CfFetchOptions } from "@/lib/cf/client";
 import { SOLVE_HISTORY_STALE_SEC } from "@/lib/types";
 
 /** Minimal user shape this module needs — avoids importing the full `User` row type. */
@@ -33,6 +34,7 @@ export interface SolveHistoryUser {
   id: string;
   cfHandle: string | null;
   solveHistorySyncedAt: Date | null;
+  solveHistoryImportCursor?: number | null;
 }
 
 /**
@@ -53,6 +55,14 @@ export interface RefreshSolveHistoryOptions {
    * must still be excluded from this selection.
    */
   force?: boolean;
+
+  /**
+   * Optional cancellation for best-effort callers with a request-path budget.
+   * If a CF request is still queued behind the shared limiter when the budget
+   * expires, aborting the signal removes it from the queue instead of letting
+   * stale refresh work consume later request slots.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -71,8 +81,16 @@ export async function refreshSolveHistory(
   if (!options.force && !isSolveHistoryStale(user.solveHistorySyncedAt)) return;
 
   try {
-    await importSolveHistoryIncremental(user.id, user.cfHandle, user.solveHistorySyncedAt);
+    const cfOptions = options.signal ? { signal: options.signal } : undefined;
+    await importSolveHistoryIncremental(
+      user.id,
+      user.cfHandle,
+      user.solveHistorySyncedAt,
+      user.solveHistoryImportCursor ?? null,
+      cfOptions,
+    );
   } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") return;
     console.error(`[history-refresh] refresh failed for user ${user.id}`, err);
   }
 }
@@ -91,6 +109,9 @@ export async function refreshSolveHistoryIfStale(user: SolveHistoryUser): Promis
  * Refresh `user`'s solve history unconditionally (staleness predicate
  * skipped) — see {@link RefreshSolveHistoryOptions.force}.
  */
-export async function refreshSolveHistoryForce(user: SolveHistoryUser): Promise<void> {
-  await refreshSolveHistory(user, { force: true });
+export async function refreshSolveHistoryForce(
+  user: SolveHistoryUser,
+  options: CfFetchOptions = {},
+): Promise<void> {
+  await refreshSolveHistory(user, { force: true, signal: options.signal });
 }

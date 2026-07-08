@@ -6,7 +6,8 @@
  *    `CfApiError` on `status: "FAILED"`.
  *  - Courtesy rate limiting: a module-level promise chain that guarantees at
  *    least `MIN_REQUEST_SPACING_MS` between request *starts* (CF's public API
- *    allows ~1 request / 2s).
+ *    allows ~1 request / 2s). Queued requests can be aborted before they spend
+ *    a CF request slot.
  *  - A single retry with a fixed backoff when CF reports its own rate limit
  *    has been exceeded (`comment` contains "limit exceeded").
  */
@@ -40,9 +41,43 @@ interface CfFailedEnvelope {
 
 type CfEnvelope<T> = CfOkEnvelope<T> | CfFailedEnvelope;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+export interface CfFetchOptions {
+  signal?: AbortSignal;
+}
+
+function abortError(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) return signal.reason;
+  const error = new Error("Aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw abortError(signal);
+  }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    if (!signal) {
+      setTimeout(resolve, ms);
+      return;
+    }
+
+    let onAbort = () => undefined;
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+    onAbort = () => {
+      clearTimeout(timeout);
+      cleanup();
+      reject(abortError(signal));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -59,15 +94,17 @@ function sleep(ms: number): Promise<void> {
 let requestQueue: Promise<void> = Promise.resolve();
 let lastRequestStartMs: number | null = null;
 
-function enqueue<T>(task: () => Promise<T>): Promise<T> {
+function enqueue<T>(task: () => Promise<T>, options: CfFetchOptions = {}): Promise<T> {
   const scheduled = requestQueue.then(async () => {
+    throwIfAborted(options.signal);
     if (lastRequestStartMs !== null) {
       const elapsed = Date.now() - lastRequestStartMs;
       const remaining = MIN_REQUEST_SPACING_MS - elapsed;
       if (remaining > 0) {
-        await sleep(remaining);
+        await sleep(remaining, options.signal);
       }
     }
+    throwIfAborted(options.signal);
     lastRequestStartMs = Date.now();
     return task();
   });
@@ -90,8 +127,12 @@ function buildUrl(method: string, params: Record<string, string>): string {
   return url.toString();
 }
 
-async function requestOnce<T>(method: string, params: Record<string, string>): Promise<T> {
-  const response = await fetch(buildUrl(method, params));
+async function requestOnce<T>(
+  method: string,
+  params: Record<string, string>,
+  options: CfFetchOptions = {},
+): Promise<T> {
+  const response = await fetch(buildUrl(method, params), { signal: options.signal });
   const envelope = (await response.json()) as CfEnvelope<T>;
   if (envelope.status === "FAILED") {
     throw new CfApiError(envelope.comment);
@@ -108,18 +149,22 @@ function isRateLimitComment(error: unknown): boolean {
  * retried once (after a fixed backoff) if CF itself reports its rate limit
  * was exceeded.
  */
-export function cfFetch<T>(method: string, params: Record<string, string> = {}): Promise<T> {
+export function cfFetch<T>(
+  method: string,
+  params: Record<string, string> = {},
+  options: CfFetchOptions = {},
+): Promise<T> {
   return enqueue(async () => {
     try {
-      return await requestOnce<T>(method, params);
+      return await requestOnce<T>(method, params, options);
     } catch (error) {
       if (!isRateLimitComment(error)) {
         throw error;
       }
-      await sleep(RETRY_BACKOFF_MS);
-      return requestOnce<T>(method, params);
+      await sleep(RETRY_BACKOFF_MS, options.signal);
+      return requestOnce<T>(method, params, options);
     }
-  });
+  }, options);
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +204,7 @@ export function getUserStatus(
   handle: string,
   from?: number,
   count?: number,
+  options: CfFetchOptions = {},
 ): Promise<CfSubmission[]> {
   const params: Record<string, string> = { handle };
   if (from !== undefined) {
@@ -167,7 +213,7 @@ export function getUserStatus(
   if (count !== undefined) {
     params.count = String(count);
   }
-  return cfFetch<CfSubmission[]>("user.status", params);
+  return cfFetch<CfSubmission[]>("user.status", params, options);
 }
 
 export function getProblemset(): Promise<CfProblemsetResult> {

@@ -51,6 +51,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     racesPlayed: 0,
     cppTemplate: "",
     solveHistorySyncedAt: null,
+    solveHistoryImportCursor: null,
     createdAt: null,
     ...overrides,
   };
@@ -192,7 +193,7 @@ describe("ensureUser", () => {
     await ensureUser();
     expect(insertValuesMock).toHaveBeenLastCalledWith({
       clerkId: "clerk-c",
-      username: "c",
+      username: "c_",
     });
   });
 

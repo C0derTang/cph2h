@@ -43,6 +43,7 @@ import { canCompete } from "@/lib/race/av-requirements";
 import { useMicPermission } from "@/components/race/useMicPermission";
 import { useOpponentVolume, VolumeSlider } from "@/components/race/VolumeControl";
 import { AudioToggleButtons } from "@/components/race/AudioControls";
+import { LiveTickerIndicator } from "@/components/race/LiveTickerIndicator";
 import {
   CLIENT_POLL_INTERVAL_MS,
   PROBLEM_RATING_CEIL,
@@ -322,10 +323,7 @@ export function Lobby({
     <LobbyShell className={className}>
       <div className="ticker justify-between px-4 py-2.5">
         <span>lobby &middot; {snapshot.status}</span>
-        <span className="flex items-center gap-1.5 text-verdict-pending">
-          <span className="size-1.5 rounded-full bg-verdict-pending motion-safe:animate-pulse" />
-          live
-        </span>
+        <LiveTickerIndicator />
       </div>
 
       <div className="flex flex-col gap-1 p-5 pb-4">

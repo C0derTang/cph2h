@@ -15,6 +15,7 @@ import { Circle, Clock, Timer } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { correctedNow } from "@/lib/race/countdown";
+import { LiveTickerIndicator } from "@/components/race/LiveTickerIndicator";
 import type { PublicUser, RaceSnapshot } from "@/lib/types";
 
 interface RaceHUDProps {
@@ -79,10 +80,7 @@ export function RaceHUD({
     >
       <div className="ticker justify-between px-4 py-2">
         <span>race &middot; clock</span>
-        <span className="flex items-center gap-1.5 text-verdict-pending">
-          <span className="size-1.5 rounded-full bg-verdict-pending motion-safe:animate-pulse" />
-          live
-        </span>
+        <LiveTickerIndicator />
       </div>
 
       <div className="flex flex-col gap-3 p-4">

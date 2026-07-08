@@ -7,7 +7,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { emailLocalPart, MAX_USERNAME_LENGTH } from "../src/lib/username";
+import {
+  DEFAULT_USERNAME,
+  emailLocalPart,
+  MAX_USERNAME_LENGTH,
+} from "../src/lib/username";
 
 describe("emailLocalPart", () => {
   it("returns everything before the @", () => {
@@ -23,9 +27,18 @@ describe("emailLocalPart", () => {
 
   it("never returns a string containing @", () => {
     expect(emailLocalPart("someone@example.com")).not.toContain("@");
+    expect(emailLocalPart("@example.com")).not.toContain("@");
   });
 
   it("falls back to the whole string when there is no @ (defensive)", () => {
     expect(emailLocalPart("noatsign")).toBe("noatsign");
+  });
+
+  it("falls back to the default username when the local part is empty", () => {
+    expect(emailLocalPart("@example.com")).toBe(DEFAULT_USERNAME);
+  });
+
+  it("pads a one-character local part to satisfy username validation", () => {
+    expect(emailLocalPart("a@example.com")).toBe("a_");
   });
 });

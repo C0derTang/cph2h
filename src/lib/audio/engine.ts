@@ -23,6 +23,7 @@ const BGM_GAIN = 0.15;
 
 let audioContext: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let masterCompressor: DynamicsCompressorNode | null = null;
 let gestureListenersAttached = false;
 
 type AudioContextCtor = typeof AudioContext;
@@ -45,16 +46,24 @@ function getAudioContextCtor(): AudioContextCtor | null {
  *  callback (see module doc + issue #131). */
 function getContext(): { ctx: AudioContext; gain: GainNode } | null {
   if (typeof window === "undefined") return null;
-  if (audioContext && masterGain) return { ctx: audioContext, gain: masterGain };
+  if (audioContext && masterGain && masterCompressor) return { ctx: audioContext, gain: masterGain };
   const Ctor = getAudioContextCtor();
   if (!Ctor) return null;
   try {
     const ctx = new Ctor();
     const gain = ctx.createGain();
+    const compressor = ctx.createDynamicsCompressor();
     gain.gain.value = MASTER_GAIN;
-    gain.connect(ctx.destination);
+    compressor.threshold.value = -18;
+    compressor.knee.value = 24;
+    compressor.ratio.value = 8;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.25;
+    gain.connect(compressor);
+    compressor.connect(ctx.destination);
     audioContext = ctx;
     masterGain = gain;
+    masterCompressor = compressor;
     initAudioGestures();
     return { ctx, gain };
   } catch {
