@@ -104,6 +104,13 @@ const DISCONNECT_GRACE_MS = 20_000;
  *  with a manual retry — a single blip is normal and shouldn't alarm anyone. */
 const POLL_FAILURE_THRESHOLD = 3;
 
+/** Anti-flash debounce (issue #140) before the "pulling up the problem"
+ *  spinner icon shows: a sub-threshold unlock (the problem snapshot landing
+ *  right as the countdown flips) would otherwise pop the spinner in and back
+ *  out within a frame, reading as a flicker rather than a loading state. The
+ *  accompanying text is NOT debounced — the region is never empty. */
+const PROBLEM_SPINNER_SHOW_DELAY_MS = 150;
+
 /** Build the Codeforces submit page URL for a contest problem. */
 function cfSubmitUrl(contestId: number): string {
   return `https://codeforces.com/contest/${contestId}/submit`;
@@ -628,32 +635,31 @@ export function RaceRoom({
   // Computed independently of the render-time `countdownEnded`/`problem`
   // locals below (those are derived after this component's early returns,
   // which hooks can't follow) from the same underlying snapshot/skew state.
-  // Uses the render-body "store info from previous renders" pattern (same as
-  // `sawActive` above) rather than an effect — and latches on `nowTick`
-  // rather than a fresh `Date.now()` read, since components must stay pure
-  // during render (no direct clock reads; `nowTick` is state, sourced from
-  // `Date.now()` inside its own effect above). `problemLoadingSinceTick`
-  // records the `nowTick` value at the first render where the problem is
-  // locked past the skew-corrected start; the spinner only shows once
-  // `nowTick` has advanced at least one more tick (the absence-countdown's
-  // existing 1s interval while active) past that point, so the very first
-  // (zero-elapsed) render is always hidden — which is what prevents the
-  // flash on a fast unlock.
+  // A real ~150ms debounce in an effect: while the problem is locked past the
+  // skew-corrected start, arm a timer that flips the spinner icon visible; a
+  // sub-threshold unlock (the snapshot with the problem lands right as the
+  // countdown flips) cleans the timer up before it fires, so the icon never
+  // flashes. Only the ICON is debounced — the loading region itself renders
+  // the "Pulling up the problem…" text immediately, so it is never empty.
+  // The state is only ever set inside the timer callback (never synchronously
+  // in the effect body — the set-state-in-effect lint rule), and needs no
+  // reset path: `snapshot.problem` never returns to null once present, so
+  // `problemLoadingNow` is one-way false after the unlock and the loading
+  // branch that reads `showProblemSpinner` is gone from the tree.
   const startedAtMsRaw = snapshot.startedAt ? Date.parse(snapshot.startedAt) : null;
   const problemLoadingNow =
     startedAtMsRaw != null &&
     correctedNow(skewMs, nowTick) >= startedAtMsRaw &&
     snapshot.problem == null;
-  const [problemLoadingSinceTick, setProblemLoadingSinceTick] = useState<
-    number | null
-  >(null);
-  if (problemLoadingNow && problemLoadingSinceTick == null) {
-    setProblemLoadingSinceTick(nowTick);
-  } else if (!problemLoadingNow && problemLoadingSinceTick != null) {
-    setProblemLoadingSinceTick(null);
-  }
-  const showProblemSpinner =
-    problemLoadingSinceTick != null && nowTick > problemLoadingSinceTick;
+  const [showProblemSpinner, setShowProblemSpinner] = useState(false);
+  useEffect(() => {
+    if (!problemLoadingNow) return;
+    const timer = setTimeout(
+      () => setShowProblemSpinner(true),
+      PROBLEM_SPINNER_SHOW_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [problemLoadingNow]);
 
   const isP1 = currentUserId === snapshot.p1.id;
   const you = isP1 ? snapshot.p1 : snapshot.p2 ?? snapshot.p1;
@@ -1006,11 +1012,9 @@ export function RaceRoom({
           className="flex flex-1 items-center justify-center gap-2 text-center text-sm text-muted-foreground"
         >
           {showProblemSpinner && (
-            <>
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-              Pulling up the problem…
-            </>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
           )}
+          Pulling up the problem…
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center text-center text-sm text-muted-foreground">
@@ -1049,11 +1053,9 @@ export function RaceRoom({
               className="flex items-center gap-2 text-xs text-muted-foreground"
             >
               {showProblemSpinner && (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                  Pulling up the problem…
-                </>
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
               )}
+              Pulling up the problem…
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
