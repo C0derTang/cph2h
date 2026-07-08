@@ -1,8 +1,9 @@
 /**
  * The game-menu slab row (issue #124) — the tetr.io main-menu language. A full-
  * width horizontal action: an accent stripe, an icon plate, a tall Chakra Petch label,
- * and a mono tagline; hover/focus slides it right and blooms the accent glow
- * (styling lives in globals.css `menu-row` / `menu-row-icon` / `menu-row-arrow`).
+ * and a mono tagline; hover/focus slides it right with a one-shot glitch jitter
+ * + RGB text-shadow flash and blooms the accent glow (v4 — styling lives in
+ * globals.css `menu-row` / `menu-row-icon` / `menu-row-arrow`).
  *
  * `MenuRowContent` is the presentational innards, shared by the navigating
  * `MenuRowLink` and the client-side disclosure rows (e.g. the challenge row) so
