@@ -94,7 +94,7 @@ export function VolumeSlider({
       {audible ? (
         <Volume2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       ) : (
-        <VolumeX className="size-4 shrink-0 text-verdict-fail" aria-hidden />
+        <VolumeX className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       )}
       <input
         type="range"

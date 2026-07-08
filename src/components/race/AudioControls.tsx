@@ -121,8 +121,8 @@ export function AudioToggleButtons({ className, testIdSuffix }: AudioToggleButto
         title={sfxEnabled ? "Sound effects on" : "Sound effects muted"}
         data-testid={sfxTestId}
         className={cn(
-          "inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-background text-muted-foreground transition-colors hover:bg-muted",
-          !sfxEnabled && "text-verdict-fail",
+          "inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-background text-muted-foreground outline-none transition-colors hover:bg-muted active:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-ring",
+          !sfxEnabled && "text-muted-foreground",
         )}
       >
         {sfxEnabled ? (
@@ -142,8 +142,8 @@ export function AudioToggleButtons({ className, testIdSuffix }: AudioToggleButto
         title={bgmEnabled ? "Music on" : "Music muted"}
         data-testid={bgmTestId}
         className={cn(
-          "inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-background text-muted-foreground transition-colors hover:bg-muted",
-          !bgmEnabled && "text-verdict-fail",
+          "inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-background text-muted-foreground outline-none transition-colors hover:bg-muted active:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-ring",
+          !bgmEnabled && "text-muted-foreground",
         )}
       >
         {bgmEnabled ? (

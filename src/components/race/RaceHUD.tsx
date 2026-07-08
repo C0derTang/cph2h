@@ -156,7 +156,7 @@ function PresenceRow({
         className={cn(
           "size-2 shrink-0",
           present
-            ? "fill-verdict-ok text-verdict-ok"
+            ? "fill-player-self text-player-self"
             : "fill-muted-foreground/40 text-muted-foreground/40",
         )}
         aria-hidden
