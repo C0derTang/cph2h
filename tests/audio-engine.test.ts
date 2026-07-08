@@ -22,6 +22,14 @@ async function importEngine() {
 class FakeAudioContext {
   state: "suspended" | "running" | "closed" = "suspended";
   destination = {};
+  compressorNode = {
+    threshold: { value: 0 },
+    knee: { value: 0 },
+    ratio: { value: 0 },
+    attack: { value: 0 },
+    release: { value: 0 },
+    connect: vi.fn(),
+  };
   resume = vi.fn(() => {
     this.state = "running";
     return Promise.resolve();
@@ -30,6 +38,7 @@ class FakeAudioContext {
     gain: { value: 0 },
     connect: vi.fn(),
   }));
+  createDynamicsCompressor = vi.fn(() => this.compressorNode);
 }
 
 type Listener = () => void;
@@ -138,6 +147,26 @@ describe("initAudioGestures — gesture handler create/resume behavior", () => {
     const created = AudioContextCtor.mock.results[0]?.value as FakeAudioContext;
     expect(created.resume).toHaveBeenCalledTimes(1);
     expect(created.state).toBe("running");
+  });
+
+  it("routes the master gain through a compressor before the destination", async () => {
+    const AudioContextCtor = vi.fn(function AudioContextCtor() {
+      return new FakeAudioContext();
+    });
+    const { window: fakeWindow, listeners } = makeFakeWindow(AudioContextCtor);
+    vi.stubGlobal("window", fakeWindow);
+
+    const { initAudioGestures } = await importEngine();
+    initAudioGestures();
+    listeners["pointerdown"][0]();
+
+    const created = AudioContextCtor.mock.results[0]?.value as FakeAudioContext;
+    const masterGain = created.createGain.mock.results[0]?.value;
+    expect(created.createDynamicsCompressor).toHaveBeenCalledTimes(1);
+    expect(created.compressorNode.threshold.value).toBe(-18);
+    expect(created.compressorNode.ratio.value).toBe(8);
+    expect(masterGain.connect).toHaveBeenCalledWith(created.compressorNode);
+    expect(created.compressorNode.connect).toHaveBeenCalledWith(created.destination);
   });
 
   it("a later gesture resumes an existing-but-suspended context without recreating it", async () => {

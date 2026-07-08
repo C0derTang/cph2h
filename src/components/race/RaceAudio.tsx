@@ -43,6 +43,21 @@ export interface RaceAudioProps {
 // Keyed by race id so the diff survives RaceRoom remounting this component
 // across its lobby/active/finished branches (see module doc above).
 const lastSeenByRaceId = new Map<string, RaceSnapshot>();
+const MAX_LAST_SEEN_RACES = 32;
+
+function rememberLastSeenSnapshot(snapshot: RaceSnapshot): void {
+  if (snapshot.status === "finished" || snapshot.status === "aborted") {
+    lastSeenByRaceId.delete(snapshot.id);
+    return;
+  }
+
+  lastSeenByRaceId.set(snapshot.id, snapshot);
+  while (lastSeenByRaceId.size > MAX_LAST_SEEN_RACES) {
+    const oldestRaceId = lastSeenByRaceId.keys().next().value;
+    if (oldestRaceId == null) break;
+    lastSeenByRaceId.delete(oldestRaceId);
+  }
+}
 
 export function RaceAudio({ snapshot, youId }: RaceAudioProps) {
   const { bgmEnabled } = useAudioPrefs();
@@ -61,7 +76,7 @@ export function RaceAudio({ snapshot, youId }: RaceAudioProps) {
   useEffect(() => {
     const prev = lastSeenByRaceId.get(snapshot.id) ?? null;
     const sfx = detectAudioTransitions(prev, snapshot, youId);
-    lastSeenByRaceId.set(snapshot.id, snapshot);
+    rememberLastSeenSnapshot(snapshot);
     for (const name of sfx) playSfx(name);
   }, [snapshot, youId]);
 
