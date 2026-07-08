@@ -10,8 +10,8 @@
  * and unknown ids never reach this component because the `addTaunt` reducer
  * already filters them out before they land in state.
  *
- * Tints toward the sender's identity via a left accent rule (gold for self,
- * crimson for opponent) and carries a mic glyph — the one surface where the
+ * Tints toward the sender's identity via a left accent rule (cyan for self,
+ * magenta for opponent) and carries a mic glyph — the one surface where the
  * mic icon is earned (docs/design.md "the stamp" / mic iconography rule).
  */
 

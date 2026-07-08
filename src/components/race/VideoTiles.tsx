@@ -120,7 +120,7 @@ export function VideoTiles({
               className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground"
             >
               <UserRound className="size-16" aria-hidden />
-              <span className="font-mono text-[11px] tracking-[0.14em] uppercase">
+              <span className="eyebrow">
                 Camera off
               </span>
             </div>
@@ -132,7 +132,7 @@ export function VideoTiles({
             className="flex size-full flex-col items-center justify-center gap-2 text-destructive"
           >
             <WifiOff className="size-10" aria-hidden />
-            <span className="font-mono text-[11px] tracking-[0.14em] uppercase">
+            <span className="eyebrow">
               Disconnected
             </span>
           </div>
@@ -143,7 +143,7 @@ export function VideoTiles({
             className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground"
           >
             <UserRound className="size-16 animate-pulse" aria-hidden />
-            <span className="font-mono text-[11px] tracking-[0.14em] uppercase">
+            <span className="eyebrow">
               Waiting to connect…
             </span>
           </div>

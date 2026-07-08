@@ -11,8 +11,8 @@
  * from an observed snapshot transition (see `detectOverlayOutcome`), and all
  * values shown here come from that snapshot, never a LiveKit event payload.
  *
- * Aesthetic follows the versus-poster lockup (champion gold / challenger
- * crimson, `stamp` display type) already used in the Lobby and ResultCard.
+ * Aesthetic follows the versus-poster lockup (champion cyan / challenger
+ * magenta, `stamp` display type) already used in the Lobby and ResultCard.
  */
 
 import { useEffect } from "react";
@@ -115,7 +115,7 @@ export function RaceEndOverlay({
 
       {eloDelta != null && (
         <div className="flex flex-col items-center gap-1">
-          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <span className="eyebrow text-muted-foreground">
             Elo
           </span>
           <span
@@ -132,7 +132,7 @@ export function RaceEndOverlay({
         </div>
       )}
 
-      <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground/70 uppercase">
+      <span className="eyebrow text-muted-foreground/70">
         Click to continue
       </span>
     </div>

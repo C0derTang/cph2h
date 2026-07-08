@@ -59,7 +59,7 @@ export default async function Home() {
     <main className="flex-1">
       {/* Hero — the battle poster */}
       <section className="relative overflow-hidden">
-        {/* Overhead spotlight: a warm gold pool falling into the stage dark. */}
+        {/* Overhead spotlight: the ambient cyan/magenta glow pooling into the stage dark. */}
         <div
           aria-hidden
           className="spotlight pointer-events-none absolute inset-0 -z-10"
@@ -67,7 +67,7 @@ export default async function Home() {
 
         <div className="shell grid gap-12 py-16 md:grid-cols-[1.05fr_1fr] md:items-center md:py-24">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+            <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
               <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
               1v1 competitive programming, out loud
             </p>
@@ -192,10 +192,10 @@ export default async function Home() {
 
 /**
  * Reference implementation of the VS poster lockup: a matte stage panel with a
- * lower-third ticker, two corners (champion gold vs challenger crimson) split by
- * a thin gold rule, tall-caps names, and a live clock. Every color comes from
+ * lower-third ticker, two corners (champion cyan vs challenger magenta) split by
+ * a thin cyan rule, tall-caps names, and a live clock. Every color comes from
  * the identity + verdict tokens; the live rating/clock are `font-mono
- * tabular-nums` per the numeral rule (Anton digits aren't tabular).
+ * tabular-nums` per the numeral rule (the display face's digits aren't tabular).
  */
 function VersusPoster() {
   return (
@@ -210,7 +210,7 @@ function VersusPoster() {
       </div>
 
       <div className="relative grid grid-cols-2">
-        {/* Center VS + the thin gold rule between the two corners */}
+        {/* Center VS + the thin cyan rule between the two corners */}
         <div
           aria-hidden
           className="absolute inset-y-6 left-1/2 w-px -translate-x-1/2 bg-player-self/40"
@@ -221,7 +221,7 @@ function VersusPoster() {
 
         {/* Champion (self) */}
         <div className="p-4 pr-7">
-          <p className="font-mono text-[10px] font-semibold tracking-[0.18em] text-player-self uppercase">
+          <p className="eyebrow text-player-self">
             Champion
           </p>
           <p className="mt-2 font-display text-2xl tracking-tight text-foreground uppercase">
@@ -238,7 +238,7 @@ function VersusPoster() {
 
         {/* Challenger (opponent) */}
         <div className="p-4 pl-7 text-right">
-          <p className="font-mono text-[10px] font-semibold tracking-[0.18em] text-player-opponent uppercase">
+          <p className="eyebrow text-player-opponent">
             Challenger
           </p>
           <p className="mt-2 font-display text-2xl tracking-tight text-foreground uppercase">

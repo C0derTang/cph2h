@@ -75,7 +75,7 @@ export function TauntPicker({ currentUserId, onSent, className }: TauntPickerPro
       className={cn("panel flex flex-col gap-2 p-3", className)}
     >
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+        <span className="flex items-center gap-1.5 eyebrow text-muted-foreground">
           <Mic className="size-3.5 text-player-self" aria-hidden />
           Spit a bar
         </span>

@@ -128,7 +128,7 @@ export function ResultCard({
       <div className="flex flex-col gap-3 border-t border-border p-5">
         {snapshot.problem && (
           <div className="stat-plate flex flex-col gap-1 p-3">
-            <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            <span className="eyebrow text-muted-foreground">
               Problem
             </span>
             <a
@@ -143,7 +143,7 @@ export function ResultCard({
         )}
 
         <div className="stat-plate flex items-center justify-between gap-2 p-3">
-          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <span className="eyebrow text-muted-foreground">
             Winning submission
           </span>
           <span className="font-mono text-sm font-semibold tabular-nums">

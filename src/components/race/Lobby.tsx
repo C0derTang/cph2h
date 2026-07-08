@@ -344,7 +344,7 @@ export function Lobby({
 
       {counting && secondsLeft != null && (
         <div className="flex flex-col items-center gap-1 border-t border-border py-5">
-          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <span className="eyebrow text-muted-foreground">
             Starts in
           </span>
           <span className="font-mono text-6xl font-semibold tabular-nums">
@@ -353,8 +353,8 @@ export function Lobby({
         </div>
       )}
 
-      {/* VS poster lockup: champion (gold) vs challenger (crimson) corners
-          split by a thin gold rule, per docs/design.md. */}
+      {/* VS poster lockup: champion (cyan) vs challenger (magenta) corners
+          split by a thin cyan rule, per docs/design.md. */}
       <div className="relative grid gap-3 border-t border-border p-5 sm:grid-cols-2 sm:gap-0 sm:p-0">
         <div
           aria-hidden
@@ -397,7 +397,7 @@ export function Lobby({
           <>
             <Separator />
             <div className="flex flex-col gap-2">
-              <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+              <p className="eyebrow text-muted-foreground">
                 Share this link
               </p>
               <div className="stat-plate flex items-center gap-2 p-2.5">
@@ -432,7 +432,7 @@ export function Lobby({
                 Marking ready…
               </>
             ) : youReady ? (
-              "They're stalling…"
+              "Waiting for opponent…"
             ) : !meetsCompeteGate ? (
               "Mic on. Volume up."
             ) : (
@@ -509,7 +509,7 @@ function CompeteGate({
   return (
     <div className="stat-plate flex flex-col gap-3 p-3" data-testid="compete-gate">
       <div className="flex flex-col gap-0.5">
-        <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+        <p className="eyebrow text-muted-foreground">
           Compete requirements
         </p>
         <p className="text-sm">Mic on. Volume up. No excuses.</p>
@@ -608,7 +608,7 @@ function PlayerRow({
       <div className="min-w-0 flex-1">
         <p
           className={cn(
-            "font-mono text-[11px] font-semibold tracking-[0.18em] uppercase",
+            "eyebrow",
             identityText,
           )}
         >
@@ -639,7 +639,7 @@ function PlayerRow({
 function statusHeading(snapshot: RaceSnapshot, nowMs: number): string {
   switch (snapshot.status) {
     case "pending":
-      return "They're stalling.";
+      return "Waiting for an opponent";
     case "ready":
       return "Get ready";
     case "active": {
@@ -881,7 +881,7 @@ function FiltersSection({
         showSummary && (
           <div className="stat-plate flex items-center justify-between gap-2 p-3">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+              <span className="eyebrow text-muted-foreground">
                 Problem filters
               </span>
               <span className="truncate font-mono text-xs">
@@ -952,7 +952,7 @@ function FilterEditor({
   return (
     <div className="stat-plate flex flex-col gap-4 p-3">
       <div className="flex flex-col gap-1.5">
-        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+        <span className="eyebrow text-muted-foreground">
           Problem rating range
         </span>
         <div className="flex items-center gap-2">
@@ -992,7 +992,7 @@ function FilterEditor({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+        <span className="eyebrow text-muted-foreground">
           Contest date
         </span>
         <div className="flex flex-wrap gap-2">

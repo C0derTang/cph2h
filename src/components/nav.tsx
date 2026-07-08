@@ -25,7 +25,7 @@ const MENU_ROUTES = new Set(["/", "/dashboard"]);
 
 /**
  * The wordmark: cph2h set in the tall condensed poster face, uppercase, with a
- * gold champion underline rule. The old terminal-cursor motif is retired — this
+ * cyan champion underline rule. The old terminal-cursor motif is retired — this
  * is a marquee, not a prompt.
  */
 function Wordmark() {
@@ -104,7 +104,7 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-sm supports-[backdrop-filter]:bg-background/70">
-      {/* Versus rule: champion gold meets challenger crimson across the top edge. */}
+      {/* Versus rule: champion cyan meets challenger magenta across the top edge. */}
       <div
         aria-hidden
         className="h-px w-full bg-gradient-to-r from-player-self via-border to-player-opponent"
@@ -118,7 +118,7 @@ export function Nav() {
             <Link
               key={link.href}
               href={link.href}
-              className="font-mono text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase transition-colors hover:text-player-self"
+              className="eyebrow text-muted-foreground transition-colors hover:text-player-self"
             >
               {link.label}
             </Link>
@@ -138,7 +138,7 @@ export function Nav() {
           <Link
             key={link.href}
             href={link.href}
-            className="shrink-0 font-mono text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase transition-colors hover:text-player-self"
+            className="shrink-0 eyebrow text-muted-foreground transition-colors hover:text-player-self"
           >
             {link.label}
           </Link>

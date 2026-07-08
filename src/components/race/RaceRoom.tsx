@@ -865,9 +865,9 @@ export function RaceRoom({
   // blocked/best-effort), a one-liner replaces it — no spinner, no retry
   // loop for the statement itself beyond the existing snapshot refetches.
   const problemPane = (
-    <section className="panel flex min-h-0 flex-col gap-3 overflow-hidden p-4">
+    <section className="panel-solid flex min-h-0 flex-col gap-3 overflow-hidden p-5">
       <header className="flex flex-col gap-1">
-        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+        <span className="eyebrow text-muted-foreground">
           Problem
         </span>
         <h1

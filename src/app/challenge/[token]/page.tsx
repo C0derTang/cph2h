@@ -91,9 +91,7 @@ export default async function JoinChallengePage({
 
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
-      <p className="font-mono text-xs text-muted-foreground">
-        <span className="text-player-self">$</span> cd ~/cph2h/challenge/{token}
-      </p>
+      <p className="eyebrow text-muted-foreground">Challenge</p>
 
       <div className="mt-6 flex items-start gap-4">
         <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">

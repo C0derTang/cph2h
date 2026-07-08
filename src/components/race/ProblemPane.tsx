@@ -86,7 +86,7 @@ function SampleIo({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
+        <span className="eyebrow text-muted-foreground">
           {label}
         </span>
         <Button
