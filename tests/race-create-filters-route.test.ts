@@ -48,6 +48,7 @@ function mockSession() {
       racesPlayed: 3,
       cppTemplate: "",
       solveHistorySyncedAt: null,
+      solveHistoryImportCursor: null,
       createdAt: null,
     },
   });

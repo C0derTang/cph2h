@@ -33,6 +33,7 @@ export interface SolveHistoryUser {
   id: string;
   cfHandle: string | null;
   solveHistorySyncedAt: Date | null;
+  solveHistoryImportCursor?: number | null;
 }
 
 /**
@@ -71,7 +72,12 @@ export async function refreshSolveHistory(
   if (!options.force && !isSolveHistoryStale(user.solveHistorySyncedAt)) return;
 
   try {
-    await importSolveHistoryIncremental(user.id, user.cfHandle, user.solveHistorySyncedAt);
+    await importSolveHistoryIncremental(
+      user.id,
+      user.cfHandle,
+      user.solveHistorySyncedAt,
+      user.solveHistoryImportCursor ?? null,
+    );
   } catch (err) {
     console.error(`[history-refresh] refresh failed for user ${user.id}`, err);
   }

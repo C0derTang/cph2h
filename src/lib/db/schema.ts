@@ -64,6 +64,11 @@ export const users = pgTable("users", {
   solveHistorySyncedAt: timestamp("solve_history_synced_at", {
     withTimezone: true,
   }),
+  /**
+   * 1-based Codeforces `user.status` offset for an unfinished incremental
+   * import. Null means the next incremental refresh starts at the newest page.
+   */
+  solveHistoryImportCursor: integer("solve_history_import_cursor"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
