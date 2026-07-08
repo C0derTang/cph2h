@@ -1,19 +1,27 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Show, UserButton } from "@clerk/nextjs";
 import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Simplified battle IA: the play hub and the ladder. "Play" lands on the
-// signed-in hub (wave 2 restructures /dashboard into that hub); "The Ladder"
-// is the leaderboard, renamed in voice. Display name is no longer editable
-// (issue #120) — it follows the linked CF handle, so the user button only
-// links to the CF account settings, not a display-name page.
+// signed-in hub; "The Ladder" is the leaderboard, renamed in voice. Display
+// name is no longer editable (issue #120) — it follows the linked CF handle, so
+// the user button only links to the CF account settings, not a display-name page.
 const LINKS = [
   { href: "/dashboard", label: "Play" },
   { href: "/queue", label: "Race" },
   { href: "/challenge/new", label: "Challenge" },
   { href: "/leaderboard", label: "The Ladder" },
 ];
+
+// The menu screens (landing + dashboard) are self-contained game menus whose
+// big slab rows already carry navigation, so the nav collapses to minimal
+// chrome there (issue #124). Every other route — race rooms, queue, settings —
+// keeps the full nav.
+const MENU_ROUTES = new Set(["/", "/dashboard"]);
 
 /**
  * The wordmark: cph2h set in the tall condensed poster face, uppercase, with a
@@ -37,7 +45,63 @@ function Wordmark() {
   );
 }
 
+/** Signed-in account button (with the CF-settings menu item) or the
+ *  sign-in/sign-up pair — shared by the minimal and full nav. */
+function AuthChip() {
+  return (
+    <Show
+      when="signed-in"
+      fallback={
+        <>
+          <Button
+            render={<Link href="/sign-in" />}
+            nativeButton={false}
+            variant="ghost"
+            size="sm"
+          >
+            Sign in
+          </Button>
+          <Button
+            render={<Link href="/sign-up" />}
+            nativeButton={false}
+            size="sm"
+          >
+            Sign up
+          </Button>
+        </>
+      }
+    >
+      <UserButton>
+        <UserButton.MenuItems>
+          <UserButton.Link
+            label="Codeforces account"
+            labelIcon={<Link2 className="size-4" aria-hidden />}
+            href="/settings/cf"
+          />
+        </UserButton.MenuItems>
+      </UserButton>
+    </Show>
+  );
+}
+
 export function Nav() {
+  const pathname = usePathname();
+
+  // Minimal chrome on menu screens: just the wordmark and the account chip,
+  // floating over the full-viewport game menu — no competing link bar.
+  if (MENU_ROUTES.has(pathname)) {
+    return (
+      <header className="relative z-40">
+        <div className="shell flex h-16 items-center justify-between gap-4">
+          <Wordmark />
+          <div className="flex items-center gap-2">
+            <AuthChip />
+          </div>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-sm supports-[backdrop-filter]:bg-background/70">
       {/* Versus rule: champion gold meets challenger crimson across the top edge. */}
@@ -62,38 +126,7 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Show
-            when="signed-in"
-            fallback={
-              <>
-                <Button
-                  render={<Link href="/sign-in" />}
-                  nativeButton={false}
-                  variant="ghost"
-                  size="sm"
-                >
-                  Sign in
-                </Button>
-                <Button
-                  render={<Link href="/sign-up" />}
-                  nativeButton={false}
-                  size="sm"
-                >
-                  Sign up
-                </Button>
-              </>
-            }
-          >
-            <UserButton>
-              <UserButton.MenuItems>
-                <UserButton.Link
-                  label="Codeforces account"
-                  labelIcon={<Link2 className="size-4" aria-hidden />}
-                  href="/settings/cf"
-                />
-              </UserButton.MenuItems>
-            </UserButton>
-          </Show>
+          <AuthChip />
         </div>
       </div>
 
