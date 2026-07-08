@@ -13,6 +13,8 @@
  */
 
 export const MAX_USERNAME_LENGTH = 20;
+export const MIN_USERNAME_LENGTH = 2;
+export const DEFAULT_USERNAME = "racer";
 
 /**
  * Local-part-of-email fallback used when Clerk has no username or first
@@ -21,5 +23,8 @@ export const MAX_USERNAME_LENGTH = 20;
  */
 export function emailLocalPart(email: string): string {
   const [local] = email.split("@");
-  return (local || email).slice(0, MAX_USERNAME_LENGTH);
+  const username = (local || DEFAULT_USERNAME).slice(0, MAX_USERNAME_LENGTH);
+  return username.length < MIN_USERNAME_LENGTH
+    ? username.padEnd(MIN_USERNAME_LENGTH, "_")
+    : username;
 }
