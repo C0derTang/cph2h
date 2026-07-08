@@ -33,7 +33,7 @@ export function ChallengeMenuRow() {
           trailing={
             <ChevronDown
               className={cn(
-                "size-5 shrink-0 transition-transform",
+                "size-5 shrink-0 motion-safe:transition-transform",
                 open && "rotate-180",
               )}
               style={{ color: "var(--row-accent)" }}
@@ -44,7 +44,10 @@ export function ChallengeMenuRow() {
       </button>
 
       {open && (
-        <div id="challenge-panel" className="mt-3">
+        <div
+          id="challenge-panel"
+          className="mt-3 border-l-2 border-player-opponent/40 pl-3 sm:pl-4"
+        >
           <NewChallengeForm />
         </div>
       )}

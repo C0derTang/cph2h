@@ -204,7 +204,9 @@ export function VideoTiles({
           showIcon={false}
           data-testid="toggle-mic"
           className={cn(
-            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-95",
+            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-95",
+            // Mute is a device state, not a judge outcome — destructive ink,
+            // never a verdict token (docs/design.md verdict-scope rule).
             !isMicrophoneEnabled && "text-destructive",
           )}
         >
@@ -220,7 +222,7 @@ export function VideoTiles({
           showIcon={false}
           data-testid="toggle-cam"
           className={cn(
-            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-95",
+            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-95",
             !isCameraEnabled && "text-destructive",
           )}
         >

@@ -73,7 +73,9 @@ export function RaceHUD({
   return (
     <div
       data-testid="race-hud"
-      className={cn("panel clip-notch flex flex-col overflow-hidden", className)}
+      // The HUD is the stage's hero plate — the ONE surface on the active race
+      // stage allowed to carry `bracket-frame` corner chrome (docs/design.md).
+      className={cn("panel bracket-frame flex flex-col overflow-hidden", className)}
     >
       <div className="ticker justify-between px-4 py-2">
         <span>race &middot; clock</span>
@@ -111,7 +113,9 @@ export function RaceHUD({
                 data-testid="race-timer"
                 className={cn(
                   "font-mono text-3xl font-semibold tabular-nums",
-                  remaining <= 120 && "text-verdict-fail",
+                  // Low time is a threat, not a judge outcome — destructive
+                  // ink, never `verdict-fail` (docs/design.md verdict-scope rule).
+                  remaining <= 120 && "text-destructive",
                 )}
               >
                 {fmtClock(remaining)}
@@ -151,7 +155,8 @@ function PresenceRow({
   label: string;
   name: string;
   present: boolean;
-  /** Which identity hue the online dot wears — self cyan vs opponent magenta. */
+  /** Which identity hue the online dot wears — self acid yellow vs opponent
+   *  crimson. Presence is identity/neutral only, never a verdict token. */
   variant: "self" | "opponent";
 }) {
   return (

@@ -8,6 +8,7 @@ import {
   Video,
   ShieldCheck,
 } from "lucide-react";
+import { HeroWord } from "@/components/hud/hero-word";
 import { MenuRowLink } from "@/components/menu/menu-row";
 
 // A real, ordered sequence — the numbered entries below carry information.
@@ -63,14 +64,28 @@ export default async function Home() {
     <main className="flex-1">
       {/* Hero — the battle poster */}
       <section className="relative overflow-hidden">
-        {/* Overhead spotlight: the ambient cyan/magenta glow pooling into the stage dark. */}
+        {/* Overhead spotlight: the ambient self/opponent identity pools over the glitch ground. */}
         <div
           aria-hidden
           className="spotlight pointer-events-none absolute inset-0 -z-10"
         />
 
+        {/* hud-meta scatter point 1/3: route marker at the hero's top edge. */}
+        <span
+          aria-hidden
+          className="hud-meta absolute top-5 right-6 md:right-8"
+        >
+          {"// route :: /"}
+        </span>
+
         <div className="shell grid gap-12 py-16 md:grid-cols-[1.05fr_1fr] md:items-center md:py-24">
-          <div className="min-w-0">
+          <div className="relative min-w-0">
+            {/* The ONE hero word for this screen — pure set dressing behind
+                the lockup; the page reads completely without it. */}
+            <HeroWord
+              word="bars"
+              className="pointer-events-none absolute -top-12 -left-2 -z-10 md:-top-16"
+            />
             <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
               <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
               1v1 competitive programming, out loud
@@ -139,7 +154,14 @@ export default async function Home() {
 
       {/* How it works — tighter than the hero/features slabs either side, so
           the page doesn't read as three uniform sections stacked. */}
-      <section className="shell border-t border-border py-12 md:py-20">
+      <section className="relative shell border-t border-border py-12 md:py-20">
+        {/* hud-meta scatter point 2/3: section index at the top-right edge. */}
+        <span
+          aria-hidden
+          className="hud-meta absolute top-5 right-6 md:right-8"
+        >
+          sec&nbsp;02&nbsp;/&nbsp;04
+        </span>
         <h2 className="font-display text-3xl tracking-tight uppercase md:text-4xl">
           How a race plays out
         </h2>
@@ -165,7 +187,7 @@ export default async function Home() {
           inline with their heading rather than stacked above it. */}
       <section className="shell border-t border-border py-20 md:py-28">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-          <div className="panel flex flex-col justify-center gap-3 p-6 md:p-8">
+          <div className="panel bracket-frame flex flex-col justify-center gap-3 p-6 md:p-8">
             <div className="flex items-center gap-3">
               <LeadFeature.icon
                 className="size-6 shrink-0 text-player-self"
@@ -214,22 +236,29 @@ export default async function Home() {
           </span>
           <span aria-hidden className="mt-1 h-0.5 w-full bg-player-self" />
         </span>
-        <p>Built for people who&apos;d rather battle than grind alone.</p>
+        <div className="flex flex-col gap-1.5 sm:items-end">
+          <p>Built for people who&apos;d rather battle than grind alone.</p>
+          {/* hud-meta scatter point 3/3: build tag in the footer corner. */}
+          <span aria-hidden className="hud-meta">
+            bld&nbsp;4.0&nbsp;·&nbsp;0708
+          </span>
+        </div>
       </footer>
     </main>
   );
 }
 
 /**
- * Reference implementation of the VS poster lockup: a matte stage panel with a
- * lower-third ticker, two corners (champion cyan vs challenger magenta) split by
- * a thin cyan rule, tall-caps names, and a live clock. Every color comes from
- * the identity + verdict tokens; the live rating/clock are `font-mono
- * tabular-nums` per the numeral rule (the display face's digits aren't tabular).
+ * Reference implementation of the VS poster lockup: a matte HUD plate with
+ * corner brackets (the hero's companion plate), a lower-third ticker, two
+ * corners (self yellow vs opponent crimson) split by a thin yellow rule,
+ * tall-caps names, and a live clock. Every color comes from the identity +
+ * verdict tokens; the live rating/clock are `font-mono tabular-nums` per the
+ * numeral rule (the display face's digits aren't tabular).
  */
 function VersusPoster() {
   return (
-    <div aria-hidden className="panel overflow-hidden">
+    <div aria-hidden className="panel bracket-frame overflow-hidden">
       {/* Top lower-third: problem + live state */}
       <div className="ticker justify-between px-4 py-2.5">
         <span>race · 1794C</span>
@@ -240,7 +269,7 @@ function VersusPoster() {
       </div>
 
       <div className="relative grid grid-cols-2">
-        {/* Center VS + the thin cyan rule between the two corners */}
+        {/* Center VS + the thin yellow rule between the two corners */}
         <div
           aria-hidden
           className="absolute inset-y-6 left-1/2 w-px -translate-x-1/2 bg-player-self/40"

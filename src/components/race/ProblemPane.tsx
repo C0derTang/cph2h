@@ -48,7 +48,7 @@ export function ProblemPane({ statement, className }: ProblemPaneProps) {
 
       {statement.samples.length > 0 && (
         <section className="flex flex-col gap-4">
-          <h2 className="font-heading text-sm font-semibold tracking-tight">
+          <h2 className="font-display text-sm font-semibold tracking-tight uppercase">
             Sample tests
           </h2>
           {statement.samples.map((sample, i) => (
@@ -62,7 +62,7 @@ export function ProblemPane({ statement, className }: ProblemPaneProps) {
 
 function SampleBlock({ index, sample }: { index: number; sample: SampleTest }) {
   return (
-    <div className="grid gap-3 rounded-lg border border-border bg-card/40 p-3 md:grid-cols-2">
+    <div className="grid gap-3 rounded-[var(--radius)] border border-border bg-card/40 p-3 md:grid-cols-2">
       <SampleIo label={`Input ${index}`} value={sample.input} />
       <SampleIo label={`Output ${index}`} value={sample.output} />
     </div>
@@ -100,7 +100,7 @@ function SampleIo({ label, value }: { label: string; value: string }) {
           {copied ? "Copied" : "Copy"}
         </Button>
       </div>
-      <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-2.5 font-mono text-xs whitespace-pre">
+      <pre className="overflow-x-auto rounded-[var(--radius)] border border-border bg-muted/40 p-2.5 font-mono text-xs whitespace-pre">
         {value}
       </pre>
     </div>

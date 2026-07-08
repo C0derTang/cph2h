@@ -88,7 +88,9 @@ export function VerdictFeed({
                 <li
                   key={`${s.userId}-${s.submittedAt}`}
                   data-testid="verdict-item"
-                  className="flex items-center justify-between gap-2 border border-border bg-muted/20 px-2.5 py-1.5 text-xs"
+                  // Hard-edged hairline row: flat inset fill, no rounding —
+                  // the HUD plate language at feed-row scale.
+                  className="flex items-center justify-between gap-2 rounded-none border border-border bg-background/40 px-2.5 py-1.5 text-xs"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     {pending ? (
@@ -100,11 +102,19 @@ export function VerdictFeed({
                     )}
                     <span className="font-medium">{who}</span>
                   </span>
-                  {/* Stencil/stamp verdict moment — data stays data (raw CF
-                      verdict string), only the frame is stamped. */}
-                  <span className={cn("stamp text-[10px]", tone)}>
-                    {pending ? "judging…" : s.verdict}
-                  </span>
+                  {/* The stamp marks a judged verdict moment ONLY (AC / WA…);
+                      a still-pending submission is not a verdict yet, so it
+                      stays plain mono. Data stays data — the raw CF verdict
+                      string is always the label, hue never carries alone. */}
+                  {pending ? (
+                    <span className={cn("shrink-0 font-mono text-[10px] uppercase tracking-[0.12em]", tone)}>
+                      judging…
+                    </span>
+                  ) : (
+                    <span className={cn("stamp shrink-0 text-[10px]", tone)}>
+                      {s.verdict}
+                    </span>
+                  )}
                 </li>
               );
             })}

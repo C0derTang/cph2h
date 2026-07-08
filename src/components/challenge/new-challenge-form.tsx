@@ -212,7 +212,7 @@ export function NewChallengeForm() {
 
   if (result) {
     return (
-      <div className="panel max-w-lg p-5">
+      <div className="panel bracket-frame max-w-lg p-5">
         <div className="flex flex-col gap-1">
           <h2 className="flex items-center gap-2 font-display text-lg tracking-tight uppercase">
             <Swords className="size-4 text-player-self" aria-hidden />
@@ -243,7 +243,7 @@ export function NewChallengeForm() {
   const submitDisabled = creating || !filtersValid || displayCount === 0;
 
   return (
-    <div className="panel max-w-lg p-5">
+    <div className="panel bracket-frame max-w-lg p-5">
       <div className="flex flex-col gap-1">
         <h2 className="font-display text-lg tracking-tight uppercase">
           Create a challenge
@@ -279,7 +279,7 @@ export function NewChallengeForm() {
           </span>
           <div className="flex items-center gap-2">
             <select
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-8 rounded-[var(--radius)] border border-border bg-background px-2 font-mono text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
               value={ratingMin ?? ""}
               onChange={(e) => setRatingMin(e.target.value ? Number(e.target.value) : null)}
               disabled={creating}
@@ -294,7 +294,7 @@ export function NewChallengeForm() {
             </select>
             <span className="text-sm text-muted-foreground">to</span>
             <select
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-8 rounded-[var(--radius)] border border-border bg-background px-2 font-mono text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
               value={ratingMax ?? ""}
               onChange={(e) => setRatingMax(e.target.value ? Number(e.target.value) : null)}
               disabled={creating}
@@ -337,7 +337,7 @@ export function NewChallengeForm() {
             <div className="flex items-center gap-2 pt-1">
               <input
                 type="date"
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-8 rounded-[var(--radius)] border border-border bg-background px-2 font-mono text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
                 value={customDateFrom}
                 onChange={(e) => setCustomDateFrom(e.target.value)}
                 disabled={creating}
@@ -346,7 +346,7 @@ export function NewChallengeForm() {
               <span className="text-sm text-muted-foreground">to</span>
               <input
                 type="date"
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-8 rounded-[var(--radius)] border border-border bg-background px-2 font-mono text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
                 value={customDateTo}
                 onChange={(e) => setCustomDateTo(e.target.value)}
                 disabled={creating}
@@ -363,13 +363,18 @@ export function NewChallengeForm() {
 
         {hasAnyFilter && filtersValid && (
           <p role="status" className="text-xs text-muted-foreground">
-            {displayCountLoading
-              ? "Checking available problems…"
-              : displayCount === null
-                ? "Couldn't check problem availability."
-                : displayCount === 0
-                  ? "No cached problems match these filters — widen the range."
-                  : `${displayCount} problem${displayCount === 1 ? "" : "s"} available.`}
+            {displayCountLoading ? (
+              "Checking available problems…"
+            ) : displayCount === null ? (
+              "Couldn't check problem availability."
+            ) : displayCount === 0 ? (
+              "No cached problems match these filters — widen the range."
+            ) : (
+              <>
+                <span className="font-mono tabular-nums">{displayCount}</span>
+                {` problem${displayCount === 1 ? "" : "s"} available.`}
+              </>
+            )}
           </p>
         )}
 

@@ -7,6 +7,7 @@ import { races, users } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { toPublicUser } from "@/lib/race/snapshot";
 import { Button } from "@/components/ui/button";
+import { HeroWord } from "@/components/hud/hero-word";
 import { JoinChallengeForm } from "./join-challenge-form";
 
 /**
@@ -90,7 +91,20 @@ export default async function JoinChallengePage({
   }
 
   return (
-    <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
+    <main className="shell-narrow relative flex flex-1 flex-col py-16 md:py-24">
+      {/* Decorative HUD layer — the challenged player answers, so the hero
+          word carries the opponent's crimson. Clipped against overflow. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="spotlight absolute inset-0" />
+        <HeroWord word="answer" tone="opponent" className="absolute top-4 -left-1" />
+      </div>
+      <span aria-hidden className="hud-meta absolute top-6 right-6 md:right-8">
+        {"//"}&nbsp;/challenge
+      </span>
+
       <p className="eyebrow text-player-opponent">Challenge</p>
 
       <div className="mt-6 flex items-start gap-4">

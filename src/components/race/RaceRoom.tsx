@@ -876,13 +876,16 @@ export function RaceRoom({
       onOpenChange={setForfeitDialogOpen}
     >
       <AlertDialog.Portal>
-        <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150" />
+        <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-background/95 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150" />
         <AlertDialog.Popup
           data-testid="forfeit-dialog"
-          className="panel fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-5 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-150"
+          className="panel border-destructive/40 fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-5 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-150"
         >
           <div className="flex flex-col gap-1.5">
-            <AlertDialog.Title className="font-display text-lg tracking-tight uppercase">
+            <AlertDialog.Title className="flex items-center gap-2 font-display text-lg tracking-tight uppercase">
+              <span aria-hidden className="warning-glyph">
+                !
+              </span>
               Throw in the towel?
             </AlertDialog.Title>
             <AlertDialog.Description className="text-sm text-muted-foreground">
@@ -1085,7 +1088,7 @@ export function RaceRoom({
         <div
           data-testid="voice-disconnected-banner"
           role="alert"
-          className="flex items-center gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
+          className="flex items-center gap-2 rounded-[var(--radius)] border border-border bg-card p-3 text-xs text-muted-foreground"
         >
           <WifiOff className="size-4 shrink-0" aria-hidden />
           Voice disconnected — reconnecting…
@@ -1095,7 +1098,7 @@ export function RaceRoom({
         <div
           data-testid="mic-revoked-banner"
           role="alert"
-          className="flex items-center gap-2 rounded-[var(--radius)] border border-verdict-fail/40 bg-verdict-fail/10 p-3 text-xs text-verdict-fail"
+          className="flex items-center gap-2 rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
         >
           <MicOff className="size-4 shrink-0" aria-hidden />
           Your mic permission was revoked. Trash talk paused — you&apos;re
@@ -1107,7 +1110,7 @@ export function RaceRoom({
         <div
           data-testid="draw-offer-banner"
           role="alert"
-          className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
+          className="flex flex-col gap-2 rounded-[var(--radius)] border border-player-opponent/40 bg-player-opponent/10 p-3 text-xs text-player-opponent"
         >
           <div className="flex items-center gap-2 font-medium">
             <Handshake className="size-4 shrink-0" aria-hidden />
@@ -1140,13 +1143,13 @@ export function RaceRoom({
         <div
           data-testid="absence-forfeit-banner"
           role="alert"
-          className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-ok/40 bg-verdict-ok/10 p-3 text-xs text-verdict-ok"
+          className="flex flex-col gap-2 rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 p-3 text-xs text-player-self"
         >
           <div className="flex items-center gap-2 font-medium">
             <WifiOff className="size-4 shrink-0" aria-hidden />
             They bailed.
           </div>
-          <p className="text-verdict-ok/90">
+          <p className="text-player-self">
             Victory in{" "}
             <span
               data-testid="absence-forfeit-seconds"
@@ -1162,13 +1165,13 @@ export function RaceRoom({
           <div
             data-testid="opponent-disconnected-banner"
             role="alert"
-            className="flex flex-col gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-3 text-xs text-verdict-pending"
+            className="flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-card p-3 text-xs text-muted-foreground"
           >
             <div className="flex items-center gap-2 font-medium">
               <WifiOff className="size-4 shrink-0" aria-hidden />
               Your opponent appears to have disconnected.
             </div>
-            <p className="text-verdict-pending/90">
+            <p className="text-muted-foreground">
               They may reconnect at any time. If they don&apos;t come back,
               you can forfeit to end the race — your opponent would be awarded
               the win.
@@ -1299,8 +1302,20 @@ export function RaceRoom({
       </span>
       {!terminal && (
         <div
+          aria-hidden
+          className="mb-2 flex items-center justify-between gap-4"
+        >
+          <span className="hud-meta">{`// race:${raceId.slice(0, 8)}`}</span>
+          <span className="hud-meta flex items-center gap-1.5">
+            <span className="size-1 rounded-full bg-current motion-safe:animate-pulse" />
+            live
+          </span>
+        </div>
+      )}
+      {!terminal && (
+        <div
           role="status"
-          className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-verdict-pending/40 bg-verdict-pending/10 p-2.5 text-xs text-verdict-pending lg:hidden"
+          className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-border bg-card p-2.5 text-xs text-muted-foreground lg:hidden"
         >
           <MonitorSmartphone className="size-4 shrink-0" aria-hidden />
           The race room is designed for larger screens — some panes may be

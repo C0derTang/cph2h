@@ -102,15 +102,29 @@ export function CfLinkForm({
     <div className="flex flex-col gap-6">
       {isLinked && (
         <div className="panel p-5">
+          {/* Link state is a permission state, not a judge outcome — neutral
+              ink, never verdict tokens (docs/design.md codified rule). */}
           <p className="flex items-center gap-2 font-display text-lg tracking-tight uppercase">
-            <CheckCircle2 className="size-4 text-verdict-ok" aria-hidden />
+            <CheckCircle2 className="size-4 text-muted-foreground" aria-hidden />
             Linked to {linkedHandle}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {linkedRating != null ? `Rating ${linkedRating}` : "Rating unavailable"}
-            {linkedAt
-              ? ` · linked ${new Date(linkedAt).toLocaleDateString()}`
-              : ""}
+            {linkedRating != null ? (
+              <>
+                Rating{" "}
+                <span className="font-mono tabular-nums">{linkedRating}</span>
+              </>
+            ) : (
+              "Rating unavailable"
+            )}
+            {linkedAt ? (
+              <>
+                {" · linked "}
+                <span className="font-mono">
+                  {new Date(linkedAt).toLocaleDateString()}
+                </span>
+              </>
+            ) : null}
           </p>
           {!relinking && (
             <Button
@@ -131,7 +145,7 @@ export function CfLinkForm({
       {showForm && !challenge && (
         <form
           onSubmit={handleStart}
-          className="panel flex flex-col gap-4 p-5"
+          className="panel bracket-frame flex flex-col gap-4 p-5"
         >
           <div className="flex flex-col gap-1.5">
             <label
@@ -149,7 +163,7 @@ export function CfLinkForm({
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
               disabled={starting}
-              className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-9 rounded-[var(--radius)] border border-border bg-background px-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -162,7 +176,13 @@ export function CfLinkForm({
           </div>
 
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <p
+              role="alert"
+              className="flex items-start gap-2 text-sm text-destructive"
+            >
+              <span className="warning-glyph mt-0.5" aria-hidden>
+                !
+              </span>
               {error}
             </p>
           )}
@@ -198,7 +218,7 @@ export function CfLinkForm({
       {showForm && challenge && (
         <div
           data-testid="cf-verify-instructions"
-          className="panel flex flex-col gap-4 p-5"
+          className="panel bracket-frame flex flex-col gap-4 p-5"
         >
           <div className="flex flex-col gap-1">
             <h2 className="font-display text-lg tracking-tight uppercase">
@@ -212,32 +232,60 @@ export function CfLinkForm({
             </p>
           </div>
 
+          {/* Step markers are hud-meta HUD chrome — aria-hidden, the <ol>
+              itself carries the ordering for assistive tech. */}
           <ol className="flex flex-col gap-2 text-sm leading-6 text-muted-foreground">
-            <li>
-              1. Open{" "}
-              <a
-                href={challenge.problemUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-player-self hover:underline"
-              >
-                {challenge.problemId} · {challenge.problemName}
-                <ExternalLink className="size-3.5" aria-hidden />
-              </a>
+            <li className="flex items-baseline gap-3">
+              <span className="hud-meta shrink-0" aria-hidden>
+                01
+              </span>
+              <span>
+                Open{" "}
+                <a
+                  href={challenge.problemUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-player-self hover:underline"
+                >
+                  <span className="font-mono">{challenge.problemId}</span> ·{" "}
+                  {challenge.problemName}
+                  <ExternalLink className="size-3.5" aria-hidden />
+                </a>
+              </span>
             </li>
-            <li>2. Submit any source that will not compile.</li>
-            <li>
-              3. Wait for the <strong>Compilation error</strong> verdict, then
-              click Check below.
+            <li className="flex items-baseline gap-3">
+              <span className="hud-meta shrink-0" aria-hidden>
+                02
+              </span>
+              <span>Submit any source that will not compile.</span>
+            </li>
+            <li className="flex items-baseline gap-3">
+              <span className="hud-meta shrink-0" aria-hidden>
+                03
+              </span>
+              <span>
+                Wait for the <strong>Compilation error</strong> verdict, then
+                click Check below.
+              </span>
             </li>
           </ol>
 
           <p className="text-xs text-muted-foreground">
-            Challenge expires {new Date(challenge.expiresAt).toLocaleTimeString()}.
+            Challenge expires{" "}
+            <span className="font-mono tabular-nums">
+              {new Date(challenge.expiresAt).toLocaleTimeString()}
+            </span>
+            .
           </p>
 
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <p
+              role="alert"
+              className="flex items-start gap-2 text-sm text-destructive"
+            >
+              <span className="warning-glyph mt-0.5" aria-hidden>
+                !
+              </span>
               {error}
             </p>
           )}

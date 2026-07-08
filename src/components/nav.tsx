@@ -24,9 +24,9 @@ const LINKS = [
 const MENU_ROUTES = new Set(["/", "/dashboard"]);
 
 /**
- * The wordmark: cph2h set in the tall condensed poster face, uppercase, with a
- * cyan champion underline rule. The old terminal-cursor motif is retired — this
- * is a marquee, not a prompt.
+ * The wordmark: cph2h set in the display face, uppercase, with a self-yellow
+ * underline rule. The old terminal-cursor motif is retired — this is a
+ * marquee, not a prompt.
  */
 function Wordmark() {
   return (
@@ -103,8 +103,8 @@ export function Nav() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-sm supports-[backdrop-filter]:bg-background/70">
-      {/* Versus rule: champion cyan meets challenger magenta across the top edge. */}
+    <header className="sticky top-0 z-40 border-b border-border bg-background/95">
+      {/* Versus rule: self yellow meets opponent crimson across the top edge. */}
       <div
         aria-hidden
         className="h-px w-full bg-gradient-to-r from-player-self via-border to-player-opponent"
@@ -126,6 +126,11 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* The nav's single hud-meta scatter point: a route marker at the
+              right edge of the bar (decorative HUD chrome, not navigation). */}
+          <span aria-hidden className="hud-meta mr-2 hidden md:inline">
+            {`// ${pathname}`}
+          </span>
           <AuthChip />
         </div>
       </div>

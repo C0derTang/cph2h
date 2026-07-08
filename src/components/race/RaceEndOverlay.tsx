@@ -11,8 +11,10 @@
  * from an observed snapshot transition (see `detectOverlayOutcome`), and all
  * values shown here come from that snapshot, never a LiveKit event payload.
  *
- * Aesthetic follows the versus-poster lockup (champion cyan / challenger
- * magenta, `stamp` display type) already used in the Lobby and ResultCard.
+ * Aesthetic follows the v4 versus lockup (self acid yellow / opponent crimson,
+ * `stamp` display type) already used in the Lobby and ResultCard: a
+ * near-opaque scrim (no backdrop-filter — retired in v4) with the slam on a
+ * bracket-framed matte plate.
  */
 
 import { useEffect } from "react";
@@ -83,58 +85,60 @@ export function RaceEndOverlay({
       role="alertdialog"
       aria-label={`${HEADLINE[outcome]} — race over`}
       onClick={onDismiss}
-      className="fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center gap-6 bg-background/85 p-6 text-center backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300"
+      className="fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center bg-background/95 p-6 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300"
     >
       <div
         aria-hidden
         className="spotlight pointer-events-none absolute inset-0 -z-10"
       />
 
-      <span className="font-mono text-[11px] tracking-[0.4em] text-muted-foreground uppercase">
-        Race over
-      </span>
+      <div className="panel bracket-frame relative flex w-full max-w-2xl flex-col items-center gap-6 px-6 py-10 sm:px-12">
+        <span className="font-mono text-[11px] tracking-[0.4em] text-muted-foreground uppercase">
+          Race over
+        </span>
 
-      <div className="flex flex-col items-center gap-3">
-        <OverlayIcon outcome={outcome} />
-        <h1
-          data-testid="race-end-headline"
-          className={cn(
-            "stamp text-6xl sm:text-7xl md:text-8xl",
-            isVictory && "text-player-self",
-            isDefeat && "text-player-opponent",
-            outcome === "draw" && "text-foreground",
-          )}
-        >
-          {HEADLINE[outcome]}
-        </h1>
-      </div>
-
-      <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-        {subheadline(outcome, opponentUsername, byForfeit)}
-      </p>
-
-      {eloDelta != null && (
-        <div className="flex flex-col items-center gap-1">
-          <span className="eyebrow text-muted-foreground">
-            Elo
-          </span>
-          <span
-            data-testid="race-end-elo"
+        <div className="flex flex-col items-center gap-3">
+          <OverlayIcon outcome={outcome} />
+          <h1
+            data-testid="race-end-headline"
             className={cn(
-              "font-mono text-4xl font-semibold tabular-nums sm:text-5xl",
-              eloDelta > 0 && "text-verdict-ok",
-              eloDelta < 0 && "text-verdict-fail",
+              "stamp text-6xl sm:text-7xl md:text-8xl",
+              isVictory && "text-player-self",
+              isDefeat && "text-player-opponent",
+              outcome === "draw" && "text-foreground",
             )}
           >
-            {eloDelta >= 0 ? "+" : ""}
-            {eloDelta}
-          </span>
+            {HEADLINE[outcome]}
+          </h1>
         </div>
-      )}
 
-      <span className="eyebrow text-muted-foreground/70">
-        Click to continue
-      </span>
+        <p className="max-w-md text-sm text-muted-foreground sm:text-base">
+          {subheadline(outcome, opponentUsername, byForfeit)}
+        </p>
+
+        {eloDelta != null && (
+          <div className="flex flex-col items-center gap-1">
+            <span className="eyebrow text-muted-foreground">
+              Elo
+            </span>
+            <span
+              data-testid="race-end-elo"
+              className={cn(
+                "font-mono text-4xl font-semibold tabular-nums sm:text-5xl",
+                eloDelta > 0 && "text-verdict-ok",
+                eloDelta < 0 && "text-verdict-fail",
+              )}
+            >
+              {eloDelta >= 0 ? "+" : ""}
+              {eloDelta}
+            </span>
+          </div>
+        )}
+
+        <span className="eyebrow text-muted-foreground/70">
+          Click to continue
+        </span>
+      </div>
     </div>
   );
 }

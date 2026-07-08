@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Swords, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HeroWord } from "@/components/hud/hero-word";
 import { SlabButton } from "@/components/menu/slab-button";
 import { QUEUE_POLL_INTERVAL_MS, type QueueStatusResponse } from "@/lib/types";
 
@@ -139,7 +140,11 @@ export default function QueuePage() {
   const searching = phase === "searching" || phase === "matched";
 
   return (
-    <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
+    <main className="shell-narrow relative flex flex-1 flex-col py-16 md:py-24">
+      <HeroWord
+        word="seek"
+        className="pointer-events-none absolute -left-1 top-5 -z-10"
+      />
       <div className="ticker rounded-[var(--radius)] px-4 py-2">
         <Swords className="size-3.5" aria-hidden />
         Quick match
@@ -153,7 +158,15 @@ export default function QueuePage() {
         for a live 1v1. The rating band widens the longer you wait.
       </p>
 
-      <div className="panel mt-10 p-5">
+      <div className="panel bracket-frame relative mt-10 p-5">
+        {searching && (
+          <span
+            aria-hidden
+            className="hud-meta pointer-events-none absolute right-4 top-2.5 hidden sm:block"
+          >
+            {"// scan.active"}
+          </span>
+        )}
         <p className="font-display text-lg tracking-tight uppercase">
           {searching ? "Searching for an opponent…" : "Ready when you are"}
         </p>
@@ -213,7 +226,7 @@ export default function QueuePage() {
             ) : (
               <>
                 <SlabButton tone="neutral" size="lg" disabled>
-                  <LoaderCircle className="animate-spin" aria-hidden />
+                  <LoaderCircle className="motion-safe:animate-spin" aria-hidden />
                   {phase === "matched" ? "Opponent found." : "Searching…"}
                 </SlabButton>
                 <SlabButton

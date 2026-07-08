@@ -93,19 +93,27 @@ export function JoinChallengeForm({
   }
 
   return (
-    <div className="panel max-w-lg p-5">
+    <div className="panel bracket-frame max-w-lg p-5">
       <div className="flex flex-col gap-1">
         <h2 className="font-display text-lg tracking-tight uppercase">
           {challenger.username}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Elo {challenger.elo}
-          {challenger.cfHandle ? ` · ${challenger.cfHandle}` : ""}
+          Elo <span className="font-mono tabular-nums">{challenger.elo}</span>
+          {challenger.cfHandle ? (
+            <>
+              {" · "}
+              <span className="font-mono">{challenger.cfHandle}</span>
+            </>
+          ) : null}
         </p>
       </div>
       <div className="mt-4 flex flex-col gap-4">
         <Badge variant="outline" className="w-fit">
-          {Math.round(timeLimitSec / 60)} min race
+          <span className="font-mono tabular-nums">
+            {Math.round(timeLimitSec / 60)}
+          </span>{" "}
+          min race
         </Badge>
 
         {error && (

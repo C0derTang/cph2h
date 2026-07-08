@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Swords, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HeroWord } from "@/components/hud/hero-word";
 import {
   getLeaderboardPage,
   parsePositiveInt,
@@ -15,7 +16,11 @@ import {
 
 function EmptyLeaderboard() {
   return (
-    <div className="shell py-12">
+    <div className="shell relative py-12">
+      <HeroWord
+        word="ladder"
+        className="pointer-events-none absolute -left-2 top-4 -z-10"
+      />
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <Trophy className="h-12 w-12 text-player-self" />
         <h1 className="font-display text-2xl tracking-tight uppercase">
@@ -78,7 +83,17 @@ function LeaderboardTable({
   );
 
   return (
-    <div className="shell py-8">
+    <div className="shell relative py-8">
+      <HeroWord
+        word="ladder"
+        className="pointer-events-none absolute -left-2 -top-4 -z-10"
+      />
+      <span
+        aria-hidden
+        className="hud-meta pointer-events-none absolute bottom-2 right-8 hidden sm:block"
+      >
+        {"// elo.desc"}
+      </span>
       <div
         className={cn(
           "mb-8 flex flex-wrap gap-4",
@@ -89,14 +104,14 @@ function LeaderboardTable({
         {currentEntry && (
           <div className="stat-plate flex items-center gap-3 px-4 py-2.5">
             <span className="eyebrow text-muted-foreground">Your rank</span>
-            <span className="font-display text-2xl font-semibold tabular-nums text-player-self">
+            <span className="font-mono text-2xl font-semibold tabular-nums text-player-self">
               #{currentEntry.rank}
             </span>
           </div>
         )}
       </div>
 
-      <div className="panel overflow-hidden">
+      <div className="panel bracket-frame overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[32rem] text-sm">
             <thead>
@@ -123,7 +138,7 @@ function LeaderboardTable({
                         : "hover:bg-muted/50"
                     )}
                   >
-                    <td className="px-4 py-3 font-display text-lg font-semibold tabular-nums">
+                    <td className="px-4 py-3 font-mono text-sm font-semibold tabular-nums">
                       {entry.rank}
                       {entry.user.racesPlayed < 10 && (
                         <sup className="ml-0.5 font-mono text-[10px] font-normal text-muted-foreground">

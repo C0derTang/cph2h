@@ -13,6 +13,7 @@ import Link from "next/link";
 import { Frown, Handshake, Minus, Swords, Trophy } from "lucide-react";
 
 import { SlabButton } from "@/components/menu/slab-button";
+import { HeroWord } from "@/components/hud/hero-word";
 import { cn } from "@/lib/utils";
 import type { RaceSnapshot } from "@/lib/types";
 
@@ -77,8 +78,22 @@ export function ResultCard({
   return (
     <div
       data-testid="result-card"
-      className={cn("panel clip-notch w-full max-w-lg overflow-hidden", className)}
+      className={cn(
+        "panel clip-notch relative w-full max-w-lg overflow-hidden",
+        className,
+      )}
     >
+      {/* The screen's ONE hero word (docs/design.md placement map: result →
+          "bodied", self on win / opponent on loss, none for draw/aborted).
+          A dimmed graffiti wash behind the stamp — clip-notch's stacking
+          context keeps -z-10 above the plate fill but under all content. */}
+      {(result === "win" || result === "loss") && (
+        <HeroWord
+          word="bodied"
+          tone={result === "win" ? "self" : "opponent"}
+          className="pointer-events-none absolute top-6 left-1/2 -z-10 -translate-x-1/2 whitespace-nowrap opacity-25"
+        />
+      )}
       <div className="ticker justify-between px-4 py-2.5">
         <span>race &middot; result</span>
         <span className="flex items-center gap-1.5">
