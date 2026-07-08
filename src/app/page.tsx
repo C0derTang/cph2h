@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import {
   LayoutGrid,
@@ -9,7 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { HeroWord } from "@/components/hud/hero-word";
-import { MenuRowLink } from "@/components/menu/menu-row";
+import { SlabButton } from "@/components/menu/slab-button";
 
 // A real, ordered sequence — the numbered entries below carry information.
 const STEPS = [
@@ -78,77 +79,88 @@ export default async function Home() {
           {"// route :: /"}
         </span>
 
-        <div className="shell grid gap-12 py-16 md:grid-cols-[1.05fr_1fr] md:items-center md:py-24">
-          <div className="relative min-w-0">
-            {/* The ONE hero word for this screen — pure set dressing behind
-                the lockup; the page reads completely without it. */}
-            <HeroWord
-              word="bars"
-              className="pointer-events-none absolute -top-12 -left-2 -z-10 md:-top-16"
-            />
-            <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
-              <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
-              1v1 competitive programming, out loud
-            </p>
-            <h1 className="mt-5 font-display text-[2.15rem] leading-[1] tracking-tight text-balance uppercase sm:text-6xl sm:leading-[0.9] md:text-7xl lg:text-8xl">
-              Same problem.
-              <br />
-              Same clock.
-              <br />
-              <span className="text-player-self">Catch these bars.</span>
-            </h1>
-            <p className="mt-6 max-w-lg text-base leading-7 text-muted-foreground md:text-lg">
-              cph2h drops you and one opponent into a live Codeforces problem
-              with your cameras on. First correct verdict takes the race — and
-              the Elo. Shittalk your way to a higher rating.
-            </p>
+        <div className="shell flex flex-col items-center py-16 text-center md:py-20">
+          <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
+            <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
+            1v1 competitive programming, out loud
+          </p>
 
-            {/* Entry actions in the same slab-row language as the signed-in
-                main menu (issue #124). */}
-            <div className="mt-8 flex flex-col gap-3">
-              {userId ? (
-                <>
-                  <MenuRowLink
-                    href="/queue"
-                    accent="var(--player-self)"
-                    icon={Swords}
-                    label="Find a race"
-                    tagline="Jump into the queue and get matched"
-                  />
-                  <MenuRowLink
-                    href="/dashboard"
-                    accent="var(--player-opponent)"
-                    icon={LayoutGrid}
-                    label="Main menu"
-                    tagline="Your hub — challenges, ladder, and settings"
-                  />
-                </>
-              ) : (
-                <>
-                  <MenuRowLink
-                    href="/sign-up"
-                    accent="var(--player-self)"
-                    icon={UserPlus}
-                    label="Sign up"
-                    tagline="Create an account and link Codeforces to race"
-                  />
-                  <MenuRowLink
-                    href="/sign-in"
-                    accent="var(--player-opponent)"
-                    icon={LogIn}
-                    label="Sign in"
-                    tagline="Already have an account? Pick up where you left off"
-                  />
-                </>
-              )}
-            </div>
+          {/* The neon graffiti wordmark IS the hero — the ONE hero word for
+              this screen. It stays decorative (aria-hidden); the sr-only h1
+              carries the name for assistive tech, so the page reads
+              completely without it. */}
+          <h1 className="sr-only">cph2h</h1>
+          <HeroWord word="cph2h" className="mt-2 block" />
 
-            <p className="mt-6 font-mono text-[11px] tracking-wide text-muted-foreground">
-              40-minute clock · matched by rating · ranked Elo
-            </p>
+          <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
+            cph2h drops you and one opponent into a live Codeforces problem
+            with your cameras on. First correct verdict takes the race — and
+            the Elo. Shittalk your way to a higher rating.
+          </p>
+
+          {/* Entry actions — everything is one click from here. */}
+          <div className="mt-8 flex w-full max-w-md flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-stretch sm:justify-center">
+            {userId ? (
+              <>
+                <SlabButton
+                  tone="self"
+                  size="lg"
+                  render={<Link href="/queue" />}
+                  nativeButton={false}
+                >
+                  <Swords className="size-5" aria-hidden />
+                  Find a race
+                </SlabButton>
+                <SlabButton
+                  tone="neutral"
+                  size="lg"
+                  render={<Link href="/challenge/new" />}
+                  nativeButton={false}
+                >
+                  <UserPlus className="size-5" aria-hidden />
+                  Challenge a friend
+                </SlabButton>
+                <SlabButton
+                  tone="neutral"
+                  size="lg"
+                  render={<Link href="/dashboard" />}
+                  nativeButton={false}
+                >
+                  <LayoutGrid className="size-5" aria-hidden />
+                  Main menu
+                </SlabButton>
+              </>
+            ) : (
+              <>
+                <SlabButton
+                  tone="self"
+                  size="lg"
+                  render={<Link href="/sign-up" />}
+                  nativeButton={false}
+                >
+                  <UserPlus className="size-5" aria-hidden />
+                  Sign up
+                </SlabButton>
+                <SlabButton
+                  tone="neutral"
+                  size="lg"
+                  render={<Link href="/sign-in" />}
+                  nativeButton={false}
+                >
+                  <LogIn className="size-5" aria-hidden />
+                  Sign in
+                </SlabButton>
+              </>
+            )}
           </div>
 
-          <VersusPoster />
+          <p className="mt-6 font-mono text-[11px] tracking-wide text-muted-foreground">
+            40-minute clock · matched by rating · ranked Elo
+          </p>
+
+          <div className="mt-12 w-full max-w-xl">
+            <VersusPoster />
+          </div>
         </div>
       </section>
 
