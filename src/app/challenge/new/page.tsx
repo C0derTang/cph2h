@@ -23,16 +23,17 @@ export default async function NewChallengePage() {
 
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
-      <p className="eyebrow text-muted-foreground">New challenge</p>
-
-      <div className="mt-6 flex items-start gap-4">
+      <div className="flex items-start gap-4">
         <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
           <UserPlus className="size-5" aria-hidden />
         </div>
         <div>
-          <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
-            Challenge a friend
-          </h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
+              Challenge a friend
+            </h1>
+            <span className="eyebrow text-player-self">1v1</span>
+          </div>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
             Generate a private race link and send it to a specific opponent.
           </p>

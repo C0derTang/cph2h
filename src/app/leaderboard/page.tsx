@@ -62,18 +62,38 @@ function LeaderboardTable({
   currentUserId: string | null | undefined;
 }) {
   const currentPage = data.page;
+  const currentEntry = currentUserId
+    ? data.entries.find((entry) => entry.user.id === currentUserId)
+    : undefined;
+
+  const heading = (
+    <div>
+      <h1 className="font-display text-4xl tracking-tight uppercase md:text-5xl">
+        The Ladder
+      </h1>
+      <p className="text-muted-foreground">
+        Ranked by Elo. Climb it or get climbed.
+      </p>
+    </div>
+  );
 
   return (
     <div className="shell py-8">
-      <div className="mb-8 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-4xl tracking-tight uppercase md:text-5xl">
-            The Ladder
-          </h1>
-          <p className="text-muted-foreground">
-            Ranked by Elo. Climb it or get climbed.
-          </p>
-        </div>
+      <div
+        className={cn(
+          "mb-8 flex flex-wrap gap-4",
+          currentEntry ? "items-end justify-between" : "items-start"
+        )}
+      >
+        {heading}
+        {currentEntry && (
+          <div className="stat-plate flex items-center gap-3 px-4 py-2.5">
+            <span className="eyebrow text-muted-foreground">Your rank</span>
+            <span className="font-display text-2xl font-semibold tabular-nums text-player-self">
+              #{currentEntry.rank}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="panel overflow-hidden">
@@ -125,7 +145,7 @@ function LeaderboardTable({
                       </div>
                     </td>
 
-                    <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">
+                    <td className="hidden px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground sm:table-cell">
                       {entry.user.cfHandle ? (
                         <>
                           {entry.user.cfHandle}
@@ -158,7 +178,11 @@ function LeaderboardTable({
       {data.pages > 1 && (
         <div className="mt-6 flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Page {data.page} of {data.pages} ({data.total} total)
+            Page{" "}
+            <span className="font-mono tabular-nums">{data.page}</span> of{" "}
+            <span className="font-mono tabular-nums">{data.pages}</span> (
+            <span className="font-mono tabular-nums">{data.total}</span>{" "}
+            total)
           </div>
           <div className="flex gap-2">
             {currentPage > 1 && (

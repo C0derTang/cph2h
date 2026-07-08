@@ -140,22 +140,18 @@ export default function QueuePage() {
 
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
-      <p className="eyebrow text-muted-foreground">Quick match</p>
-
-      <div className="mt-6 flex items-start gap-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
-          <Swords className="size-5" aria-hidden />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
-            Find a race
-          </h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
-            Queue up and we&apos;ll match you with an opponent near your rating
-            for a live 1v1. The rating band widens the longer you wait.
-          </p>
-        </div>
+      <div className="ticker rounded-[var(--radius)] px-4 py-2">
+        <Swords className="size-3.5" aria-hidden />
+        Quick match
       </div>
+
+      <h1 className="mt-6 font-display text-3xl tracking-tight uppercase md:text-4xl">
+        Find a race
+      </h1>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
+        Queue up and we&apos;ll match you with an opponent near your rating
+        for a live 1v1. The rating band widens the longer you wait.
+      </p>
 
       <div className="panel mt-10 p-5">
         <p className="font-display text-lg tracking-tight uppercase">
@@ -163,8 +159,8 @@ export default function QueuePage() {
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {searching
-            ? "Keep this tab open — you'll be dropped into the race automatically."
-            : "We'll pair you with someone close to your Elo, then start a countdown."}
+            ? "Keep this tab open — you’ll be dropped into the race automatically."
+            : "We’ll pair you with someone close to your Elo, then start a countdown."}
         </p>
 
         <div className="mt-6 flex flex-col gap-6">
