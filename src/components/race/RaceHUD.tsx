@@ -129,11 +129,12 @@ export function RaceHUD({
         )}
 
         <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs">
-          <PresenceRow label="You" name={you.username} present />
+          <PresenceRow label="You" name={you.username} present variant="self" />
           <PresenceRow
             label="Opponent"
             name={opponent?.username ?? "—"}
             present={Boolean(opponent) && opponentPresent !== false}
+            variant="opponent"
           />
         </div>
       </div>
@@ -145,10 +146,13 @@ function PresenceRow({
   label,
   name,
   present,
+  variant,
 }: {
   label: string;
   name: string;
   present: boolean;
+  /** Which identity hue the online dot wears — self cyan vs opponent magenta. */
+  variant: "self" | "opponent";
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -156,7 +160,9 @@ function PresenceRow({
         className={cn(
           "size-2 shrink-0",
           present
-            ? "fill-verdict-ok text-verdict-ok"
+            ? variant === "self"
+              ? "fill-player-self text-player-self"
+              : "fill-player-opponent text-player-opponent"
             : "fill-muted-foreground/40 text-muted-foreground/40",
         )}
         aria-hidden

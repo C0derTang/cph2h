@@ -91,7 +91,6 @@ export function Lobby({
   const [tickNow, setTickNow] = useState(() => Date.now());
   const notifiedActiveRef = useRef(false);
   const fetchedOnceRef = useRef(Boolean(initialSnapshot));
-  const seenOpponentIdRef = useRef<string | null>(initialSnapshot?.p2?.id ?? null);
   // Clock skew (ms) between the local machine and the server, recomputed on
   // every snapshot receipt (see `src/lib/race/countdown.ts`) — the countdown
   // display must never trust a skewed local clock. Kept as state (read
@@ -120,16 +119,14 @@ export function Lobby({
   // Applies any freshly-received `RaceSnapshot` — whether from the polling
   // `refresh()` fetch or a direct action response (`handleReady`,
   // `handleCancel`, `handleSaveFilters`) — through one path so clock-skew
-  // correction and the "opponent joined" toast happen on every snapshot
-  // receipt, not just the poll (mirrors `RaceRoom`'s `applySnapshot`; issue
-  // #75 — previously the action handlers set the snapshot directly and never
-  // recomputed skew, so a stale skew could linger through ready/cancel).
+  // correction happens on every snapshot receipt, not just the poll (mirrors
+  // `RaceRoom`'s `applySnapshot`; issue #75 — previously the action handlers
+  // set the snapshot directly and never recomputed skew, so a stale skew
+  // could linger through ready/cancel). Opponent-joined is surfaced by the VS
+  // lockup flipping from "Waiting to join…" rather than a redundant toast
+  // (issue #141).
   const applySnapshot = useCallback((data: RaceSnapshot) => {
     setSkewMs(computeSkewMs(data.now, Date.now()));
-    if (data.p2 && !seenOpponentIdRef.current) {
-      toast.success(`${data.p2.username} joined — get ready!`);
-    }
-    seenOpponentIdRef.current = data.p2?.id ?? seenOpponentIdRef.current;
     setSnapshot(data);
   }, []);
 
@@ -207,7 +204,7 @@ export function Lobby({
       }
       applySnapshot(data as RaceSnapshot);
     } catch {
-      const message = "Couldn't mark ready — check your connection and try again.";
+      const message = "Couldn’t mark ready — check your connection and try again.";
       setError(message);
       toast.error(message);
     } finally {
@@ -232,7 +229,7 @@ export function Lobby({
       }
       applySnapshot(data as RaceSnapshot);
     } catch {
-      const message = "Couldn't cancel the race — check your connection and try again.";
+      const message = "Couldn’t cancel the race — check your connection and try again.";
       setError(message);
       toast.error(message);
     } finally {
@@ -276,10 +273,9 @@ export function Lobby({
         buildJoinUrl(window.location.origin, snapshot.challengeToken),
       );
       setCopied(true);
-      toast.success("Link copied to clipboard.");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Couldn't copy — your browser may be blocking clipboard access.");
+      toast.error("Couldn’t copy — your browser may be blocking clipboard access.");
     }
   }
 
@@ -519,7 +515,7 @@ function CompeteGate({
         <span
           className={cn(
             "flex items-center gap-1.5 text-sm",
-            micOk ? "text-verdict-ok" : "text-verdict-fail",
+            micOk ? "text-foreground" : "text-destructive",
           )}
           data-testid="mic-requirement"
         >
@@ -549,7 +545,7 @@ function CompeteGate({
         <span
           className={cn(
             "shrink-0",
-            opponentVolume.volumeAudible ? "text-verdict-ok" : "text-verdict-fail",
+            opponentVolume.volumeAudible ? "text-foreground" : "text-destructive",
           )}
           data-testid="volume-requirement"
         >
@@ -628,7 +624,16 @@ function PlayerRow({
         )}
       </div>
       {user && (
-        <Badge variant={ready ? "verdict-ok" : "verdict-pending"}>
+        <Badge
+          variant={ready ? "default" : "outline"}
+          className={cn(
+            ready &&
+              (isSelf
+                ? "border-transparent bg-player-self text-player-self-foreground"
+                : "border-transparent bg-player-opponent text-player-opponent-foreground"),
+            !ready && "text-muted-foreground",
+          )}
+        >
           {ready ? "Ready" : "Not ready"}
         </Badge>
       )}
