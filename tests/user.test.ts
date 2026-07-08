@@ -192,7 +192,7 @@ describe("ensureUser", () => {
     await ensureUser();
     expect(insertValuesMock).toHaveBeenLastCalledWith({
       clerkId: "clerk-c",
-      username: "c",
+      username: "c_",
     });
   });
 

@@ -13,10 +13,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, type User } from "@/lib/db/schema";
-import { emailLocalPart } from "@/lib/username";
-
-/** Fallback username when Clerk has no username, first name, or email. */
-export const DEFAULT_USERNAME = "racer";
+import { DEFAULT_USERNAME, emailLocalPart } from "@/lib/username";
 
 /**
  * Resolve the signed-in Clerk user to their `users` row, creating it on
