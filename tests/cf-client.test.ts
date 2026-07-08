@@ -148,4 +148,35 @@ describe("courtesy rate limiting", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await pending;
   });
+
+  it("aborts a queued request without spending a later limiter slot", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ status: "OK", result: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getUserStatus } = await importClient();
+
+    const first = getUserStatus("alice");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const controller = new AbortController();
+    const queued = getUserStatus("bob", undefined, undefined, { signal: controller.signal });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    controller.abort();
+    await expect(queued).rejects.toMatchObject({ name: "AbortError" });
+
+    const third = getUserStatus("carol");
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const requestedUrl = new URL(fetchMock.mock.calls[1][0] as string);
+    expect(requestedUrl.searchParams.get("handle")).toBe("carol");
+
+    await Promise.all([first, third]);
+  });
 });

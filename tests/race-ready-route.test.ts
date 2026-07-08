@@ -10,7 +10,7 @@
  * still transitions with a concrete, non-null problem id.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Race } from "../src/lib/db/schema";
 import type { SessionResult } from "../src/lib/race/session";
 import type { SelectProblemResult } from "../src/lib/types";
@@ -170,6 +170,7 @@ function mockSessionAs(userId: string) {
 }
 
 beforeEach(() => {
+  vi.useRealTimers();
   requireLinkedUserMock.mockReset();
   selectRaceProblemMock.mockReset();
   publishRaceEventMock.mockClear();
@@ -183,6 +184,10 @@ beforeEach(() => {
   dbState.updateIndex = 0;
   dbState.playerRows = [];
   mockSessionAs(P1);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("POST /api/races/[id]/ready — success path", () => {
@@ -210,9 +215,11 @@ describe("POST /api/races/[id]/ready — success path", () => {
     expect(refreshSeenProblemsMock).toHaveBeenCalledTimes(2);
     expect(refreshSeenProblemsMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: P1 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(refreshSeenProblemsMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: P2 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     // The transition update carries a real problem id and clears any reason.
     expect(updateSetMock).toHaveBeenCalledWith(
@@ -289,6 +296,43 @@ describe("POST /api/races/[id]/ready — solve-history refresh (issue #69)", () 
     const res = await POST(req(), { params });
 
     expect(res.status).toBe(200);
+    expect(selectRaceProblemMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts queued refreshes when the ready-path soft budget expires", async () => {
+    vi.useFakeTimers();
+    const race = makeRace({ p2Ready: true });
+    const afterReady = { ...race, p1Ready: true };
+    const started = { ...afterReady, status: "active" as const, problemId: "1794C" };
+    dbState.playerRows = [
+      { id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null, solveHistoryImportCursor: null },
+      { id: P2, cfHandle: "p2cf", solveHistorySyncedAt: null, solveHistoryImportCursor: null },
+    ];
+    queueSelects([[race]]);
+    queueUpdates([[afterReady], [started]]);
+    selectRaceProblemMock.mockResolvedValue({ ok: true, problemId: "1794C" });
+
+    const signals: AbortSignal[] = [];
+    refreshSeenProblemsMock.mockImplementation((_player, options?: { signal?: AbortSignal }) => {
+      if (options?.signal) signals.push(options.signal);
+      return new Promise<void>((resolve) => {
+        options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+    });
+
+    const pending = POST(req(), { params });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(signals).toHaveLength(2);
+
+    await vi.advanceTimersByTimeAsync(3499);
+    expect(selectRaceProblemMock).not.toHaveBeenCalled();
+    expect(signals.every((signal) => !signal.aborted)).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const res = await pending;
+
+    expect(res.status).toBe(200);
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
     expect(selectRaceProblemMock).toHaveBeenCalledTimes(1);
   });
 });

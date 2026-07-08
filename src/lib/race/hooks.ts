@@ -142,7 +142,10 @@ export const selectRaceProblem: SelectRaceProblem = async (race) => {
 // #69 — incremental solve-history refresh (freshness for problem exclusion)
 // ---------------------------------------------------------------------------
 
-export type RefreshSeenProblems = (user: SolveHistoryUser) => Promise<void>;
+export type RefreshSeenProblems = (
+  user: SolveHistoryUser,
+  options?: { signal?: AbortSignal },
+) => Promise<void>;
 
 /**
  * Best-effort, per-player refresh of `user_problems` right before problem
