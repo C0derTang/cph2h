@@ -5,9 +5,14 @@
  *
  * Client-only. Every exported entry point guards `typeof window ===
  * "undefined"` and is wrapped so it can never throw — a synth glitch or an
- * autoplay-policy rejection must never break the race UI around it. Not unit
- * tested (per the issue: "do not attempt to test AudioContext"); the pure,
- * testable logic (prefs, transition detection) lives in sibling modules.
+ * autoplay-policy rejection must never break the race UI around it. The
+ * synth recipes themselves are not unit tested (per the issue: "do not
+ * attempt to test AudioContext"); the pure, testable logic (prefs,
+ * transition detection) lives in sibling modules. `initAudioGestures` /
+ * `unlockAudioContext` (issue #131) ARE unit tested with a mocked
+ * `window`/`AudioContext` constructor — see `tests/audio-engine.test.ts` —
+ * since their gesture-timing/idempotency behavior is exactly the bug this
+ * module previously had.
  */
 
 import { readBgmEnabled, readSfxEnabled } from "@/lib/audio/prefs";
@@ -31,7 +36,13 @@ function getAudioContextCtor(): AudioContextCtor | null {
   return w.AudioContext ?? w.webkitAudioContext ?? null;
 }
 
-/** Lazily create (or return) the singleton `AudioContext` + master gain. */
+/** Lazily create (or return) the singleton `AudioContext` + master gain.
+ *  Kept as a fallback creation path for call sites (`playSfx`/`startBgm`)
+ *  that may run before `initAudioGestures` has had a qualifying gesture —
+ *  the primary unlock path is now `initAudioGestures`/`unlockAudioContext`
+ *  below, called eagerly from a mount effect so real user gestures create
+ *  the context *during* user activation instead of from a timer/poll
+ *  callback (see module doc + issue #131). */
 function getContext(): { ctx: AudioContext; gain: GainNode } | null {
   if (typeof window === "undefined") return null;
   if (audioContext && masterGain) return { ctx: audioContext, gain: masterGain };
@@ -44,7 +55,7 @@ function getContext(): { ctx: AudioContext; gain: GainNode } | null {
     gain.connect(ctx.destination);
     audioContext = ctx;
     masterGain = gain;
-    attachGestureResume(ctx);
+    initAudioGestures();
     return { ctx, gain };
   } catch {
     return null;
@@ -52,23 +63,52 @@ function getContext(): { ctx: AudioContext; gain: GainNode } | null {
 }
 
 /**
- * Browsers suspend a freshly-created `AudioContext` until a user gesture.
- * Rather than requiring every call site to remember to resume, attach a
- * one-time-per-gesture-type resume listener the first time the engine is
- * touched at all.
+ * Create-or-resume the singleton `AudioContext` from an *actual* user
+ * gesture. Creating an `AudioContext` synchronously inside a user-activation
+ * event (or resuming an already-created one) starts it running immediately
+ * under the browser autoplay policy — unlike creating it lazily from a
+ * timer/poll callback, which is born `suspended` and stays that way.
+ *
+ * Exported so any real gesture handler (the eager listeners below, or an
+ * explicit click like an `AudioControls` toggle) can unlock audio. Client
+ * -only, idempotent in effect, and never throws.
  */
-function attachGestureResume(ctx: AudioContext): void {
-  if (gestureListenersAttached || typeof window === "undefined") return;
-  gestureListenersAttached = true;
-  const resume = () => {
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {
+export function unlockAudioContext(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const context = getContext();
+    if (!context) return;
+    if (context.ctx.state === "suspended") {
+      context.ctx.resume().catch(() => {
         // Best-effort — the next gesture will retry.
       });
     }
-  };
-  window.addEventListener("pointerdown", resume, { passive: true });
-  window.addEventListener("keydown", resume);
+  } catch {
+    // Never throw.
+  }
+}
+
+/**
+ * Eagerly attach `pointerdown`/`keydown` listeners that unlock the
+ * `AudioContext` (see `unlockAudioContext`). Call this once, as early as
+ * possible — a mount effect in `RaceAudio`/`AudioControls` — so the
+ * listeners exist from the lobby onward, *before* any sound is attempted.
+ * The first qualifying gesture (e.g. the READY click) then unlocks audio
+ * for the whole session, instead of the context being created for the
+ * first time by a non-gesture callback and staying suspended forever.
+ *
+ * Idempotent (safe to call from multiple mount points), client-only, and
+ * never throws.
+ */
+export function initAudioGestures(): void {
+  if (typeof window === "undefined" || gestureListenersAttached) return;
+  gestureListenersAttached = true;
+  try {
+    window.addEventListener("pointerdown", unlockAudioContext, { passive: true });
+    window.addEventListener("keydown", unlockAudioContext);
+  } catch {
+    // Never throw.
+  }
 }
 
 function safeResume(ctx: AudioContext): void {

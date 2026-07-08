@@ -12,7 +12,7 @@
  * not just on the next race).
  */
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { Music, Volume1, VolumeX } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ import {
   writeBgmEnabled,
   writeSfxEnabled,
 } from "@/lib/audio/prefs";
-import { stopBgm } from "@/lib/audio/engine";
+import { initAudioGestures, stopBgm, unlockAudioContext } from "@/lib/audio/engine";
 
 export interface AudioPrefs {
   sfxEnabled: boolean;
@@ -98,11 +98,24 @@ export function AudioToggleButtons({ className, testIdSuffix }: AudioToggleButto
   const sfxTestId = testIdSuffix ? `toggle-sfx-${testIdSuffix}` : "toggle-sfx";
   const bgmTestId = testIdSuffix ? `toggle-bgm-${testIdSuffix}` : "toggle-bgm";
 
+  // Belt-and-braces gesture unlock (issue #131): these buttons may mount
+  // before RaceAudio (e.g. the lobby), so attach the eager listeners here
+  // too — idempotent, so mounting both is harmless.
+  useEffect(() => {
+    initAudioGestures();
+  }, []);
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <button
         type="button"
-        onClick={() => setSfxEnabled(!sfxEnabled)}
+        onClick={() => {
+          // A toggle click is itself a real user gesture and explicit intent
+          // to hear sound — unlock directly rather than waiting on the next
+          // qualifying gesture the eager listeners would catch anyway.
+          unlockAudioContext();
+          setSfxEnabled(!sfxEnabled);
+        }}
         aria-pressed={sfxEnabled}
         aria-label={sfxEnabled ? "Mute sound effects" : "Unmute sound effects"}
         title={sfxEnabled ? "Sound effects on" : "Sound effects muted"}
@@ -120,7 +133,10 @@ export function AudioToggleButtons({ className, testIdSuffix }: AudioToggleButto
       </button>
       <button
         type="button"
-        onClick={() => setBgmEnabled(!bgmEnabled)}
+        onClick={() => {
+          unlockAudioContext();
+          setBgmEnabled(!bgmEnabled);
+        }}
         aria-pressed={bgmEnabled}
         aria-label={bgmEnabled ? "Mute music" : "Unmute music"}
         title={bgmEnabled ? "Music on" : "Music muted"}
