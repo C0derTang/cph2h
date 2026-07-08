@@ -1,7 +1,14 @@
-import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { Video, Trophy, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  LayoutGrid,
+  LogIn,
+  Swords,
+  Trophy,
+  UserPlus,
+  Video,
+  ShieldCheck,
+} from "lucide-react";
+import { MenuRowLink } from "@/components/menu/menu-row";
 
 // A real, ordered sequence — the numbered entries below carry information.
 const STEPS = [
@@ -47,7 +54,6 @@ const FEATURES = [
 
 export default async function Home() {
   const { userId } = await auth();
-  const primaryHref = userId ? "/queue" : "/sign-up";
 
   return (
     <main className="flex-1">
@@ -78,14 +84,44 @@ export default async function Home() {
               the Elo. Shittalk your way to a higher rating.
             </p>
 
-            <div className="mt-8">
-              <Button
-                render={<Link href={primaryHref} />}
-                nativeButton={false}
-                size="lg"
-              >
-                Find a race
-              </Button>
+            {/* Entry actions in the same slab-row language as the signed-in
+                main menu (issue #124). */}
+            <div className="mt-8 flex flex-col gap-3">
+              {userId ? (
+                <>
+                  <MenuRowLink
+                    href="/queue"
+                    accent="var(--player-self)"
+                    icon={Swords}
+                    label="Find a race"
+                    tagline="Jump into the queue and get matched"
+                  />
+                  <MenuRowLink
+                    href="/dashboard"
+                    accent="var(--player-opponent)"
+                    icon={LayoutGrid}
+                    label="Main menu"
+                    tagline="Your hub — challenges, ladder, and settings"
+                  />
+                </>
+              ) : (
+                <>
+                  <MenuRowLink
+                    href="/sign-up"
+                    accent="var(--player-self)"
+                    icon={UserPlus}
+                    label="Sign up"
+                    tagline="Create an account and link Codeforces to race"
+                  />
+                  <MenuRowLink
+                    href="/sign-in"
+                    accent="var(--player-opponent)"
+                    icon={LogIn}
+                    label="Sign in"
+                    tagline="Already have an account? Pick up where you left off"
+                  />
+                </>
+              )}
             </div>
 
             <p className="mt-6 font-mono text-[11px] tracking-wide text-muted-foreground">
