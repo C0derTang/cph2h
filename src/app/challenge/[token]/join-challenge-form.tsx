@@ -54,7 +54,7 @@ export function JoinChallengeForm({
         return;
       }
       const snapshot = data as RaceSnapshot;
-      toast.success("Joined the race!");
+      toast.success("You’re in. Go.");
       router.push(`/race/${snapshot.id}`);
     } catch {
       setError("Network error — please try again.");
