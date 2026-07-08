@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SlabButton } from "@/components/menu/slab-button";
 import { Badge } from "@/components/ui/badge";
 import type { PublicUser, RaceSnapshot } from "@/lib/types";
 
@@ -127,13 +128,19 @@ export function JoinChallengeForm({
         )}
 
         {isTerminalJoinError(errorCode) ? (
-          <Button render={<Link href="/queue" />} nativeButton={false} variant="outline">
+          <SlabButton
+            tone="neutral"
+            className="w-fit"
+            render={<Link href="/queue" />}
+            nativeButton={false}
+          >
             Find another race
-          </Button>
+          </SlabButton>
         ) : (
-          <div className="flex gap-2">
-            <Button
+          <div className="flex flex-wrap gap-2">
+            <SlabButton
               type="button"
+              tone="self"
               onClick={handleJoin}
               disabled={joining || declining}
             >
@@ -145,10 +152,10 @@ export function JoinChallengeForm({
               ) : (
                 "Join race"
               )}
-            </Button>
-            <Button
+            </SlabButton>
+            <SlabButton
               type="button"
-              variant="outline"
+              tone="neutral"
               onClick={handleDecline}
               disabled={joining || declining}
               data-testid="decline-challenge-btn"
@@ -161,7 +168,7 @@ export function JoinChallengeForm({
               ) : (
                 "Decline"
               )}
-            </Button>
+            </SlabButton>
           </div>
         )}
       </div>

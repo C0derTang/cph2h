@@ -33,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SlabButton } from "@/components/menu/slab-button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -416,8 +417,11 @@ export function Lobby({
         )}
 
         {snapshot.status === "ready" && (
-          <Button
+          <SlabButton
             type="button"
+            tone="self"
+            size="lg"
+            className="w-full"
             onClick={handleReady}
             disabled={readying || cancelling || youReady || !meetsCompeteGate}
             data-testid="ready-btn"
@@ -434,14 +438,14 @@ export function Lobby({
             ) : (
               "I'm ready"
             )}
-          </Button>
+          </SlabButton>
         )}
 
         {(snapshot.status === "pending" || snapshot.status === "ready") && (
-          <Button
+          <SlabButton
             type="button"
-            variant="outline"
-            className="text-destructive"
+            tone="destructive"
+            className="w-full"
             onClick={handleCancel}
             disabled={cancelling || readying}
             data-testid="cancel-challenge-btn"
@@ -454,7 +458,7 @@ export function Lobby({
             ) : (
               "Throw in the towel"
             )}
-          </Button>
+          </SlabButton>
         )}
 
         {error && (

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Geist, Geist_Mono, Anton } from "next/font/google";
+import { Geist, Geist_Mono, Chakra_Petch } from "next/font/google";
 import { Nav } from "@/components/nav";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -19,13 +19,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Display face — tall condensed poster. Powers hero lockups, the wordmark, VS
-// names, and stamps via `font-display` / `font-heading` (see globals.css
-// @theme). Single weight (400); it is already a heavy, all-caps letterform.
-const anton = Anton({
-  variable: "--font-anton",
+// Display / UI face — Chakra Petch, a squared techno-grotesque with a gaming-HUD
+// cadence (the neon-glass + tetr.io energy). Powers headings, the game-menu slab
+// rows, slab buttons, the wordmark, VS names, and verdict stamps via
+// `font-display` / `font-heading` (see globals.css @theme). Multiple weights so
+// the same face carries both quiet UI labels (500/600) and loud lockups (700).
+const chakraPetch = Chakra_Petch({
+  variable: "--font-chakra-petch",
   subsets: ["latin"],
-  weight: ["400"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -43,10 +45,10 @@ export default function RootLayout({
     <ClerkProvider afterSignOutUrl="/">
       {/* The dark "stage" is the hero theme; the light "daytime cypher" palette
           stays fully defined for a future toggle. Fonts: sans=body, mono=data +
-          live numbers, anton=poster display. */}
+          live numbers, Chakra Petch=display/UI. */}
       <html
         lang="en"
-        className={`dark ${geistSans.variable} ${geistMono.variable} ${anton.variable} h-full antialiased`}
+        className={`dark ${geistSans.variable} ${geistMono.variable} ${chakraPetch.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
           <Nav />

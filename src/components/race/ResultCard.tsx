@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { Frown, Handshake, Minus, Swords, Trophy } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { SlabButton } from "@/components/menu/slab-button";
 import { cn } from "@/lib/utils";
 import type { RaceSnapshot } from "@/lib/types";
 
@@ -163,22 +163,25 @@ export function ResultCard({
         </div>
       </div>
 
-      <div className="flex gap-2 border-t border-border p-5">
-        <Button
+      <div className="flex flex-col gap-2 border-t border-border p-5 sm:flex-row">
+        <SlabButton
+          tone="self"
+          className="flex-1"
           render={<Link href="/challenge/new" />}
           nativeButton={false}
           data-testid="rematch-btn"
         >
           <Swords aria-hidden />
           Rematch
-        </Button>
-        <Button
-          variant="outline"
+        </SlabButton>
+        <SlabButton
+          tone="neutral"
+          className="flex-1"
           render={<Link href="/dashboard" />}
           nativeButton={false}
         >
           Back to dashboard
-        </Button>
+        </SlabButton>
       </div>
     </div>
   );

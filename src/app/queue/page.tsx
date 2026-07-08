@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Swords, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SlabButton } from "@/components/menu/slab-button";
 import { QUEUE_POLL_INTERVAL_MS, type QueueStatusResponse } from "@/lib/types";
 
 type Phase = "idle" | "searching" | "matched" | "error";
@@ -209,26 +210,26 @@ export default function QueuePage() {
             </div>
           )}
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {!searching ? (
-              <Button onClick={findRace} size="lg">
+              <SlabButton tone="self" size="lg" onClick={findRace}>
                 <Swords aria-hidden />
                 Find a race
-              </Button>
+              </SlabButton>
             ) : (
               <>
-                <Button variant="outline" size="lg" disabled>
+                <SlabButton tone="neutral" size="lg" disabled>
                   <LoaderCircle className="animate-spin" aria-hidden />
                   {phase === "matched" ? "Match found!" : "Searching…"}
-                </Button>
-                <Button
-                  variant="ghost"
+                </SlabButton>
+                <SlabButton
+                  tone="destructive"
                   size="lg"
                   onClick={leaveQueue}
                   disabled={phase === "matched"}
                 >
                   Leave queue
-                </Button>
+                </SlabButton>
               </>
             )}
           </div>

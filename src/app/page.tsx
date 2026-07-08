@@ -66,12 +66,12 @@ export default async function Home() {
         />
 
         <div className="shell grid gap-12 py-16 md:grid-cols-[1.05fr_1fr] md:items-center md:py-24">
-          <div>
+          <div className="min-w-0">
             <p className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
               <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
               1v1 competitive programming, out loud
             </p>
-            <h1 className="mt-5 font-display text-6xl leading-[0.9] tracking-tight uppercase sm:text-7xl md:text-8xl">
+            <h1 className="mt-5 font-display text-[2.15rem] leading-[1] tracking-tight text-balance uppercase sm:text-6xl sm:leading-[0.9] md:text-7xl lg:text-8xl">
               Same problem.
               <br />
               Same clock.
