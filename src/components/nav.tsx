@@ -113,17 +113,21 @@ export function Nav() {
       <div className="shell flex h-16 items-center justify-between gap-4">
         <Wordmark />
 
-        <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
-          {LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="eyebrow text-muted-foreground transition-colors hover:text-player-self"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        {/* App links are signed-in only — a signed-out visitor's destinations
+            are the auth chip's Sign in / Sign up, not the app IA. */}
+        <Show when="signed-in">
+          <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
+            {LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="eyebrow text-muted-foreground transition-colors hover:text-player-self"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </Show>
 
         <div className="flex items-center gap-2">
           {/* The nav's single hud-meta scatter point: a route marker at the
@@ -135,20 +139,22 @@ export function Nav() {
         </div>
       </div>
 
-      <nav
-        aria-label="Primary"
-        className="shell flex items-center gap-6 overflow-x-auto border-t border-border py-2 md:hidden"
-      >
-        {LINKS.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="shrink-0 eyebrow text-muted-foreground transition-colors hover:text-player-self"
-          >
-            {link.label}
-          </Link>
-        ))}
-      </nav>
+      <Show when="signed-in">
+        <nav
+          aria-label="Primary"
+          className="shell flex items-center gap-6 overflow-x-auto border-t border-border py-2 md:hidden"
+        >
+          {LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="shrink-0 eyebrow text-muted-foreground transition-colors hover:text-player-self"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      </Show>
     </header>
   );
 }
