@@ -14,7 +14,7 @@
  * architecture rule.
  */
 
-import type { RaceSnapshot, RaceStatus } from "@/lib/types";
+import type { RaceSnapshot, RaceStatus, RaceSubmissionInfo } from "@/lib/types";
 
 export type OverlayOutcome = "victory" | "defeat" | "draw" | "none";
 
@@ -45,4 +45,14 @@ export function detectOverlayOutcome(
   if (next.outcome === "draw") return "draw";
   if (next.winnerId == null) return "draw";
   return next.winnerId === youId ? "victory" : "defeat";
+}
+
+export function winnerHasAcceptedSubmission(
+  winnerId: string | null,
+  submissions: RaceSubmissionInfo[],
+): boolean {
+  return (
+    winnerId != null &&
+    submissions.some((s) => s.userId === winnerId && s.verdict === "OK")
+  );
 }

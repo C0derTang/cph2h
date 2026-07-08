@@ -8,7 +8,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { detectOverlayOutcome } from "../src/lib/race/overlay";
+import {
+  detectOverlayOutcome,
+  winnerHasAcceptedSubmission,
+} from "../src/lib/race/overlay";
 import type { PublicUser, RaceOutcome, RaceSnapshot, RaceStatus } from "../src/lib/types";
 
 const YOU = "user-you";
@@ -155,5 +158,52 @@ describe("detectOverlayOutcome", () => {
         YOU,
       ),
     ).toBe("defeat");
+  });
+});
+
+describe("winnerHasAcceptedSubmission", () => {
+  it("ignores earlier wrong submissions when classifying a forfeit win", () => {
+    expect(
+      winnerHasAcceptedSubmission(YOU, [
+        {
+          userId: YOU,
+          cfSubmissionId: 123,
+          verdict: "WRONG_ANSWER",
+          submittedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  it("detects an accepted winner submission", () => {
+    expect(
+      winnerHasAcceptedSubmission(YOU, [
+        {
+          userId: YOU,
+          cfSubmissionId: 123,
+          verdict: "WRONG_ANSWER",
+          submittedAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          userId: YOU,
+          cfSubmissionId: 124,
+          verdict: "OK",
+          submittedAt: "2026-01-01T00:01:00.000Z",
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it("treats a null winner as unsolved for defensive draw rendering", () => {
+    expect(
+      winnerHasAcceptedSubmission(null, [
+        {
+          userId: YOU,
+          cfSubmissionId: 124,
+          verdict: "OK",
+          submittedAt: "2026-01-01T00:01:00.000Z",
+        },
+      ]),
+    ).toBe(false);
   });
 });

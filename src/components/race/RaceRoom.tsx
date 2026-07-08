@@ -74,7 +74,11 @@ import {
 } from "@/lib/race/presence";
 import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
 import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
-import { detectOverlayOutcome, type OverlayOutcome } from "@/lib/race/overlay";
+import {
+  detectOverlayOutcome,
+  winnerHasAcceptedSubmission,
+  type OverlayOutcome,
+} from "@/lib/race/overlay";
 import { shouldKeepCallMounted } from "@/lib/race/call-persistence";
 
 interface RaceRoomProps {
@@ -242,14 +246,13 @@ export function RaceRoom({
     const viewerIsP1 = snapshot.p1.id === currentUserId;
     const opp = viewerIsP1 ? snapshot.p2 : snapshot.p1;
     const eloDelta = viewerIsP1 ? snapshot.eloDeltaP1 : snapshot.eloDeltaP2;
-    // A "solve" win has a recorded CF submission by the winner; its absence
-    // means the win came by forfeit / absence, which the overlay phrases
-    // differently. Draws are never a forfeit variant.
-    const solved =
-      snapshot.winnerId != null &&
-      snapshot.submissions.some(
-        (s) => s.userId === snapshot.winnerId && s.cfSubmissionId != null,
-      );
+    // A "solve" win has an accepted CF submission by the winner; earlier
+    // wrong submissions still count as a forfeit / absence win for copy.
+    // Draws are never a forfeit variant.
+    const solved = winnerHasAcceptedSubmission(
+      snapshot.winnerId,
+      snapshot.submissions,
+    );
     setOverlay({
       outcome,
       opponentUsername: opp?.username ?? null,
