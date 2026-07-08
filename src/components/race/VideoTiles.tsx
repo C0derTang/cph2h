@@ -142,7 +142,7 @@ export function VideoTiles({
             role="status"
             className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground"
           >
-            <UserRound className="size-16 animate-pulse" aria-hidden />
+            <UserRound className="size-16 motion-safe:animate-pulse" aria-hidden />
             <span className="eyebrow">
               Waiting to connect…
             </span>
@@ -204,7 +204,7 @@ export function VideoTiles({
           showIcon={false}
           data-testid="toggle-mic"
           className={cn(
-            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium transition-colors hover:bg-muted",
+            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-95",
             !isMicrophoneEnabled && "text-destructive",
           )}
         >
@@ -220,7 +220,7 @@ export function VideoTiles({
           showIcon={false}
           data-testid="toggle-cam"
           className={cn(
-            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium transition-colors hover:bg-muted",
+            "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-background text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-95",
             !isCameraEnabled && "text-destructive",
           )}
         >

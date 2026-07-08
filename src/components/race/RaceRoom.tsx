@@ -30,6 +30,7 @@ import {
   useDataChannel,
   useRemoteParticipants,
 } from "@livekit/components-react";
+import { AlertDialog } from "@base-ui/react/alert-dialog";
 import {
   Check,
   ExternalLink,
@@ -103,6 +104,13 @@ const DISCONNECT_GRACE_MS = 20_000;
  *  with a manual retry — a single blip is normal and shouldn't alarm anyone. */
 const POLL_FAILURE_THRESHOLD = 3;
 
+/** Anti-flash debounce (issue #140) before the "pulling up the problem"
+ *  spinner icon shows: a sub-threshold unlock (the problem snapshot landing
+ *  right as the countdown flips) would otherwise pop the spinner in and back
+ *  out within a frame, reading as a flicker rather than a loading state. The
+ *  accompanying text is NOT debounced — the region is never empty. */
+const PROBLEM_SPINNER_SHOW_DELAY_MS = 150;
+
 /** Build the Codeforces submit page URL for a contest problem. */
 function cfSubmitUrl(contestId: number): string {
   return `https://codeforces.com/contest/${contestId}/submit`;
@@ -119,6 +127,10 @@ export function RaceRoom({
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [opponentLive, setOpponentLive] = useState(true);
   const [forfeiting, setForfeiting] = useState(false);
+  // Themed forfeit confirm (issue #140, replacing `window.confirm`): the
+  // "Throw in the towel" action opens this dialog instead of forfeiting
+  // directly; the dialog's own confirm button runs the actual mutation.
+  const [forfeitDialogOpen, setForfeitDialogOpen] = useState(false);
   const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
   // Stamped (local `Date.now()`) on every successful verdict-poll response —
@@ -492,23 +504,21 @@ export function RaceRoom({
         toast.info("Checked — no new verdict yet.");
       }
     } catch {
-      toast.error("Couldn't reach the server. Try again.");
+      toast.error("Couldn’t reach the server. Try again.");
     } finally {
       setChecking(false);
     }
   }, [checking, raceId, refetch, applySnapshot]);
 
   // --- Forfeit (existing abort route; caller forfeits, opponent wins) ----
+  // The destructive confirm now lives in the themed `forfeitDialogOpen`
+  // AlertDialog below (issue #140, replacing `window.confirm`) — the
+  // "Throw in the towel" action bar button only opens it; this callback is
+  // the dialog's own confirm action and runs the same forfeit mutation with
+  // the same semantics as before.
   const handleForfeit = useCallback(async () => {
     if (forfeiting) return;
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Throw in the towel? Your opponent takes the win.",
-      )
-    ) {
-      return;
-    }
+    setForfeitDialogOpen(false);
     setForfeiting(true);
     try {
       const res = await fetch(`/api/races/${raceId}/abort`, { method: "POST" });
@@ -517,7 +527,7 @@ export function RaceRoom({
         applySnapshot(data);
         toast.info("You threw in the towel.");
       } else {
-        toast.error("Couldn't forfeit — try again.");
+        toast.error("Couldn’t forfeit — try again.");
       }
     } catch {
       toast.error("Couldn't reach the server. Try again.");
@@ -543,7 +553,10 @@ export function RaceRoom({
           if (action === "offer") {
             toast.info("Draw offer sent.");
           } else if (action === "accept") {
-            toast.success("Draw agreed.");
+            // Downgraded from `toast.success` (issue #140): the outcome is
+            // immediately visible in the result screen, so a success toast is
+            // redundant — kept as a quiet info confirmation only.
+            toast.info("Draw agreed.");
           } else {
             toast.info("Draw offer cleared.");
           }
@@ -617,6 +630,36 @@ export function RaceRoom({
     const timer = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [status]);
+
+  // --- Anti-flash guard for the "pulling up the problem" spinner (#140) ---
+  // Computed independently of the render-time `countdownEnded`/`problem`
+  // locals below (those are derived after this component's early returns,
+  // which hooks can't follow) from the same underlying snapshot/skew state.
+  // A real ~150ms debounce in an effect: while the problem is locked past the
+  // skew-corrected start, arm a timer that flips the spinner icon visible; a
+  // sub-threshold unlock (the snapshot with the problem lands right as the
+  // countdown flips) cleans the timer up before it fires, so the icon never
+  // flashes. Only the ICON is debounced — the loading region itself renders
+  // the "Pulling up the problem…" text immediately, so it is never empty.
+  // The state is only ever set inside the timer callback (never synchronously
+  // in the effect body — the set-state-in-effect lint rule), and needs no
+  // reset path: `snapshot.problem` never returns to null once present, so
+  // `problemLoadingNow` is one-way false after the unlock and the loading
+  // branch that reads `showProblemSpinner` is gone from the tree.
+  const startedAtMsRaw = snapshot.startedAt ? Date.parse(snapshot.startedAt) : null;
+  const problemLoadingNow =
+    startedAtMsRaw != null &&
+    correctedNow(skewMs, nowTick) >= startedAtMsRaw &&
+    snapshot.problem == null;
+  const [showProblemSpinner, setShowProblemSpinner] = useState(false);
+  useEffect(() => {
+    if (!problemLoadingNow) return;
+    const timer = setTimeout(
+      () => setShowProblemSpinner(true),
+      PROBLEM_SPINNER_SHOW_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [problemLoadingNow]);
 
   const isP1 = currentUserId === snapshot.p1.id;
   const you = isP1 ? snapshot.p1 : snapshot.p2 ?? snapshot.p1;
@@ -795,7 +838,7 @@ export function RaceRoom({
           type="button"
           tone="destructive"
           className="ml-auto"
-          onClick={handleForfeit}
+          onClick={() => setForfeitDialogOpen(true)}
           disabled={forfeiting}
           data-testid="forfeit-btn"
         >
@@ -815,6 +858,64 @@ export function RaceRoom({
         and we detect the verdict automatically.
       </p>
     </div>
+  );
+
+  // Themed forfeit confirm (issue #140) — replaces the native
+  // `window.confirm`. `panel` surface + `SlabButton` actions per the design
+  // system; base-ui's AlertDialog forces `modal: true` and disables outside-
+  // press dismissal (can't accidentally lose the irreversible confirm), traps
+  // focus inside the popup, and closes on Escape (a plain `onOpenChange`
+  // close, same as Cancel — never forfeits). Cancel is the first tabbable
+  // element in the popup, so base-ui's default `initialFocus` (the first
+  // tabbable element) lands on it without any extra wiring. Copy is
+  // unchanged from the old `window.confirm`, just split across the dialog's
+  // title/description slots.
+  const forfeitDialog = (
+    <AlertDialog.Root
+      open={forfeitDialogOpen}
+      onOpenChange={setForfeitDialogOpen}
+    >
+      <AlertDialog.Portal>
+        <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150" />
+        <AlertDialog.Popup
+          data-testid="forfeit-dialog"
+          className="panel fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-5 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-150"
+        >
+          <div className="flex flex-col gap-1.5">
+            <AlertDialog.Title className="font-display text-lg tracking-tight uppercase">
+              Throw in the towel?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="text-sm text-muted-foreground">
+              Your opponent takes the win.
+            </AlertDialog.Description>
+          </div>
+          <div className="flex justify-end gap-2">
+            <SlabButton
+              type="button"
+              tone="neutral"
+              data-testid="forfeit-dialog-cancel"
+              onClick={() => setForfeitDialogOpen(false)}
+            >
+              Cancel
+            </SlabButton>
+            <SlabButton
+              type="button"
+              tone="destructive"
+              data-testid="forfeit-dialog-confirm"
+              onClick={() => void handleForfeit()}
+              disabled={forfeiting}
+            >
+              {forfeiting ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <Flag aria-hidden />
+              )}
+              {forfeiting ? "Throwing in the towel…" : "Throw in the towel"}
+            </SlabButton>
+          </div>
+        </AlertDialog.Popup>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   );
 
   // Center stage — the opponent's face under the spotlight is the dominant
@@ -855,6 +956,7 @@ export function RaceRoom({
         </div>
       )}
       {actions}
+      {forfeitDialog}
     </section>
   );
 
@@ -909,7 +1011,9 @@ export function RaceRoom({
           role="status"
           className="flex flex-1 items-center justify-center gap-2 text-center text-sm text-muted-foreground"
         >
-          <Loader2 className="size-4 animate-spin" aria-hidden />
+          {showProblemSpinner && (
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+          )}
           Pulling up the problem…
         </div>
       ) : (
@@ -948,7 +1052,9 @@ export function RaceRoom({
               role="status"
               className="flex items-center gap-2 text-xs text-muted-foreground"
             >
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              {showProblemSpinner && (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              )}
               Pulling up the problem…
             </div>
           ) : (
