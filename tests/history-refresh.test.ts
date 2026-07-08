@@ -178,19 +178,9 @@ describe("importSolveHistoryIncremental — pagination cutoff", () => {
     expect(getUserStatusMock).toHaveBeenNthCalledWith(1, HANDLE, 1, 1000);
     expect(getUserStatusMock).toHaveBeenNthCalledWith(2, HANDLE, 1001, 1000);
 
-    // Still stamps on success even though the cap (not the cutoff) ended the walk —
-    // but to the OLDEST PROCESSED submission's time, not `now` (issue #81): the
-    // cap hit before the cutoff means there's an un-imported gap between this
-    // stamp and the real `syncedAt`, so the next refresh must still see it as
-    // unsynced and pick it back up.
+    // The cap ended the walk, so progress is stored as a cursor instead of moving the cutoff stamp.
     expect(dbState.updateCalls).toHaveLength(1);
-    const stampedAt = dbState.updateCalls[0].values.solveHistorySyncedAt as Date;
-    expect(stampedAt).toBeInstanceOf(Date);
-    // Oldest processed submission is the last row of the last (2nd) full page:
-    // pageIndex=1, seq=1999, creationTimeSeconds = 10_000_000 - 1999.
-    expect(stampedAt.getTime()).toBe((10_000_000 - 1999) * 1000);
-    // And that stamp is well before "now" — it must not be the wall-clock time.
-    expect(stampedAt.getTime()).toBeLessThan(Date.now() - 1000);
+    expect(dbState.updateCalls[0].values).toEqual({ solveHistoryImportCursor: 2001 });
   });
 
   it("stamps solveHistorySyncedAt = now when the cutoff is reached (not capped)", async () => {
@@ -208,23 +198,12 @@ describe("importSolveHistoryIncremental — pagination cutoff", () => {
     const stampedAt = dbState.updateCalls[0].values.solveHistorySyncedAt as Date;
     expect(stampedAt.getTime()).toBeGreaterThanOrEqual(before);
     expect(stampedAt.getTime()).toBeLessThanOrEqual(after);
+    expect(dbState.updateCalls[0].values.solveHistoryImportCursor).toBeNull();
   });
 
-  it("self-heals: the cap-hit stamp stays stale so the next ready-up re-syncs, instead of falsely reporting complete like a `now` stamp would", async () => {
-    // Note: MAX_INCREMENTAL_PAGES hard-caps every single call at 2 pages
-    // (position 1-2000) regardless of the cutoff passed in — the cutoff only
-    // controls how much of THAT window is treated as already-synced, not
-    // which page range gets fetched. So the fix's self-healing property
-    // isn't "a later call reaches deeper pages in one shot"; it's that the
-    // row never gets marked artificially fresh. A stale stamp means
-    // `refreshSolveHistoryIfStale` keeps re-attempting the sync on every
-    // ready-up (making incremental progress and staying honest about
-    // incompleteness) instead of silently reporting success and going quiet
-    // for the whole staleness window while the gap sits unaddressed.
-
-    // Run 1: cap hit before the cutoff, so it stamps to the oldest processed
-    // submission's time rather than `now`.
-    const originalSyncedAt = new Date(0); // never synced before, far in the past
+  it("converges across repeated cap hits by resuming from the stored cursor", async () => {
+    // Run 1 caps out after two pages and stores the next offset.
+    const originalSyncedAt = new Date(1000 * 1000);
     getUserStatusMock.mockImplementation((_handle, from = 1) => {
       const pageIndex = Math.floor((from - 1) / 1000);
       return Promise.resolve(fullPage(pageIndex, 10_000_000));
@@ -232,35 +211,31 @@ describe("importSolveHistoryIncremental — pagination cutoff", () => {
 
     await importSolveHistoryIncremental(USER_ID, HANDLE, originalSyncedAt);
     expect(getUserStatusMock).toHaveBeenCalledTimes(2);
-    const cappedStamp = dbState.updateCalls[0].values.solveHistorySyncedAt as Date;
-    // Sanity: the gap between the real syncedAt and the cap-hit stamp is
-    // real — there was more (older) history this run never reached.
-    expect(cappedStamp.getTime()).toBeGreaterThan(originalSyncedAt.getTime());
+    expect(getUserStatusMock).toHaveBeenNthCalledWith(1, HANDLE, 1, 1000);
+    expect(getUserStatusMock).toHaveBeenNthCalledWith(2, HANDLE, 1001, 1000);
+    expect(dbState.updateCalls[0].values).toEqual({ solveHistoryImportCursor: 2001 });
 
-    // The capped stamp is a real (ancient, in this fixture) submission time,
-    // not `now` — so it reads as immediately stale.
-    expect(isSolveHistoryStale(cappedStamp)).toBe(true);
-    // Contrast: had the old bug stamped `now` instead, the row would look
-    // freshly, fully synced and `refreshSolveHistoryIfStale` would skip
-    // entirely for the whole staleness window — silently masking the
-    // un-imported gap until it's too late (the next cutoff would already be
-    // past it, per issue #81).
-    expect(isSolveHistoryStale(new Date())).toBe(false);
-
-    // Because it's stale, the very next ready-up actually re-runs the sync
-    // rather than no-op'ing — proving the row isn't silently marked complete.
+    // Run 2 resumes at the stored offset and reaches the original cutoff.
     getUserStatusMock.mockReset();
-    getUserStatusMock.mockResolvedValueOnce([]); // nothing further to fetch this attempt
+    getUserStatusMock.mockResolvedValueOnce([
+      sub(2001, 5000),
+      sub(2002, 4000),
+      sub(2003, 900),
+    ]);
     dbState.updateCalls = [];
 
-    await refreshSolveHistoryIfStale({
-      id: USER_ID,
-      cfHandle: HANDLE,
-      solveHistorySyncedAt: cappedStamp,
-    });
+    const before = Date.now();
+    await importSolveHistoryIncremental(USER_ID, HANDLE, originalSyncedAt, 2001);
+    const after = Date.now();
 
     expect(getUserStatusMock).toHaveBeenCalledTimes(1);
+    expect(getUserStatusMock).toHaveBeenCalledWith(HANDLE, 2001, 1000);
     expect(dbState.updateCalls).toHaveLength(1);
+    const values = dbState.updateCalls[0].values;
+    expect(values.solveHistoryImportCursor).toBeNull();
+    const stampedAt = values.solveHistorySyncedAt as Date;
+    expect(stampedAt.getTime()).toBeGreaterThanOrEqual(before);
+    expect(stampedAt.getTime()).toBeLessThanOrEqual(after);
   });
 
   it("falls back to the full import path when syncedAt is null", async () => {
@@ -276,6 +251,7 @@ describe("importSolveHistoryIncremental — pagination cutoff", () => {
     expect(getUserStatusMock).toHaveBeenCalledWith(HANDLE, 1, 1000);
     expect(dbState.updateCalls).toHaveLength(1);
     expect(dbState.updateCalls[0].values.solveHistorySyncedAt).toBeInstanceOf(Date);
+    expect(dbState.updateCalls[0].values.solveHistoryImportCursor).toBeNull();
 
     const recordedProblemIds = dbState.insertBatches
       .flat()

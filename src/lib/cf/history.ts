@@ -35,14 +35,10 @@ const MAX_HISTORY_PAGES = 20;
  * runs on the ready-request path where CF's rate limit and a soft timeout
  * both apply.
  *
- * If this cap is hit before the cutoff is reached (a user with more than
- * `MAX_INCREMENTAL_PAGES * HISTORY_PAGE_SIZE` submissions since the last
- * sync), `importSolveHistoryIncremental` stamps `solveHistorySyncedAt` to
- * the oldest *processed* submission's `creationTimeSeconds` instead of
- * `now`. That leaves the un-imported gap (everything older than what this
- * run reached, down to the real `syncedAt`) still "unsynced", so the next
- * ready-time refresh picks it up instead of the gap being silently and
- * permanently skipped.
+ * If this cap is hit before the cutoff is reached, the import stores the next
+ * `user.status` offset in `solveHistoryImportCursor` and leaves
+ * `solveHistorySyncedAt` unchanged. Later refreshes continue from that offset
+ * until the original cutoff is reached, then stamp `now` and clear the cursor.
  */
 const MAX_INCREMENTAL_PAGES = 2;
 /** Batch size for `user_problems` upserts. */
@@ -85,9 +81,19 @@ async function upsertAttempts(userId: string, attempts: Map<string, boolean>): P
   }
 }
 
-/** Stamp `users.solve_history_synced_at = now` after a successful import. */
-async function stampSyncedAt(userId: string, now: Date): Promise<void> {
-  await db.update(users).set({ solveHistorySyncedAt: now }).where(eq(users.id, userId));
+function normalizeImportCursor(cursor: number | null): number {
+  if (cursor === null || !Number.isSafeInteger(cursor) || cursor < 1) return 1;
+  return cursor;
+}
+
+async function updateImportState(
+  userId: string,
+  state: {
+    solveHistorySyncedAt?: Date;
+    solveHistoryImportCursor?: number | null;
+  },
+): Promise<void> {
+  await db.update(users).set(state).where(eq(users.id, userId));
 }
 
 /**
@@ -134,39 +140,40 @@ export async function importSolveHistory(userId: string, handle: string): Promis
  * falls back to the existing full walk (`importSolveHistory`) so the very
  * first refresh still captures complete history.
  *
- * Stamps `users.solveHistorySyncedAt` on success in both branches: `now` when
- * the walk genuinely caught up (cutoff reached, or CF's history exhausted),
- * or the oldest *processed* submission's `creationTimeSeconds` when
- * {@link MAX_INCREMENTAL_PAGES} was hit first — see the comment on that
- * constant for why. Can throw (CF/API/db errors) — callers on the ready path
- * must guard with a timeout/try-catch (see `refreshSolveHistoryIfStale`).
+ * Stamps `users.solveHistorySyncedAt` to `now` when the walk genuinely caught
+ * up (cutoff reached, or CF's history exhausted) and clears any stored cursor.
+ * If the page cap is hit first, leaves the original cutoff stamp untouched and
+ * stores the next page offset so a later refresh continues the unfinished gap.
+ * Can throw (CF/API/db errors); ready-path callers must guard with a
+ * timeout/try-catch (see `refreshSolveHistoryIfStale`).
  */
 export async function importSolveHistoryIncremental(
   userId: string,
   handle: string,
   syncedAt: Date | null,
+  importCursor: number | null = null,
 ): Promise<void> {
   const now = new Date();
 
   if (syncedAt === null) {
     await importSolveHistory(userId, handle);
-    await stampSyncedAt(userId, now);
+    await updateImportState(userId, {
+      solveHistorySyncedAt: now,
+      solveHistoryImportCursor: null,
+    });
     return;
   }
 
   const cutoffSec = Math.floor(syncedAt.getTime() / 1000);
+  const startFrom = normalizeImportCursor(importCursor);
   const attempts = new Map<string, boolean>();
-  // Oldest submission actually processed this run. Pages are walked
-  // newest-first, so this is simply the last submission seen — overwritten
-  // each page, ending at the true minimum once the loop exits.
-  let oldestProcessedSec: number | null = null;
   // True only when the loop ran out of allowed pages while every fetched
   // page was still full and the cutoff was never found — i.e. the cap, not
   // the cutoff, ended the walk.
   let cappedOut = false;
 
   for (let page = 0; page < MAX_INCREMENTAL_PAGES; page++) {
-    const from = page * HISTORY_PAGE_SIZE + 1;
+    const from = startFrom + page * HISTORY_PAGE_SIZE;
     const submissions = await getUserStatus(handle, from, HISTORY_PAGE_SIZE);
     if (submissions.length === 0) break;
 
@@ -181,10 +188,6 @@ export async function importSolveHistoryIncremental(
       const solved = sub.verdict === "OK";
       attempts.set(problemId, (attempts.get(problemId) ?? false) || solved);
     }
-    if (pageSubmissions.length > 0) {
-      oldestProcessedSec = pageSubmissions[pageSubmissions.length - 1].creationTimeSeconds;
-    }
-
     // Hit the cutoff within this page — everything older is already synced.
     if (cutoffIndex !== -1) break;
     if (submissions.length < HISTORY_PAGE_SIZE) break;
@@ -195,7 +198,15 @@ export async function importSolveHistoryIncremental(
   }
 
   await upsertAttempts(userId, attempts);
-  const stampedAt =
-    cappedOut && oldestProcessedSec !== null ? new Date(oldestProcessedSec * 1000) : now;
-  await stampSyncedAt(userId, stampedAt);
+  if (cappedOut) {
+    await updateImportState(userId, {
+      solveHistoryImportCursor: startFrom + MAX_INCREMENTAL_PAGES * HISTORY_PAGE_SIZE,
+    });
+    return;
+  }
+
+  await updateImportState(userId, {
+    solveHistorySyncedAt: now,
+    solveHistoryImportCursor: null,
+  });
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "solve_history_import_cursor" integer;

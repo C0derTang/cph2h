@@ -202,6 +202,7 @@ async function refreshBothPlayersSeenProblems(race: Race): Promise<void> {
         id: users.id,
         cfHandle: users.cfHandle,
         solveHistorySyncedAt: users.solveHistorySyncedAt,
+        solveHistoryImportCursor: users.solveHistoryImportCursor,
       })
       .from(users)
       .where(inArray(users.id, playerIds));

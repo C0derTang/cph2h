@@ -163,6 +163,7 @@ function mockSessionAs(userId: string) {
       racesPlayed: 3,
       cppTemplate: "",
       solveHistorySyncedAt: null,
+      solveHistoryImportCursor: null,
       createdAt: null,
     },
   });
@@ -194,8 +195,8 @@ describe("POST /api/races/[id]/ready — success path", () => {
       problemId: "1794C",
     };
     dbState.playerRows = [
-      { id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null },
-      { id: P2, cfHandle: "p2cf", solveHistorySyncedAt: null },
+      { id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null, solveHistoryImportCursor: null },
+      { id: P2, cfHandle: "p2cf", solveHistorySyncedAt: null, solveHistoryImportCursor: null },
     ];
     queueSelects([[race]]);
     queueUpdates([[afterReady], [started]]);
@@ -254,8 +255,8 @@ describe("POST /api/races/[id]/ready — solve-history refresh (issue #69)", () 
     const afterReady = { ...race, p1Ready: true };
     const started = { ...afterReady, status: "active" as const, problemId: "1794C" };
     dbState.playerRows = [
-      { id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null },
-      { id: P2, cfHandle: "p2cf", solveHistorySyncedAt: null },
+      { id: P1, cfHandle: "p1cf", solveHistorySyncedAt: null, solveHistoryImportCursor: null },
+      { id: P2, cfHandle: "p2cf", solveHistorySyncedAt: null, solveHistoryImportCursor: null },
     ];
     queueSelects([[race]]);
     queueUpdates([[afterReady], [started]]);
