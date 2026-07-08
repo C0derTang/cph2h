@@ -353,7 +353,7 @@ component, never raw classes:
 ```tsx
 import { HeroWord } from "@/components/hud/hero-word";
 
-<HeroWord word="bars" />                          {/* self yellow, glitching */}
+<HeroWord word="seek" />                          {/* self yellow, glitching */}
 <HeroWord word="versus" tone="foreground" />
 <HeroWord word="link" tone="muted" glitch={false} />
 ```
@@ -528,7 +528,7 @@ listed here gets **no** hero word until this map says otherwise.
 
 | Screen | Word | Tone | Notes |
 | --- | --- | --- | --- |
-| Landing `/` | `bars` | `self` | behind/above the hero lockup |
+| Landing `/` | `cph2h` | `self` | the wordmark IS the hero (in-flow, centered); an `sr-only` `h1` carries the name for AT |
 | Dashboard | `play` | `self` | over the menu column |
 | Queue | `seek` | `self` | |
 | Leaderboard | `ladder` | `self` | |
@@ -599,15 +599,16 @@ corners on a VS surface.
   `bg-background/95` instead). On non-menu routes, add ONE `hud-meta` route
   marker at the right edge of the bar (e.g. `//&nbsp;/queue`) — the nav's
   single scatter point.
-- **Landing `/` (`src/app/page.tsx`).** `HeroWord word="bars"` (self)
-  positioned behind/above the hero lockup (absolute, behind the `h1`,
-  `-z-10` alongside the `spotlight`). The hero keeps its `h1` + tagline +
-  `MenuRowLink` slabs (entry actions) unchanged in structure. Feature tiles
-  upgrade from bare `panel` to `panel bracket-frame` (the lead tile at
-  minimum). Scatter up to three `hud-meta` corner markers (build/date/route,
-  e.g. footer corner + hero edge). The `VersusPoster` retints itself via
-  tokens; its corner brackets are allowed since it's the hero's companion
-  plate.
+- **Landing `/` (`src/app/page.tsx`).** The neon graffiti **wordmark is the
+  hero**: `HeroWord word="cph2h"` (self), in-flow and centered, with an
+  `sr-only` `h1` carrying the name for assistive tech. No display headline
+  lockup — the hero is eyebrow → graffiti wordmark → one short tagline →
+  a compact centered `SlabButton` row (every destination one click; stacks
+  full-width on mobile). The `VersusPoster` sits below as the centered
+  companion plate (corner brackets allowed). Feature tiles upgrade from bare
+  `panel` to `panel bracket-frame` (the lead tile at minimum). Scatter up to
+  three `hud-meta` corner markers (build/date/route, e.g. footer corner +
+  hero edge).
 - **Dashboard (`src/app/dashboard/page.tsx`).** `HeroWord word="play"`
   (self) over/behind the menu column. The `MenuRowLink` slab stack and the
   side rail (`IdentityPlate` panel, `stat-plate` 2×2 grid, Elo sparkline,

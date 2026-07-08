@@ -92,7 +92,9 @@ export default async function Home() {
           <h1 className="sr-only">cph2h</h1>
           <HeroWord word="cph2h" className="mt-2 block" />
 
-          <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
+          {/* mt-24 clears the graffiti "p" descender, which paints ~0.75em
+              below the word's 0.9 line box at hero scale. */}
+          <p className="mt-24 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
             cph2h drops you and one opponent into a live Codeforces problem
             with your cameras on. First correct verdict takes the race — and
             the Elo. Shittalk your way to a higher rating.

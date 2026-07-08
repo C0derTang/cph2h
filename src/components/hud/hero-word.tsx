@@ -34,18 +34,18 @@ export function HeroWord({
   glitch = true,
   className,
 }: HeroWordProps) {
+  // Outer span owns caller positioning (absolute/translate/etc.); the inner
+  // span owns the glitch. `glitch-text` sets `position: relative` for its
+  // pseudos, which would otherwise fight a caller's `absolute` for the
+  // `position` slot and knock the word back into flow.
   return (
-    <span
-      aria-hidden
-      data-text={word}
-      className={cn(
-        "hero-word",
-        glitch && "glitch-text",
-        TONE_CLASS[tone],
-        className,
-      )}
-    >
-      {word}
+    <span aria-hidden className={cn("inline-block", TONE_CLASS[tone], className)}>
+      <span
+        data-text={word}
+        className={cn("hero-word block", glitch && "glitch-text")}
+      >
+        {word}
+      </span>
     </span>
   );
 }

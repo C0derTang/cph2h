@@ -302,7 +302,9 @@ function PlayHubContent({
             <ChallengeMenuRow />
             <MenuRowLink
               href="/leaderboard"
-              accent="var(--verdict-pending)"
+              // Neutral accent: a nav destination, not a judge outcome —
+              // verdict hues are reserved for judged results (docs/design.md).
+              accent="var(--muted-foreground)"
               icon={Trophy}
               label="Leaderboard"
               tagline="Where you stand on the ranked ladder"
