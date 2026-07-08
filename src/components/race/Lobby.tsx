@@ -428,7 +428,7 @@ export function Lobby({
                 Marking ready…
               </>
             ) : youReady ? (
-              "Still catching up."
+              "They’re still catching up."
             ) : !meetsCompeteGate ? (
               "Mic on. Volume up."
             ) : (
