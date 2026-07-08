@@ -32,7 +32,7 @@ export default async function NewChallengePage() {
             <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
               Challenge a friend
             </h1>
-            <span className="stamp text-[0.65rem] text-player-self">1v1</span>
+            <span className="eyebrow text-player-self">1v1</span>
           </div>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
             Generate a private race link and send it to a specific opponent.

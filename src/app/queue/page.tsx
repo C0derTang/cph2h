@@ -160,7 +160,7 @@ export default function QueuePage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {searching
             ? "Keep this tab open — you’ll be dropped into the race automatically."
-            : "We'll pair you with someone close to your Elo, then start a countdown."}
+            : "We’ll pair you with someone close to your Elo, then start a countdown."}
         </p>
 
         <div className="mt-6 flex flex-col gap-6">
