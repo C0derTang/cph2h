@@ -140,9 +140,7 @@ export default function QueuePage() {
 
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
-      <p className="font-mono text-xs text-muted-foreground">
-        <span className="text-player-self">$</span> cd ~/cph2h/queue
-      </p>
+      <p className="eyebrow text-muted-foreground">Quick match</p>
 
       <div className="mt-6 flex items-start gap-4">
         <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
@@ -173,7 +171,7 @@ export default function QueuePage() {
           {searching && (
             <div className="grid grid-cols-2 gap-4">
               <div className="stat-plate p-4">
-                <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+                <p className="eyebrow text-muted-foreground">
                   Elapsed
                 </p>
                 <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
@@ -181,7 +179,7 @@ export default function QueuePage() {
                 </p>
               </div>
               <div className="stat-plate p-4">
-                <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+                <p className="eyebrow text-muted-foreground">
                   Rating band
                 </p>
                 <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">

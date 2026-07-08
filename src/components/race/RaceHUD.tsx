@@ -86,7 +86,7 @@ export function RaceHUD({
       <div className="flex flex-col gap-3 p-4">
         {counting ? (
           <div className="flex flex-col items-center gap-1 py-2">
-            <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            <span className="flex items-center gap-1.5 eyebrow text-muted-foreground">
               <Timer className="size-3.5" aria-hidden />
               Starts in
             </span>
@@ -103,7 +103,7 @@ export function RaceHUD({
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+              <span className="flex items-center gap-1.5 eyebrow text-muted-foreground">
                 <Clock className="size-3.5" aria-hidden />
                 Remaining
               </span>
@@ -118,7 +118,7 @@ export function RaceHUD({
               </span>
             </div>
             <div className="flex flex-col items-end text-right">
-              <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+              <span className="eyebrow text-muted-foreground">
                 Elapsed
               </span>
               <span className="font-mono text-sm tabular-nums text-muted-foreground">

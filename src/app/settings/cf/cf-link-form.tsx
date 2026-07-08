@@ -131,12 +131,12 @@ export function CfLinkForm({
       {showForm && !challenge && (
         <form
           onSubmit={handleStart}
-          className="panel flex flex-col gap-4 p-6"
+          className="panel flex flex-col gap-4 p-5"
         >
           <div className="flex flex-col gap-1.5">
             <label
               htmlFor="cf-handle"
-              className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase"
+              className="eyebrow text-muted-foreground"
             >
               Codeforces handle
             </label>
@@ -197,7 +197,7 @@ export function CfLinkForm({
       {showForm && challenge && (
         <div
           data-testid="cf-verify-instructions"
-          className="panel flex flex-col gap-4 p-6"
+          className="panel flex flex-col gap-4 p-5"
         >
           <div className="flex flex-col gap-1">
             <h2 className="font-display text-lg tracking-tight uppercase">

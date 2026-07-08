@@ -1,6 +1,6 @@
 /**
  * The game-menu slab row (issue #124) — the tetr.io main-menu language. A full-
- * width horizontal action: an accent stripe, an icon plate, a tall Anton label,
+ * width horizontal action: an accent stripe, an icon plate, a tall Chakra Petch label,
  * and a mono tagline; hover/focus slides it right and blooms the accent glow
  * (styling lives in globals.css `menu-row` / `menu-row-icon` / `menu-row-arrow`).
  *

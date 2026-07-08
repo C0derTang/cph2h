@@ -80,7 +80,7 @@ function LeaderboardTable({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[32rem] text-sm">
             <thead>
-              <tr className="border-b border-border font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+              <tr className="border-b border-border eyebrow text-muted-foreground">
                 <th className="px-4 py-2.5 text-left font-medium">Rank</th>
                 <th className="px-4 py-2.5 text-left font-medium">Player</th>
                 <th className="hidden px-4 py-2.5 text-left font-medium sm:table-cell">

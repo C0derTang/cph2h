@@ -214,7 +214,7 @@ export function NewChallengeForm() {
     return (
       <div className="panel max-w-lg p-5">
         <div className="flex flex-col gap-1">
-          <h2 className="flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
+          <h2 className="flex items-center gap-2 font-display text-lg tracking-tight uppercase">
             <Swords className="size-4 text-player-self" aria-hidden />
             Challenge created
           </h2>
@@ -245,7 +245,7 @@ export function NewChallengeForm() {
   return (
     <div className="panel max-w-lg p-5">
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-lg font-semibold tracking-tight">
+        <h2 className="font-display text-lg tracking-tight uppercase">
           Create a challenge
         </h2>
         <p className="text-sm text-muted-foreground">
@@ -254,7 +254,7 @@ export function NewChallengeForm() {
       </div>
       <div className="mt-4 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <span className="eyebrow text-muted-foreground">
             Time limit
           </span>
           <div className="flex flex-wrap gap-2">
@@ -274,7 +274,7 @@ export function NewChallengeForm() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <span className="eyebrow text-muted-foreground">
             Problem rating range
           </span>
           <div className="flex items-center gap-2">
@@ -314,7 +314,7 @@ export function NewChallengeForm() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <span className="eyebrow text-muted-foreground">
             Contest date
           </span>
           <div className="flex flex-wrap gap-2">

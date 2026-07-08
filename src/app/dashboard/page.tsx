@@ -181,8 +181,8 @@ function IdentityPlate({
   const isProvisional = user.racesPlayed < 10;
 
   return (
-    <div className="panel p-4">
-      <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+    <div className="panel p-5">
+      <p className="eyebrow text-muted-foreground">
         Signed in
       </p>
       <p className="mt-1 truncate font-display text-2xl tracking-tight uppercase">
@@ -206,7 +206,7 @@ function IdentityPlate({
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="stat-plate p-3">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+          <p className="eyebrow text-muted-foreground">
             Elo
           </p>
           <p className="mt-0.5 font-mono text-xl font-semibold tabular-nums">
@@ -217,7 +217,7 @@ function IdentityPlate({
           </p>
         </div>
         <div className="stat-plate p-3">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+          <p className="eyebrow text-muted-foreground">
             Record
           </p>
           <p className="mt-0.5 font-display text-xl tracking-tight tabular-nums">
@@ -230,7 +230,7 @@ function IdentityPlate({
           </p>
         </div>
         <div className="stat-plate p-3">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+          <p className="eyebrow text-muted-foreground">
             CF Rating
           </p>
           <p className="mt-0.5 font-mono text-xl font-semibold tabular-nums">
@@ -238,7 +238,7 @@ function IdentityPlate({
           </p>
         </div>
         <div className="stat-plate p-3">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+          <p className="eyebrow text-muted-foreground">
             Races
           </p>
           <p className="mt-0.5 font-mono text-xl font-semibold tabular-nums">
@@ -280,7 +280,7 @@ function PlayHubContent({
       <div className="shell grid gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:py-12">
         {/* The main menu: a stack of giant color-coded action slabs. */}
         <div>
-          <p className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+          <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
             <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
             Main menu
           </p>
@@ -324,8 +324,8 @@ function PlayHubContent({
           />
 
           {/* Elo history */}
-          <div className="panel p-4">
-            <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+          <div className="panel p-5">
+            <p className="eyebrow text-muted-foreground">
               Elo history
             </p>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -356,7 +356,7 @@ function PlayHubContent({
 
           {/* Recent races */}
           <div>
-            <p className="mb-3 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            <p className="mb-3 eyebrow text-muted-foreground">
               Recent races
             </p>
 
