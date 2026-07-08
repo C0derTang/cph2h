@@ -31,7 +31,7 @@ import { useEffect, useRef } from "react";
 import type { RaceSnapshot } from "@/lib/types";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
 import { detectAudioTransitions } from "@/lib/audio/transitions";
-import { playSfx, startBgm, stopBgm } from "@/lib/audio/engine";
+import { initAudioGestures, playSfx, startBgm, stopBgm } from "@/lib/audio/engine";
 import { useAudioPrefs } from "@/components/race/AudioControls";
 
 export interface RaceAudioProps {
@@ -46,6 +46,15 @@ const lastSeenByRaceId = new Map<string, RaceSnapshot>();
 
 export function RaceAudio({ snapshot, youId }: RaceAudioProps) {
   const { bgmEnabled } = useAudioPrefs();
+
+  // Attach the gesture-unlock listeners as early as possible (issue #131) —
+  // BEFORE the countdown-tick/BGM effect below or any transition SFX ever
+  // attempts a sound, so the first real gesture in the room (not necessarily
+  // a click on this component) creates/resumes a running AudioContext
+  // instead of the context being born suspended from a non-gesture callback.
+  useEffect(() => {
+    initAudioGestures();
+  }, []);
 
   // Discrete transition SFX: diff against the last snapshot this race has
   // ever seen (across mounts), then play whatever the pure detector reports.
