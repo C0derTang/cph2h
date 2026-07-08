@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 interface EmptyStatePageProps {
-  /** Shown as a stamped path chip, e.g. "/dashboard". */
+  /** Shown as an eyebrow path chip, e.g. "/dashboard". */
   path: string;
   icon: LucideIcon;
   title: string;
@@ -20,7 +20,7 @@ export function EmptyStatePage({
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
       <p>
-        <span className="stamp px-2 py-0.5 text-[0.65rem] text-player-self">
+        <span className="eyebrow inline-flex rounded-sm border border-player-self/40 px-2 py-1 text-player-self">
           cph2h{path}
         </span>
       </p>
