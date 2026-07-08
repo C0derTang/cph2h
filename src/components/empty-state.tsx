@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 interface EmptyStatePageProps {
-  /** Shown as a terminal-style breadcrumb, e.g. "/dashboard". */
+  /** Shown as a stamped path chip, e.g. "/dashboard". */
   path: string;
   icon: LucideIcon;
   title: string;
@@ -19,8 +19,10 @@ export function EmptyStatePage({
 }: EmptyStatePageProps) {
   return (
     <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
-      <p className="font-mono text-xs text-muted-foreground">
-        <span className="text-primary">$</span> cd ~/cph2h{path}
+      <p>
+        <span className="stamp px-2 py-0.5 text-[0.65rem] text-player-self">
+          cph2h{path}
+        </span>
       </p>
 
       <div className="mt-6 flex items-start gap-4">
@@ -28,7 +30,7 @@ export function EmptyStatePage({
           <Icon className="size-5" aria-hidden />
         </div>
         <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">
+          <h1 className="font-display text-2xl tracking-tight uppercase md:text-3xl">
             {title}
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
