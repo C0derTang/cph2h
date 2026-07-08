@@ -188,8 +188,9 @@ export async function POST(
  * problem selection (issue #69). Wrapped in try/catch and a `Promise.race`
  * soft timeout: this must never throw out of the ready path, and must never
  * hold up problem selection past {@link HISTORY_REFRESH_TIMEOUT_MS} even if
- * CF is slow or unreachable — the in-flight refresh(es) may keep running in
- * the background, but the ready request stops waiting on them.
+ * CF is slow or unreachable. When the budget expires, queued CF calls are
+ * aborted so this stale best-effort work does not keep consuming the shared
+ * Codeforces limiter behind later ready attempts.
  */
 async function refreshBothPlayersSeenProblems(race: Race): Promise<void> {
   const playerIds = [race.p1Id, race.p2Id].filter(
@@ -207,13 +208,19 @@ async function refreshBothPlayersSeenProblems(race: Race): Promise<void> {
       .from(users)
       .where(inArray(users.id, playerIds));
 
+    const controller = new AbortController();
     const refreshAll = Promise.all(
-      players.map((player) => refreshSeenProblems(player)),
+      players.map((player) => refreshSeenProblems(player, { signal: controller.signal })),
     ).then(() => undefined);
 
     let timeoutId: ReturnType<typeof setTimeout>;
     const timeout = new Promise<void>((resolve) => {
-      timeoutId = setTimeout(resolve, HISTORY_REFRESH_TIMEOUT_MS);
+      timeoutId = setTimeout(() => {
+        const error = new Error("ready solve-history refresh budget expired");
+        error.name = "AbortError";
+        controller.abort(error);
+        resolve();
+      }, HISTORY_REFRESH_TIMEOUT_MS);
     });
     try {
       await Promise.race([refreshAll, timeout]);

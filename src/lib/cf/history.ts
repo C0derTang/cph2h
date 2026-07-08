@@ -23,6 +23,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { problems, userProblems, users } from "@/lib/db/schema";
 import { getUserStatus } from "@/lib/cf/client";
+import type { CfFetchOptions } from "@/lib/cf/client";
 import type { CfSubmission } from "@/lib/types";
 
 /** Page size for history import; walked via `from` until exhausted or capped. */
@@ -43,6 +44,16 @@ const MAX_HISTORY_PAGES = 20;
 const MAX_INCREMENTAL_PAGES = 2;
 /** Batch size for `user_problems` upserts. */
 const UPSERT_BATCH_SIZE = 500;
+
+function getUserStatusPage(
+  handle: string,
+  from: number,
+  count: number,
+  options?: CfFetchOptions,
+): Promise<CfSubmission[]> {
+  if (options) return getUserStatus(handle, from, count, options);
+  return getUserStatus(handle, from, count);
+}
 
 /**
  * Restrict `attempts` to problems already present in the `problems` table
@@ -108,13 +119,17 @@ async function updateImportState(
  * first ready-time refresh establishes one via the null-`syncedAt` branch of
  * {@link importSolveHistoryIncremental}, which does stamp).
  */
-export async function importSolveHistory(userId: string, handle: string): Promise<void> {
+export async function importSolveHistory(
+  userId: string,
+  handle: string,
+  options?: CfFetchOptions,
+): Promise<void> {
   // problemId -> solved (any OK verdict wins over a non-OK attempt).
   const attempts = new Map<string, boolean>();
 
   for (let page = 0; page < MAX_HISTORY_PAGES; page++) {
     const from = page * HISTORY_PAGE_SIZE + 1;
-    const submissions = await getUserStatus(handle, from, HISTORY_PAGE_SIZE);
+    const submissions = await getUserStatusPage(handle, from, HISTORY_PAGE_SIZE, options);
     if (submissions.length === 0) break;
 
     for (const sub of submissions) {
@@ -152,11 +167,12 @@ export async function importSolveHistoryIncremental(
   handle: string,
   syncedAt: Date | null,
   importCursor: number | null = null,
+  options?: CfFetchOptions,
 ): Promise<void> {
   const now = new Date();
 
   if (syncedAt === null) {
-    await importSolveHistory(userId, handle);
+    await importSolveHistory(userId, handle, options);
     await updateImportState(userId, {
       solveHistorySyncedAt: now,
       solveHistoryImportCursor: null,
@@ -174,7 +190,7 @@ export async function importSolveHistoryIncremental(
 
   for (let page = 0; page < MAX_INCREMENTAL_PAGES; page++) {
     const from = startFrom + page * HISTORY_PAGE_SIZE;
-    const submissions = await getUserStatus(handle, from, HISTORY_PAGE_SIZE);
+    const submissions = await getUserStatusPage(handle, from, HISTORY_PAGE_SIZE, options);
     if (submissions.length === 0) break;
 
     const cutoffIndex = submissions.findIndex(
