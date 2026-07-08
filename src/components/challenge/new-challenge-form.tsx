@@ -206,7 +206,7 @@ export function NewChallengeForm() {
       toast.success("Link copied to clipboard.");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Couldn't copy — your browser may be blocking clipboard access.");
+      toast.error("Couldn’t copy — your browser may be blocking clipboard access.");
     }
   }
 
@@ -279,9 +279,10 @@ export function NewChallengeForm() {
           </span>
           <div className="flex items-center gap-2">
             <select
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
               value={ratingMin ?? ""}
               onChange={(e) => setRatingMin(e.target.value ? Number(e.target.value) : null)}
+              disabled={creating}
               aria-label="Minimum problem rating"
             >
               <option value="">Any</option>
@@ -293,9 +294,10 @@ export function NewChallengeForm() {
             </select>
             <span className="text-sm text-muted-foreground">to</span>
             <select
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
               value={ratingMax ?? ""}
               onChange={(e) => setRatingMax(e.target.value ? Number(e.target.value) : null)}
+              disabled={creating}
               aria-label="Maximum problem rating"
             >
               <option value="">Any</option>
@@ -335,17 +337,19 @@ export function NewChallengeForm() {
             <div className="flex items-center gap-2 pt-1">
               <input
                 type="date"
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
                 value={customDateFrom}
                 onChange={(e) => setCustomDateFrom(e.target.value)}
+                disabled={creating}
                 aria-label="Contest date from"
               />
               <span className="text-sm text-muted-foreground">to</span>
               <input
                 type="date"
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
                 value={customDateTo}
                 onChange={(e) => setCustomDateTo(e.target.value)}
+                disabled={creating}
                 aria-label="Contest date to"
               />
             </div>

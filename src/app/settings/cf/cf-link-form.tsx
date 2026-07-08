@@ -148,7 +148,8 @@ export function CfLinkForm({
               required
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              disabled={starting}
+              className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 

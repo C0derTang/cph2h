@@ -191,7 +191,7 @@ function isTerminalJoinError(error: string | null): boolean {
 function joinErrorMessage(error?: string): string {
   switch (error) {
     case "self_join":
-      return "You can't join your own challenge.";
+      return "You can’t join your own challenge.";
     case "already_has_opponent":
     case "conflict":
       return "Someone already joined this challenge.";
