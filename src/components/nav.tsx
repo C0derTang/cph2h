@@ -39,7 +39,7 @@ function Wordmark() {
       </span>
       <span
         aria-hidden
-        className="mt-1 h-[3px] w-full bg-player-self transition-all group-hover:bg-player-self/80"
+        className="mt-1 h-[3px] w-full bg-player-self transition-colors group-hover:bg-player-self/80"
       />
     </Link>
   );
