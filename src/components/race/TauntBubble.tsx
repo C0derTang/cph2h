@@ -10,9 +10,11 @@
  * and unknown ids never reach this component because the `addTaunt` reducer
  * already filters them out before they land in state.
  *
- * Tints toward the sender's identity via a left accent rule (cyan for self,
- * magenta for opponent) and carries a mic glyph — the one surface where the
- * mic icon is earned (docs/design.md "the stamp" / mic iconography rule).
+ * Tints toward the sender's identity via a left accent rule (acid yellow for
+ * self, crimson for opponent — v4 versus axis) and carries a mic glyph — the
+ * one surface where the mic icon is earned (docs/design.md "the stamp" / mic
+ * iconography rule). The card itself is a hard matte plate: hairline border,
+ * near-opaque popover fill, no rounding beyond the HUD radius, no blur.
  */
 
 import { useEffect, useRef } from "react";
@@ -57,7 +59,7 @@ export function TauntBubble({ tauntId, anchor, onExpire, className }: TauntBubbl
       data-testid={`taunt-bubble-${anchor}`}
       role="status"
       className={cn(
-        "pointer-events-none absolute z-10 flex max-w-[85%] items-center gap-2 border border-border bg-popover px-2.5 py-1.5 text-popover-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
+        "pointer-events-none absolute z-10 flex max-w-[85%] items-center gap-2 rounded-[var(--radius)] border border-border bg-popover px-2.5 py-1.5 text-popover-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
         isSelf
           ? "right-0 bottom-full mb-1.5 border-l-2 border-l-player-self motion-safe:slide-in-from-bottom-2"
           : "top-2 left-2 border-l-2 border-l-player-opponent motion-safe:slide-in-from-top-2",

@@ -13,14 +13,18 @@
      carries body copy and long-form problem statements (kept neutral + highly
      legible small); Geist Mono is the data/label face AND every live-updating
      number (kept as the tabular numeral face — see docs/design.md "numeral
-     rule": timers/scores render mono tabular, never the display face). */
+     rule": timers/scores render mono tabular, never the display face).
+     Sedgwick Ave Display is the graffiti face — reserved for the single
+     aria-hidden hero word per screen (`hero-word` / the HeroWord component),
+     never UI text, never numbers. */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-chakra-petch);
   --font-heading: var(--font-chakra-petch);
+  --font-graffiti: var(--font-sedgwick-ave);
 
-  /* Player identity — the versus axis. Self is the champion (electric cyan),
-     opponent is the challenger (hot magenta). These never swap. */
+  /* Player identity — the versus axis. Self is the champion (acid yellow),
+     opponent is the challenger (crimson). These never swap. */
   --color-player-self: var(--player-self);
   --color-player-self-foreground: var(--player-self-foreground);
   --color-player-opponent: var(--player-opponent);
@@ -51,6 +55,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -73,148 +78,163 @@
 }
 
 /* ----------------------------------------------------------------------------
-   DARK — "the grid". The hero theme: a cold near-black ground lit by an ambient
-   cyan/magenta glow field, frosted liquid-glass panels floating over it,
-   electric-cyan self vs hot-magenta opponent, neon-tuned verdicts. This is what
-   we design and screenshot against. `:root.dark` (not `.dark`) so the stage
-   wins the cascade over `:root` regardless of source order.
+   DARK — "the glitch ground". The hero theme: a flat near-black ground under a
+   fixed scanline+grain overlay (`noise-ground`), matte hard-edged HUD plates
+   with hairline borders and corner brackets, acid-yellow self vs crimson
+   opponent, one huge graffiti hero word per screen. This is what we design and
+   screenshot against. `:root.dark` (not `.dark`) so the stage wins the cascade
+   over `:root` regardless of source order.
 ---------------------------------------------------------------------------- */
 :root.dark {
-  --background: oklch(0.145 0.022 262); /* cold near-black, blue-violet tint */
-  --foreground: oklch(0.95 0.008 240);
-  --card: oklch(0.215 0.03 262); /* base fill tinted down into translucent glass */
-  --card-foreground: oklch(0.95 0.008 240);
-  --popover: oklch(0.2 0.028 262);
-  --popover-foreground: oklch(0.95 0.008 240);
-  /* Electric cyan — primary CTA / focus / self-identity. */
-  --primary: oklch(0.82 0.13 200);
-  --primary-foreground: oklch(0.16 0.03 220);
-  --secondary: oklch(0.27 0.03 262);
-  --secondary-foreground: oklch(0.95 0.008 240);
-  --muted: oklch(0.27 0.03 262);
-  --muted-foreground: oklch(0.73 0.028 250);
-  --accent: oklch(0.31 0.04 264);
-  --accent-foreground: oklch(0.96 0.008 240);
-  --destructive: oklch(0.66 0.25 20);
-  --border: oklch(0.86 0.05 250 / 14%); /* translucent cool hairline */
-  --input: oklch(0.9 0.04 250 / 18%);
-  --ring: oklch(0.82 0.13 200);
-  --chart-1: oklch(0.82 0.13 200);
-  --chart-2: oklch(0.7 0.24 350);
-  --chart-3: oklch(0.84 0.2 150);
-  --chart-4: oklch(0.83 0.16 85);
-  --chart-5: oklch(0.6 0.03 250);
-  --radius: 0.5rem; /* softer glass rounding */
+  --background: oklch(0.13 0.01 285); /* flat near-black, faint violet cast */
+  --foreground: oklch(0.95 0.005 100); /* warm phosphor white */
+  --card: oklch(0.18 0.012 285); /* matte plate fill — near-opaque in `panel` */
+  --card-foreground: oklch(0.95 0.005 100);
+  --popover: oklch(0.17 0.012 285);
+  --popover-foreground: oklch(0.95 0.005 100);
+  /* Acid yellow — primary CTA / focus / self-identity. */
+  --primary: oklch(0.92 0.19 100);
+  --primary-foreground: oklch(0.17 0.04 100);
+  --secondary: oklch(0.24 0.015 285);
+  --secondary-foreground: oklch(0.95 0.005 100);
+  --muted: oklch(0.24 0.015 285);
+  --muted-foreground: oklch(0.72 0.02 100);
+  --accent: oklch(0.26 0.015 285);
+  --accent-foreground: oklch(0.96 0.005 100);
+  /* Action red — deliberately darker + duller than the opponent's crimson
+     (L 0.55 vs 0.64): the lightness gap plus context (it sits on buttons,
+     never on a player) keeps "destroy state" and "the other player" apart. */
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.98 0.01 27);
+  --border: oklch(0.9 0.01 100 / 16%); /* warm translucent hairline */
+  --input: oklch(0.9 0.01 100 / 20%);
+  --ring: oklch(0.92 0.19 100);
+  --chart-1: oklch(0.92 0.19 100); /* self yellow */
+  --chart-2: oklch(0.64 0.26 25); /* opponent crimson */
+  --chart-3: oklch(0.8 0.19 160); /* ok emerald */
+  --chart-4: oklch(0.78 0.12 230); /* pending cyan-blue */
+  --chart-5: oklch(0.62 0.02 100); /* neutral */
+  --radius: 0.125rem; /* hardened HUD edge — the glass rounding is retired */
 
-  /* Player identity — electric cyan (self) vs hot magenta (opponent). Both
-     identity inks are bright enough to clear WCAG AA 4.5:1 as text on
-     --background AND the translucent glass fill, and both -foreground pairs are
-     dark inks on the bright fills. The two anchor hues (cyan ~200, magenta
-     ~350) are the whole visual language — they never swap. */
-  --player-self: oklch(0.82 0.13 200);
-  --player-self-foreground: oklch(0.16 0.03 220);
-  --player-opponent: oklch(0.7 0.24 350);
-  --player-opponent-foreground: oklch(0.15 0.03 350);
+  /* Player identity — acid yellow (self, hue 100) vs crimson (opponent, hue
+     25). Both identity inks clear WCAG AA 4.5:1 as text on --background and
+     the matte plate fill; both -foreground pairs are dark inks on the bright
+     fills (white on the crimson fill fails AA — the opponent foreground is
+     dark ink on purpose). The two anchor hues are ~75° apart and are the whole
+     visual language — they never swap. */
+  --player-self: oklch(0.92 0.19 100);
+  --player-self-foreground: oklch(0.17 0.04 100);
+  --player-opponent: oklch(0.64 0.26 25);
+  --player-opponent-foreground: oklch(0.13 0.03 25);
 
-  /* Verdict semantics — neon-tuned against the dark ground. Fail red (hue ~20,
-     orange-lean) is well clear of the opponent's magenta (hue ~350) so a
-     failing verdict never reads as the opponent's identity. */
-  --verdict-ok: oklch(0.84 0.2 150);
-  --verdict-ok-foreground: oklch(0.16 0.05 155);
-  --verdict-fail: oklch(0.66 0.25 20);
-  --verdict-fail-foreground: oklch(0.99 0.02 20);
-  --verdict-pending: oklch(0.83 0.16 85);
-  --verdict-pending-foreground: oklch(0.2 0.05 85);
+  /* Verdict semantics — hue-separated from both identities on purpose:
+     ok emerald (160) sits 60° from self yellow (100); fail is hot magenta
+     (340) — the hue freed by retiring v3's magenta opponent — a full 45°+ and
+     a brightness step away from the opponent's crimson (25), so a failing
+     verdict never reads as the opponent's identity; pending cyan-blue (230) is
+     130° from self yellow. Destructive red (27) is nearly the opponent's hue
+     but separated by lightness (0.55 vs 0.64) and context — it colors actions,
+     verdict-fail colors judge outcomes, opponent colors a person. */
+  --verdict-ok: oklch(0.8 0.19 160);
+  --verdict-ok-foreground: oklch(0.15 0.05 160);
+  --verdict-fail: oklch(0.7 0.24 340);
+  --verdict-fail-foreground: oklch(0.15 0.05 340);
+  --verdict-pending: oklch(0.78 0.12 230);
+  --verdict-pending-foreground: oklch(0.15 0.04 230);
 
-  --sidebar: oklch(0.2 0.028 262);
-  --sidebar-foreground: oklch(0.95 0.008 240);
-  --sidebar-primary: oklch(0.82 0.13 200);
-  --sidebar-primary-foreground: oklch(0.16 0.03 220);
-  --sidebar-accent: oklch(0.31 0.04 264);
-  --sidebar-accent-foreground: oklch(0.96 0.008 240);
-  --sidebar-border: oklch(0.86 0.05 250 / 14%);
-  --sidebar-ring: oklch(0.82 0.13 200);
+  --sidebar: oklch(0.17 0.012 285);
+  --sidebar-foreground: oklch(0.95 0.005 100);
+  --sidebar-primary: oklch(0.92 0.19 100);
+  --sidebar-primary-foreground: oklch(0.17 0.04 100);
+  --sidebar-accent: oklch(0.26 0.015 285);
+  --sidebar-accent-foreground: oklch(0.96 0.005 100);
+  --sidebar-border: oklch(0.9 0.01 100 / 16%);
+  --sidebar-ring: oklch(0.92 0.19 100);
 }
 
 /* ----------------------------------------------------------------------------
-   LIGHT — "daylight grid". Cool frost paper, the same cyan/magenta inks
-   darkened for contrast; fully defined but secondary — the dark grid is the
+   LIGHT — "daylight HUD". Warm paper, the same yellow/crimson inks darkened
+   for contrast; fully defined but secondary — the dark glitch ground is the
    hero. Kept accessible for a future toggle.
 ---------------------------------------------------------------------------- */
 :root {
-  --background: oklch(0.97 0.008 240); /* cool frost paper */
-  --foreground: oklch(0.2 0.02 260);
-  --card: oklch(0.99 0.005 240);
-  --card-foreground: oklch(0.2 0.02 260);
-  --popover: oklch(0.99 0.005 240);
-  --popover-foreground: oklch(0.2 0.02 260);
-  /* Cyan reads dark on paper for CTA contrast. */
-  --primary: oklch(0.54 0.14 220);
-  --primary-foreground: oklch(0.99 0.01 220);
-  --secondary: oklch(0.93 0.01 240);
-  --secondary-foreground: oklch(0.24 0.02 260);
-  --muted: oklch(0.93 0.01 240);
-  --muted-foreground: oklch(0.46 0.02 255);
-  --accent: oklch(0.91 0.02 240);
-  --accent-foreground: oklch(0.24 0.02 260);
-  --destructive: oklch(0.55 0.24 22);
-  --border: oklch(0.2 0.03 260 / 12%);
-  --input: oklch(0.2 0.03 260 / 14%);
-  --ring: oklch(0.54 0.14 220);
-  --chart-1: oklch(0.54 0.14 220);
-  --chart-2: oklch(0.52 0.24 350);
-  --chart-3: oklch(0.5 0.16 150);
-  --chart-4: oklch(0.62 0.15 85);
-  --chart-5: oklch(0.5 0.03 255);
-  --radius: 0.5rem;
+  --background: oklch(0.97 0.005 100); /* warm paper */
+  --foreground: oklch(0.2 0.015 285);
+  --card: oklch(0.99 0.003 100);
+  --card-foreground: oklch(0.2 0.015 285);
+  --popover: oklch(0.99 0.003 100);
+  --popover-foreground: oklch(0.2 0.015 285);
+  /* Self yellow reads as a dark olive-gold on paper for CTA contrast. */
+  --primary: oklch(0.52 0.11 100);
+  --primary-foreground: oklch(0.99 0.01 100);
+  --secondary: oklch(0.93 0.008 100);
+  --secondary-foreground: oklch(0.24 0.015 285);
+  --muted: oklch(0.93 0.008 100);
+  --muted-foreground: oklch(0.45 0.015 285);
+  --accent: oklch(0.91 0.01 100);
+  --accent-foreground: oklch(0.24 0.015 285);
+  --destructive: oklch(0.5 0.21 27);
+  --destructive-foreground: oklch(0.99 0.02 27);
+  --border: oklch(0.2 0.02 285 / 12%);
+  --input: oklch(0.2 0.02 285 / 14%);
+  --ring: oklch(0.52 0.11 100);
+  --chart-1: oklch(0.52 0.11 100);
+  --chart-2: oklch(0.52 0.22 25);
+  --chart-3: oklch(0.5 0.14 160);
+  --chart-4: oklch(0.5 0.1 232);
+  --chart-5: oklch(0.5 0.015 285);
+  --radius: 0.125rem;
 
-  /* Player identity. Cyan self and magenta opponent are darkened from the dark
-     theme's bright inks to clear WCAG AA 4.5:1 as text on the light --background;
-     their -foreground pairs are light inks for use on those medium-dark fills. */
-  --player-self: oklch(0.52 0.15 222);
-  --player-self-foreground: oklch(0.99 0.01 220);
-  --player-opponent: oklch(0.52 0.24 350);
-  --player-opponent-foreground: oklch(0.99 0.01 350);
+  /* Player identity. Yellow self and crimson opponent are darkened from the
+     dark theme's bright inks to clear WCAG AA 4.5:1 as text on the light
+     --background; their -foreground pairs are light inks on those medium-dark
+     fills. */
+  --player-self: oklch(0.52 0.11 100);
+  --player-self-foreground: oklch(0.99 0.01 100);
+  --player-opponent: oklch(0.52 0.22 25);
+  --player-opponent-foreground: oklch(0.99 0.01 25);
 
   /* Verdict semantics, darkened to clear WCAG AA 4.5:1 as text on the light
-     --background; fail red (hue ~22) stays clear of the opponent magenta. */
-  --verdict-ok: oklch(0.5 0.16 150);
-  --verdict-ok-foreground: oklch(0.99 0.02 150);
-  --verdict-fail: oklch(0.55 0.24 22);
-  --verdict-fail-foreground: oklch(0.99 0.02 22);
-  --verdict-pending: oklch(0.52 0.14 82);
-  --verdict-pending-foreground: oklch(0.99 0.02 82);
+     --background; fail magenta (hue 340) stays clear of the opponent crimson
+     (hue 25). */
+  --verdict-ok: oklch(0.5 0.14 160);
+  --verdict-ok-foreground: oklch(0.99 0.02 160);
+  --verdict-fail: oklch(0.52 0.22 340);
+  --verdict-fail-foreground: oklch(0.99 0.02 340);
+  --verdict-pending: oklch(0.5 0.1 232);
+  --verdict-pending-foreground: oklch(0.99 0.02 232);
 
-  --sidebar: oklch(0.99 0.005 240);
-  --sidebar-foreground: oklch(0.2 0.02 260);
-  --sidebar-primary: oklch(0.54 0.14 220);
-  --sidebar-primary-foreground: oklch(0.99 0.01 220);
-  --sidebar-accent: oklch(0.91 0.02 240);
-  --sidebar-accent-foreground: oklch(0.24 0.02 260);
-  --sidebar-border: oklch(0.2 0.03 260 / 12%);
-  --sidebar-ring: oklch(0.54 0.14 220);
+  --sidebar: oklch(0.99 0.003 100);
+  --sidebar-foreground: oklch(0.2 0.015 285);
+  --sidebar-primary: oklch(0.52 0.11 100);
+  --sidebar-primary-foreground: oklch(0.99 0.01 100);
+  --sidebar-accent: oklch(0.91 0.01 100);
+  --sidebar-accent-foreground: oklch(0.24 0.015 285);
+  --sidebar-border: oklch(0.2 0.02 285 / 12%);
+  --sidebar-ring: oklch(0.52 0.11 100);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  /* The ambient glow field: a cold base color washed with a cyan pool from the
-     top-left and a magenta pool from the bottom-right — the light the frosted
-     glass panels float over. Painted on the body (fixed) so it stays put on
-     scroll and shows through every translucent surface; no blur here (cheap). */
+  /* The ambient stage light, dimmed for v4: a faint yellow pool from the
+     top-left and a crimson counter-pool from the bottom-right (both ≤10%
+     alpha) over the flat near-black ground. Painted on the body (fixed) so it
+     stays put on scroll; the scanline+grain texture is a separate fixed
+     `noise-ground` layer mounted once in layout.tsx. */
   body {
     color: var(--foreground);
     background-color: var(--background);
     background-image:
       radial-gradient(
         68% 55% at 10% -6%,
-        color-mix(in oklch, var(--player-self) 15%, transparent),
+        color-mix(in oklch, var(--player-self) 9%, transparent),
         transparent 60%
       ),
       radial-gradient(
         62% 55% at 108% 106%,
-        color-mix(in oklch, var(--player-opponent) 15%, transparent),
+        color-mix(in oklch, var(--player-opponent) 8%, transparent),
         transparent 62%
       );
     background-attachment: fixed;
@@ -244,7 +264,8 @@
 /* eyebrow — the one label treatment app-wide (panel titles, section labels,
    tile captions): squared mono, uppercase, wide-tracked, semibold. Color is
    left to the caller (`text-muted-foreground` by default, or an identity/
-   verdict hue where the label is semantic). See docs/design.md type scale. */
+   verdict hue where the label is semantic). See docs/design.md type scale.
+   Its quieter edge-chrome sibling is `hud-meta` below. */
 @utility eyebrow {
   font-family: var(--font-mono);
   font-size: 0.6875rem; /* 11px */
@@ -254,62 +275,61 @@
 }
 
 /* ----------------------------------------------------------------------------
-   Named surface recipes. Liquid glass: frosted translucent panels floating over
-   the ambient glow field, hairline translucent borders, a specular top-edge
-   highlight, a soft floor shadow. Prefer these over ad-hoc cards.
-
-   Backdrop-blur is intentionally modest (10px) and only on `panel` — the glass
-   look is carried mostly by translucency + border + specular highlight, so the
-   compositing cost stays bounded even on views with several always-on panels.
+   Named surface recipes. Matte HUD plates: hard-edged near-opaque fills over
+   the glitch ground, hairline borders, no backdrop-filter anywhere (the v3
+   frosted glass is retired — texture comes from the noise-ground layer and
+   corner-bracket chrome, not from live blur). Prefer these over ad-hoc cards.
 ---------------------------------------------------------------------------- */
 
-/* panel — the primary content surface: a frosted translucent pane. A hairline
-   translucent border, a bright specular line along the top edge, a soft floor
-   shadow, and a bounded backdrop-blur so the glow field diffuses through it. */
+/* panel — the primary content surface: a matte hard-edged HUD plate. A
+   near-opaque `--card` fill, a 1px hairline border, a shallow floor shadow.
+   No backdrop-filter, no specular edge. Layer `bracket-frame` on top for hero
+   surfaces that earn corner chrome. Uses background-color (not the shorthand)
+   so `bracket-frame`'s background-image layers compose with it. */
 @utility panel {
   border-radius: var(--radius);
-  border: 1px solid color-mix(in oklch, white 12%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--card) 78%, transparent),
-    color-mix(in oklch, var(--card) 60%, transparent)
-  );
-  -webkit-backdrop-filter: blur(10px) saturate(1.4);
-  backdrop-filter: blur(10px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 22%, transparent),
-    0 22px 48px -30px rgb(0 0 0 / 0.75);
+  border: 1px solid var(--border);
+  background-color: color-mix(in oklch, var(--card) 96%, transparent);
+  box-shadow: 0 12px 28px -20px rgb(0 0 0 / 0.55);
 }
 
-/* panel-solid — the near-opaque sibling of `panel` for copy-heavy surfaces that
-   must stay maximally legible (the race problem-statement pane): the same
-   hairline border + specular highlight + floor shadow, but a ~95% opaque card
-   fill and NO backdrop-blur, so long-form text never sits over a live-blurred
-   backdrop. This is the one deliberately-not-glass content surface (issue #127);
-   everything else picks one of the two glass tiers. */
+/* panel-solid — the max-legibility tier, converged with `panel` at ~98%
+   opacity for copy-heavy surfaces (the race problem-statement pane). No
+   texture or bracket overlap is allowed on it — nothing may sit between the
+   reader and long-form text. */
 @utility panel-solid {
   border-radius: var(--radius);
-  border: 1px solid color-mix(in oklch, white 12%, transparent);
-  background: color-mix(in oklch, var(--card) 95%, transparent);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 14%, transparent),
-    0 22px 48px -30px rgb(0 0 0 / 0.75);
+  border: 1px solid var(--border);
+  background-color: color-mix(in oklch, var(--card) 98%, transparent);
+  box-shadow: 0 12px 28px -20px rgb(0 0 0 / 0.55);
 }
 
-/* stat-plate — a recessed translucent plate for a single number + label. Sits
-   inside a panel, so it reads as carved into the glass (dark inset, no blur of
-   its own). */
+/* stat-plate — a flat inset cell for a single number + label. Hairline border,
+   darker fill, a subtle inset shadow, and a single 6px corner tick (top-left)
+   drawn in the border ink via background gradients — the small HUD detail that
+   replaces v3's carved-glass look. */
 @utility stat-plate {
   border-radius: calc(var(--radius) * 0.8);
-  border: 1px solid color-mix(in oklch, white 7%, transparent);
-  background: color-mix(in oklch, var(--background) 55%, transparent);
-  box-shadow:
-    inset 0 1px 3px 0 rgb(0 0 0 / 0.5),
-    inset 0 1px 0 0 color-mix(in oklch, white 5%, transparent);
+  border: 1px solid var(--border);
+  background-color: color-mix(in oklch, var(--background) 65%, transparent);
+  background-image:
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border));
+  background-position:
+    4px 4px,
+    4px 4px;
+  background-size:
+    6px 1.5px,
+    1.5px 6px;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 1px 3px 0 rgb(0 0 0 / 0.45);
 }
 
 /* ticker — a broadcast lower-third bar: mono, uppercase, wide-tracked, with a
-   thin cyan (self) rule along its top edge. Header/footer status strip for a HUD. */
+   thin self-yellow rule along its top edge (auto-retints via the token).
+   Header/footer status strip for a HUD. The first item carries a leading `//`
+   ornament in muted ink (drawn on the first child so flex layout and
+   `justify-between` call sites are untouched). */
 @utility ticker {
   display: flex;
   align-items: center;
@@ -325,27 +345,41 @@
   border-top-color: color-mix(in oklch, var(--player-self) 50%, transparent);
 }
 
-/* spotlight — the ambient glow, focused. Layer behind hero content (-z-10): a
-   cyan pool from the top-center and a magenta counter-pool from the far corner,
-   the two anchor hues washing into the dark. */
+/* Leading `//` ornament — on the first child, not the ticker itself, so it
+   never becomes an extra flex item under `justify-between`. */
+.ticker > :first-child::before {
+  content: "// ";
+  letter-spacing: 0;
+  color: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+}
+
+/* spotlight — the ambient light, focused. Layer behind hero content (-z-10):
+   a dim yellow pool from the top-center, a crimson counter-pool from the far
+   corner, and a very faint magenta tertiary fringe — all quieter than v3
+   (≤12% alpha); the texture does the atmospheric work now. */
 @utility spotlight {
   background:
     radial-gradient(
       58% 50% at 50% -8%,
-      color-mix(in oklch, var(--player-self) 20%, transparent),
+      color-mix(in oklch, var(--player-self) 12%, transparent),
       transparent 70%
     ),
     radial-gradient(
       48% 42% at 88% 112%,
-      color-mix(in oklch, var(--player-opponent) 15%, transparent),
+      color-mix(in oklch, var(--player-opponent) 12%, transparent),
       transparent 72%
+    ),
+    radial-gradient(
+      30% 26% at -6% 108%,
+      oklch(0.7 0.24 340 / 5%),
+      transparent 75%
     );
 }
 
-/* stamp — a rubber-stamp / stencil frame for verdict moments ("BODIED.", an
-   AC/WA stencil). Upright, boxed, uppercase, with a neon glow bloomed off the
-   frame; caller sets the ink via text color (e.g. `text-player-self`,
-   `text-verdict-fail`). */
+/* stamp — a square stencil frame for verdict moments ("BODIED.", an AC/WA
+   stencil). Upright, boxed, uppercase, hard-edged (radius 0), with a neon
+   bloom layered as text-shadow in currentColor (never a filter); caller sets
+   the ink via text color (e.g. `text-player-self`, `text-verdict-fail`). */
 @utility stamp {
   display: inline-flex;
   align-items: center;
@@ -354,32 +388,32 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1;
-  border: 3px solid currentColor;
-  border-radius: var(--radius);
+  border: 2px solid currentColor;
+  border-radius: 0;
   padding: 0.14em 0.4em;
-  filter: drop-shadow(
-    0 0 14px color-mix(in oklch, currentColor 45%, transparent)
-  );
+  text-shadow:
+    0 0 8px color-mix(in oklch, currentColor 55%, transparent),
+    0 0 24px color-mix(in oklch, currentColor 30%, transparent);
 }
 
-/* glow-self / glow-opponent — a soft neon halo for elevated/interactive
-   surfaces, in each identity's hue. Apply alongside `panel`. */
+/* glow-self / glow-opponent — a hard neon halo for elevated/interactive
+   surfaces, in each identity's hue (auto-retints via the tokens). Tighter
+   blur than v3 for a harder edge. Apply alongside `panel`. */
 @utility glow-self {
   box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 22%, transparent),
-    0 22px 48px -30px rgb(0 0 0 / 0.75),
-    0 0 32px -14px color-mix(in oklch, var(--player-self) 70%, transparent);
+    0 12px 28px -20px rgb(0 0 0 / 0.55),
+    0 0 22px -10px color-mix(in oklch, var(--player-self) 70%, transparent);
 }
 
 @utility glow-opponent {
   box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 22%, transparent),
-    0 22px 48px -30px rgb(0 0 0 / 0.75),
-    0 0 32px -14px color-mix(in oklch, var(--player-opponent) 70%, transparent);
+    0 12px 28px -20px rgb(0 0 0 / 0.55),
+    0 0 22px -10px color-mix(in oklch, var(--player-opponent) 70%, transparent);
 }
 
 /* Signature chamfer — clips two corners for the occasional poster plate.
-   Retained for existing race surfaces; use sparingly. */
+   Use sparingly; `clip-notch-sm` is the tighter 8px variant for small chips
+   and compact plates. */
 @utility clip-notch {
   clip-path: polygon(
     0 0,
@@ -391,14 +425,241 @@
   );
 }
 
+@utility clip-notch-sm {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% 100%,
+    8px 100%,
+    0 calc(100% - 8px)
+  );
+}
+
+/* ----------------------------------------------------------------------------
+   Glitch ground + hero word + HUD chrome — the v4 signature layer.
+---------------------------------------------------------------------------- */
+
+/* noise-ground — the full-viewport scanline + film-grain texture. Mounted ONCE
+   as the first child of <body> (layout.tsx), fixed, pointer-events-none, at
+   z-index -1 so every in-flow child paints above it while it still covers the
+   body's ambient pools. Two layers: 1px scanlines every 4px at 4% black, and
+   an SVG feTurbulence grain tile at 5% opacity. Static by default; motion-safe
+   adds a very slow, very subtle steps() opacity flicker (≤8% delta). */
+@utility noise-ground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      oklch(0 0 0 / 4%) 3px 4px
+    ),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes noise-flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.93;
+    }
+  }
+  .noise-ground {
+    animation: noise-flicker 7s steps(5, jump-none) infinite;
+  }
+}
+
+/* hero-word — the ONE huge neon graffiti word per screen (see docs/design.md
+   placement map). Graffiti face, viewport-scaled, currentColor ink with a
+   layered text-shadow bloom (never a filter). Decorative only: always
+   aria-hidden, never UI text, never numbers. Rendered via the HeroWord
+   component (src/components/hud/hero-word.tsx). */
+@utility hero-word {
+  display: inline-block;
+  font-family: var(--font-graffiti);
+  font-size: clamp(4rem, 18vw, 14rem);
+  line-height: 0.9;
+  user-select: none;
+  text-shadow:
+    0 0 12px color-mix(in oklch, currentColor 45%, transparent),
+    0 0 40px color-mix(in oklch, currentColor 22%, transparent),
+    0 0 80px color-mix(in oklch, currentColor 12%, transparent);
+}
+
+/* glitch-text — RGB-split glitch for elements carrying `data-text` (the
+   pseudos re-render the same string). Static split at rest; motion-safe adds
+   an intermittent slice animation via clip-path insets + tiny transforms
+   (no filter, no layout properties). Under reduced motion the pseudos stay
+   as a static split with no animation. */
+@utility glitch-text {
+  position: relative;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.45;
+  text-shadow: none;
+}
+
+.glitch-text::before {
+  color: oklch(0.8 0.15 230); /* cyan fringe, left */
+  transform: translateX(-2px);
+}
+
+.glitch-text::after {
+  color: oklch(0.65 0.25 25); /* red fringe, right */
+  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Long quiet holds punctuated by three abrupt slices — steps(1, end) holds
+     each keyframe's value until the next, so nothing ever tweens. */
+  @keyframes glitch-slice-a {
+    0%,
+    86%,
+    95%,
+    100% {
+      clip-path: inset(0);
+      transform: translateX(-2px);
+    }
+    87% {
+      clip-path: inset(14% 0 56% 0);
+      transform: translate(-5px, 1px);
+    }
+    90% {
+      clip-path: inset(60% 0 10% 0);
+      transform: translate(3px, -1px);
+    }
+    93% {
+      clip-path: inset(32% 0 42% 0);
+      transform: translate(-4px, 0);
+    }
+  }
+  @keyframes glitch-slice-b {
+    0%,
+    84%,
+    94%,
+    100% {
+      clip-path: inset(0);
+      transform: translateX(2px);
+    }
+    85% {
+      clip-path: inset(52% 0 20% 0);
+      transform: translate(5px, -1px);
+    }
+    89% {
+      clip-path: inset(8% 0 70% 0);
+      transform: translate(-3px, 1px);
+    }
+    92% {
+      clip-path: inset(40% 0 34% 0);
+      transform: translate(4px, 1px);
+    }
+  }
+  .glitch-text::before {
+    animation: glitch-slice-a 5s steps(1, end) infinite;
+  }
+  .glitch-text::after {
+    animation: glitch-slice-b 6.2s steps(1, end) infinite;
+  }
+}
+
+/* bracket-frame — four corner L-brackets (~14px arms, 1.5px thick) drawn as
+   background layers in a brightened border ink. A companion class: layer it
+   WITH `panel` on hero surfaces (`panel` fills via background-color, so these
+   image layers compose). Never on `panel-solid`. */
+@utility bracket-frame {
+  --bracket-ink: color-mix(in oklch, var(--border), white 20%);
+  background-image:
+    linear-gradient(var(--bracket-ink), var(--bracket-ink)),
+    linear-gradient(var(--bracket-ink), var(--bracket-ink)),
+    linear-gradient(var(--bracket-ink), var(--bracket-ink)),
+    linear-gradient(var(--bracket-ink), var(--bracket-ink)),
+    linear-gradient(var(--bracket-ink), var(--bracket-ink)),
+    linear-gradient(var(--bracket-ink), var(--bracket-ink)),
+    linear-gradient(var(--bracket-ink), var(--bracket-ink)),
+    linear-gradient(var(--bracket-ink), var(--bracket-ink));
+  background-position:
+    left top,
+    left top,
+    right top,
+    right top,
+    left bottom,
+    left bottom,
+    right bottom,
+    right bottom;
+  background-size:
+    14px 1.5px,
+    1.5px 14px,
+    14px 1.5px,
+    1.5px 14px,
+    14px 1.5px,
+    1.5px 14px,
+    14px 1.5px,
+    1.5px 14px;
+  background-repeat: no-repeat;
+}
+
+/* hud-meta — scattered tiny mono metadata chrome (route markers, build tags,
+   coordinates). Quieter than `eyebrow`: corners and edges of a screen only,
+   max ~3 scatter points per view (see docs/design.md). */
+@utility hud-meta {
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
+}
+
+/* hud-meta-vertical — hud-meta rotated down a screen edge. */
+@utility hud-meta-vertical {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
+  writing-mode: vertical-rl;
+}
+
+/* warning-glyph — a small hexagonal hazard chip (destructive-tinted fill,
+   destructive ink) that centers its content (an icon or "!"). For blocking
+   configuration problems (CF not linked), never for judge verdicts. */
+@utility warning-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--destructive);
+  background: color-mix(in oklch, var(--destructive) 18%, transparent);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+
 /* ----------------------------------------------------------------------------
    Menu rows — the game-menu slab (the tetr.io main-menu language). A full-width
-   horizontal action row: an accent stripe down the left edge, a tinted liquid-
-   glass fill, an icon plate, a tall Chakra Petch label and a mono tagline. Hover/focus
-   slides it right and blooms the accent glow (fast, arcade feel); keyboard focus
-   gets the same treatment plus a visible outline. Each row picks its hue via the
-   inline custom property `--row-accent`; the icon plate and trailing arrow
-   inherit it. Used by the dashboard main menu and the landing CTA.
+   horizontal action row: an accent stripe down the left edge, a matte
+   accent-tinted fill, an icon plate, a tall Chakra Petch label and a mono tagline.
+   Hover/focus slides it right with a one-shot glitch jitter + RGB text-shadow
+   flash (fast, arcade feel); keyboard focus gets the same treatment plus a
+   visible outline. Each row picks its hue via the inline custom property
+   `--row-accent`; the icon plate and trailing arrow inherit it. Used by the
+   dashboard main menu and the landing CTA.
 ---------------------------------------------------------------------------- */
 @utility menu-row {
   --row-accent: var(--muted-foreground);
@@ -411,17 +672,13 @@
   padding: 1.15rem 1.35rem;
   text-align: left;
   border-radius: var(--radius);
-  border: 1px solid color-mix(in oklch, white 10%, transparent);
+  border: 1px solid var(--border);
   background: linear-gradient(
     100deg,
-    color-mix(in oklch, var(--row-accent) 15%, transparent),
-    color-mix(in oklch, var(--card) 60%, transparent) 46%
+    color-mix(in oklch, var(--row-accent) 14%, var(--card)),
+    var(--card) 50%
   );
-  -webkit-backdrop-filter: blur(10px) saturate(1.4);
-  backdrop-filter: blur(10px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 14%, transparent),
-    0 18px 40px -30px rgb(0 0 0 / 0.75);
+  box-shadow: 0 14px 30px -24px rgb(0 0 0 / 0.6);
   transition:
     transform 150ms cubic-bezier(0.2, 0.8, 0.3, 1),
     background 150ms ease,
@@ -438,7 +695,7 @@
   left: 0;
   width: 4px;
   background: var(--row-accent);
-  box-shadow: 0 0 20px -2px color-mix(in oklch, var(--row-accent) 75%, transparent);
+  box-shadow: 0 0 14px -2px color-mix(in oklch, var(--row-accent) 75%, transparent);
   transition: width 150ms ease;
 }
 
@@ -448,13 +705,12 @@
   border-color: color-mix(in oklch, var(--row-accent) 50%, transparent);
   background: linear-gradient(
     100deg,
-    color-mix(in oklch, var(--row-accent) 26%, transparent),
-    color-mix(in oklch, var(--card) 66%, transparent) 52%
+    color-mix(in oklch, var(--row-accent) 24%, var(--card)),
+    var(--card) 56%
   );
   box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 20%, transparent),
-    0 24px 50px -28px rgb(0 0 0 / 0.8),
-    0 0 36px -12px color-mix(in oklch, var(--row-accent) 65%, transparent);
+    0 18px 36px -24px rgb(0 0 0 / 0.7),
+    0 0 24px -10px color-mix(in oklch, var(--row-accent) 65%, transparent);
 }
 
 .menu-row:focus-visible {
@@ -498,6 +754,36 @@
   transform: translateX(0);
 }
 
+/* Glitch-on-hover: a one-shot ~150ms jitter (transform + RGB text-shadow flash
+   only — no filter). steps(1, end) holds each pose abruptly; when the
+   animation ends, fill-mode none hands transform back to the transitioned
+   hover value, which the final keyframe already matches. text-shadow is
+   inherited, so the flash hits the row's label and tagline too. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes menu-row-glitch {
+    0% {
+      transform: translate(11px, -1px);
+      text-shadow:
+        -1px 0 0 oklch(0.8 0.15 230 / 65%),
+        1px 0 0 oklch(0.65 0.25 25 / 65%);
+    }
+    45% {
+      transform: translate(9px, 1px);
+      text-shadow:
+        1px 0 0 oklch(0.8 0.15 230 / 65%),
+        -1px 0 0 oklch(0.65 0.25 25 / 65%);
+    }
+    100% {
+      transform: translateX(10px);
+      text-shadow: none;
+    }
+  }
+  .menu-row:hover,
+  .menu-row:focus-visible {
+    animation: menu-row-glitch 160ms steps(1, end) 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .menu-row,
   .menu-row::before,
@@ -512,15 +798,15 @@
 
 /* ----------------------------------------------------------------------------
    Slab button — the condensed sibling of the menu row (issue #129). The same
-   game-menu language (left accent stripe, tinted liquid-glass fill, uppercase
-   display label, accent glow bloom on hover/focus) shrunk to button scale for
-   the significant CTAs app-wide: the lobby READY, the race action bar, result
-   and queue actions, and primary form submits. A button, not a list row, so it
-   lifts + blooms on hover instead of sliding right, and it sizes to its content
+   game-menu language (left accent stripe, matte accent-tinted fill, uppercase
+   display label, glitch-on-hover) shrunk to button scale for the significant
+   CTAs app-wide: the lobby READY, the race action bar, result and queue
+   actions, and primary form submits. A button, not a list row, so it lifts +
+   glitches on hover instead of sliding right, and it sizes to its content
    (add `w-full` / `flex-1` to fill). Padding is em-based so a single inline
-   `font-size` (the component's `size="lg"`) scales the whole control. Hue comes
-   from `--row-accent` (set via the SlabButton `tone`/`accent` prop); focus and
-   reduced-motion behavior mirror the menu row. Rendered by
+   `font-size` (the component's `size="lg"`) scales the whole control. Hue
+   comes from `--row-accent` (set via the SlabButton `tone`/`accent` prop);
+   focus and reduced-motion behavior mirror the menu row. Rendered by
    `src/components/menu/slab-button.tsx`.
 ---------------------------------------------------------------------------- */
 @utility menu-row-sm {
@@ -545,14 +831,10 @@
   color: var(--foreground);
   background: linear-gradient(
     100deg,
-    color-mix(in oklch, var(--row-accent) 22%, transparent),
-    color-mix(in oklch, var(--card) 62%, transparent) 60%
+    color-mix(in oklch, var(--row-accent) 18%, var(--card)),
+    var(--card) 60%
   );
-  -webkit-backdrop-filter: blur(10px) saturate(1.4);
-  backdrop-filter: blur(10px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 14%, transparent),
-    0 14px 30px -26px rgb(0 0 0 / 0.8);
+  box-shadow: 0 10px 22px -20px rgb(0 0 0 / 0.65);
   transition:
     transform 150ms cubic-bezier(0.2, 0.8, 0.3, 1),
     background 150ms ease,
@@ -577,7 +859,7 @@
   left: 0;
   width: 3px;
   background: var(--row-accent);
-  box-shadow: 0 0 16px -2px color-mix(in oklch, var(--row-accent) 75%, transparent);
+  box-shadow: 0 0 11px -2px color-mix(in oklch, var(--row-accent) 75%, transparent);
   transition: width 150ms ease;
 }
 
@@ -587,13 +869,12 @@
   border-color: color-mix(in oklch, var(--row-accent) 60%, transparent);
   background: linear-gradient(
     100deg,
-    color-mix(in oklch, var(--row-accent) 34%, transparent),
-    color-mix(in oklch, var(--card) 66%, transparent) 62%
+    color-mix(in oklch, var(--row-accent) 28%, var(--card)),
+    var(--card) 62%
   );
   box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, white 20%, transparent),
-    0 20px 38px -24px rgb(0 0 0 / 0.85),
-    0 0 30px -12px color-mix(in oklch, var(--row-accent) 70%, transparent);
+    0 14px 28px -20px rgb(0 0 0 / 0.75),
+    0 0 20px -8px color-mix(in oklch, var(--row-accent) 70%, transparent);
 }
 
 .menu-row-sm:hover:not(:disabled)::before,
@@ -613,6 +894,33 @@
 .menu-row-sm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Glitch-on-hover, slab scale — same contract as the menu row's: one-shot,
+   transform + text-shadow only, settles onto the transitioned lift. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes menu-row-sm-glitch {
+    0% {
+      transform: translate(1px, -2px);
+      text-shadow:
+        -1px 0 0 oklch(0.8 0.15 230 / 65%),
+        1px 0 0 oklch(0.65 0.25 25 / 65%);
+    }
+    45% {
+      transform: translate(-1px, 0);
+      text-shadow:
+        1px 0 0 oklch(0.8 0.15 230 / 65%),
+        -1px 0 0 oklch(0.65 0.25 25 / 65%);
+    }
+    100% {
+      transform: translateY(-1px);
+      text-shadow: none;
+    }
+  }
+  .menu-row-sm:hover:not(:disabled),
+  .menu-row-sm:focus-visible {
+    animation: menu-row-sm-glitch 160ms steps(1, end) 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

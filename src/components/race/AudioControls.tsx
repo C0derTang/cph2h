@@ -122,7 +122,9 @@ export function AudioToggleButtons({ className, testIdSuffix }: AudioToggleButto
         data-testid={sfxTestId}
         className={cn(
           "inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-background text-muted-foreground outline-none transition-colors hover:bg-muted active:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-ring",
-          !sfxEnabled && "text-muted-foreground",
+          // Off = dimmed neutral ink (audio-device state is never a verdict
+          // token — docs/design.md verdict-scope rule).
+          !sfxEnabled && "text-muted-foreground/60",
         )}
       >
         {sfxEnabled ? (
@@ -143,7 +145,7 @@ export function AudioToggleButtons({ className, testIdSuffix }: AudioToggleButto
         data-testid={bgmTestId}
         className={cn(
           "inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-background text-muted-foreground outline-none transition-colors hover:bg-muted active:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-ring",
-          !bgmEnabled && "text-muted-foreground",
+          !bgmEnabled && "text-muted-foreground/60",
         )}
       >
         {bgmEnabled ? (

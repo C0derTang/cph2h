@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import {
   LayoutGrid,
@@ -8,7 +9,8 @@ import {
   Video,
   ShieldCheck,
 } from "lucide-react";
-import { MenuRowLink } from "@/components/menu/menu-row";
+import { HeroWord } from "@/components/hud/hero-word";
+import { SlabButton } from "@/components/menu/slab-button";
 
 // A real, ordered sequence — the numbered entries below carry information.
 const STEPS = [
@@ -63,83 +65,117 @@ export default async function Home() {
     <main className="flex-1">
       {/* Hero — the battle poster */}
       <section className="relative overflow-hidden">
-        {/* Overhead spotlight: the ambient cyan/magenta glow pooling into the stage dark. */}
+        {/* Overhead spotlight: the ambient self/opponent identity pools over the glitch ground. */}
         <div
           aria-hidden
           className="spotlight pointer-events-none absolute inset-0 -z-10"
         />
 
-        <div className="shell grid gap-12 py-16 md:grid-cols-[1.05fr_1fr] md:items-center md:py-24">
-          <div className="min-w-0">
-            <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
-              <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
-              1v1 competitive programming, out loud
-            </p>
-            <h1 className="mt-5 font-display text-[2.15rem] leading-[1] tracking-tight text-balance uppercase sm:text-6xl sm:leading-[0.9] md:text-7xl lg:text-8xl">
-              Same problem.
-              <br />
-              Same clock.
-              <br />
-              <span className="text-player-self">Catch these bars.</span>
-            </h1>
-            <p className="mt-6 max-w-lg text-base leading-7 text-muted-foreground md:text-lg">
-              cph2h drops you and one opponent into a live Codeforces problem
-              with your cameras on. First correct verdict takes the race — and
-              the Elo. Shittalk your way to a higher rating.
-            </p>
+        {/* hud-meta scatter point 1/3: route marker at the hero's top edge. */}
+        <span
+          aria-hidden
+          className="hud-meta absolute top-5 right-6 md:right-8"
+        >
+          {"// route :: /"}
+        </span>
 
-            {/* Entry actions in the same slab-row language as the signed-in
-                main menu (issue #124). */}
-            <div className="mt-8 flex flex-col gap-3">
-              {userId ? (
-                <>
-                  <MenuRowLink
-                    href="/queue"
-                    accent="var(--player-self)"
-                    icon={Swords}
-                    label="Find a race"
-                    tagline="Jump into the queue and get matched"
-                  />
-                  <MenuRowLink
-                    href="/dashboard"
-                    accent="var(--player-opponent)"
-                    icon={LayoutGrid}
-                    label="Main menu"
-                    tagline="Your hub — challenges, ladder, and settings"
-                  />
-                </>
-              ) : (
-                <>
-                  <MenuRowLink
-                    href="/sign-up"
-                    accent="var(--player-self)"
-                    icon={UserPlus}
-                    label="Sign up"
-                    tagline="Create an account and link Codeforces to race"
-                  />
-                  <MenuRowLink
-                    href="/sign-in"
-                    accent="var(--player-opponent)"
-                    icon={LogIn}
-                    label="Sign in"
-                    tagline="Already have an account? Pick up where you left off"
-                  />
-                </>
-              )}
-            </div>
+        <div className="shell flex flex-col items-center py-16 text-center md:py-20">
+          <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
+            <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
+            1v1 competitive programming, out loud
+          </p>
 
-            <p className="mt-6 font-mono text-[11px] tracking-wide text-muted-foreground">
-              40-minute clock · matched by rating · ranked Elo
-            </p>
+          {/* The neon graffiti wordmark IS the hero — the ONE hero word for
+              this screen. It stays decorative (aria-hidden); the sr-only h1
+              carries the name for assistive tech, so the page reads
+              completely without it. */}
+          <h1 className="sr-only">cph2h</h1>
+          <HeroWord word="cph2h" className="mt-2 block" />
+
+          {/* mt-24 clears the graffiti "p" descender, which paints ~0.75em
+              below the word's 0.9 line box at hero scale. */}
+          <p className="mt-24 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
+            cph2h drops you and one opponent into a live Codeforces problem
+            with your cameras on. First correct verdict takes the race — and
+            the Elo. Shittalk your way to a higher rating.
+          </p>
+
+          {/* Entry actions — everything is one click from here. */}
+          <div className="mt-8 flex w-full max-w-md flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-stretch sm:justify-center">
+            {userId ? (
+              <>
+                <SlabButton
+                  tone="self"
+                  size="lg"
+                  render={<Link href="/queue" />}
+                  nativeButton={false}
+                >
+                  <Swords className="size-5" aria-hidden />
+                  Find a race
+                </SlabButton>
+                <SlabButton
+                  tone="neutral"
+                  size="lg"
+                  render={<Link href="/challenge/new" />}
+                  nativeButton={false}
+                >
+                  <UserPlus className="size-5" aria-hidden />
+                  Challenge a friend
+                </SlabButton>
+                <SlabButton
+                  tone="neutral"
+                  size="lg"
+                  render={<Link href="/dashboard" />}
+                  nativeButton={false}
+                >
+                  <LayoutGrid className="size-5" aria-hidden />
+                  Main menu
+                </SlabButton>
+              </>
+            ) : (
+              <>
+                <SlabButton
+                  tone="self"
+                  size="lg"
+                  render={<Link href="/sign-up" />}
+                  nativeButton={false}
+                >
+                  <UserPlus className="size-5" aria-hidden />
+                  Sign up
+                </SlabButton>
+                <SlabButton
+                  tone="neutral"
+                  size="lg"
+                  render={<Link href="/sign-in" />}
+                  nativeButton={false}
+                >
+                  <LogIn className="size-5" aria-hidden />
+                  Sign in
+                </SlabButton>
+              </>
+            )}
           </div>
 
-          <VersusPoster />
+          <p className="mt-6 font-mono text-[11px] tracking-wide text-muted-foreground">
+            40-minute clock · matched by rating · ranked Elo
+          </p>
+
+          <div className="mt-12 w-full max-w-xl">
+            <VersusPoster />
+          </div>
         </div>
       </section>
 
       {/* How it works — tighter than the hero/features slabs either side, so
           the page doesn't read as three uniform sections stacked. */}
-      <section className="shell border-t border-border py-12 md:py-20">
+      <section className="relative shell border-t border-border py-12 md:py-20">
+        {/* hud-meta scatter point 2/3: section index at the top-right edge. */}
+        <span
+          aria-hidden
+          className="hud-meta absolute top-5 right-6 md:right-8"
+        >
+          sec&nbsp;02&nbsp;/&nbsp;04
+        </span>
         <h2 className="font-display text-3xl tracking-tight uppercase md:text-4xl">
           How a race plays out
         </h2>
@@ -165,7 +201,7 @@ export default async function Home() {
           inline with their heading rather than stacked above it. */}
       <section className="shell border-t border-border py-20 md:py-28">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-          <div className="panel flex flex-col justify-center gap-3 p-6 md:p-8">
+          <div className="panel bracket-frame flex flex-col justify-center gap-3 p-6 md:p-8">
             <div className="flex items-center gap-3">
               <LeadFeature.icon
                 className="size-6 shrink-0 text-player-self"
@@ -214,22 +250,29 @@ export default async function Home() {
           </span>
           <span aria-hidden className="mt-1 h-0.5 w-full bg-player-self" />
         </span>
-        <p>Built for people who&apos;d rather battle than grind alone.</p>
+        <div className="flex flex-col gap-1.5 sm:items-end">
+          <p>Built for people who&apos;d rather battle than grind alone.</p>
+          {/* hud-meta scatter point 3/3: build tag in the footer corner. */}
+          <span aria-hidden className="hud-meta">
+            bld&nbsp;4.0&nbsp;·&nbsp;0708
+          </span>
+        </div>
       </footer>
     </main>
   );
 }
 
 /**
- * Reference implementation of the VS poster lockup: a matte stage panel with a
- * lower-third ticker, two corners (champion cyan vs challenger magenta) split by
- * a thin cyan rule, tall-caps names, and a live clock. Every color comes from
- * the identity + verdict tokens; the live rating/clock are `font-mono
- * tabular-nums` per the numeral rule (the display face's digits aren't tabular).
+ * Reference implementation of the VS poster lockup: a matte HUD plate with
+ * corner brackets (the hero's companion plate), a lower-third ticker, two
+ * corners (self yellow vs opponent crimson) split by a thin yellow rule,
+ * tall-caps names, and a live clock. Every color comes from the identity +
+ * verdict tokens; the live rating/clock are `font-mono tabular-nums` per the
+ * numeral rule (the display face's digits aren't tabular).
  */
 function VersusPoster() {
   return (
-    <div aria-hidden className="panel overflow-hidden">
+    <div aria-hidden className="panel bracket-frame overflow-hidden">
       {/* Top lower-third: problem + live state */}
       <div className="ticker justify-between px-4 py-2.5">
         <span>race · 1794C</span>
@@ -240,7 +283,7 @@ function VersusPoster() {
       </div>
 
       <div className="relative grid grid-cols-2">
-        {/* Center VS + the thin cyan rule between the two corners */}
+        {/* Center VS + the thin yellow rule between the two corners */}
         <div
           aria-hidden
           className="absolute inset-y-6 left-1/2 w-px -translate-x-1/2 bg-player-self/40"

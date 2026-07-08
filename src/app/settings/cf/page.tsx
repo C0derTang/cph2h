@@ -1,5 +1,6 @@
 import { Link2 } from "lucide-react";
 import { ensureUser } from "@/lib/user";
+import { HeroWord } from "@/components/hud/hero-word";
 import { CfLinkForm } from "./cf-link-form";
 
 export default async function CfSettingsPage() {
@@ -12,9 +13,24 @@ export default async function CfSettingsPage() {
   const linkedAt = user?.cfLinkedAt ? user.cfLinkedAt.toISOString() : null;
 
   return (
-    <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
+    <main className="shell-narrow relative flex flex-1 flex-col py-16 md:py-24">
+      {/* Decorative HUD layer — muted, static hero word (settings is quiet
+          chrome, not a versus surface). Clipped against overflow. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="spotlight absolute inset-0" />
+        <HeroWord
+          word="link"
+          tone="muted"
+          glitch={false}
+          className="absolute top-4 -left-1"
+        />
+      </div>
+
       <div className="flex items-start gap-5">
-        <div className="flex size-14 shrink-0 items-center justify-center rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 text-player-self">
+        <div className="flex size-14 shrink-0 items-center justify-center rounded-[var(--radius)] border border-border bg-muted/40 text-muted-foreground">
           <Link2 className="size-6" aria-hidden />
         </div>
         <div>

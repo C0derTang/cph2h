@@ -18,7 +18,15 @@ export function EmptyStatePage({
   items,
 }: EmptyStatePageProps) {
   return (
-    <main className="shell-narrow flex flex-1 flex-col py-16 md:py-24">
+    <main className="shell-narrow relative flex flex-1 flex-col py-16 md:py-24">
+      {/* hud-meta edge chrome: a single decorative scatter point. */}
+      <span
+        aria-hidden
+        className="hud-meta absolute top-6 right-6 md:right-8"
+      >
+        {"// module pending"}
+      </span>
+
       <p>
         <span className="eyebrow inline-flex rounded-sm border border-player-self/40 px-2 py-1 text-player-self">
           cph2h{path}
@@ -26,7 +34,7 @@ export function EmptyStatePage({
       </p>
 
       <div className="mt-6 flex items-start gap-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-primary">
+        <div className="clip-notch-sm flex size-11 shrink-0 items-center justify-center border border-border bg-muted/40 text-primary">
           <Icon className="size-5" aria-hidden />
         </div>
         <div>
@@ -39,7 +47,7 @@ export function EmptyStatePage({
         </div>
       </div>
 
-      <div className="mt-10 rounded-xl border border-dashed border-border bg-card/40 p-6">
+      <div className="panel bracket-frame mt-10 p-6">
         <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
           Coming in a later build
         </p>

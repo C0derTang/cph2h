@@ -17,10 +17,10 @@ export default function RaceLoading() {
     <main className="flex flex-1 flex-col px-4 py-4" aria-busy="true" aria-live="polite">
       <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
         <div className="flex min-h-0 flex-col gap-4">
-          <div className="h-16 shrink-0 animate-pulse rounded-lg border border-border bg-card/30" />
-          <div className="min-h-[320px] flex-1 animate-pulse rounded-lg border border-border bg-card/30" />
+          <div className="h-16 shrink-0 rounded-lg border border-border bg-card/50 motion-safe:animate-pulse" />
+          <div className="min-h-[320px] flex-1 rounded-lg border border-border bg-card/50 motion-safe:animate-pulse" />
         </div>
-        <div className="min-h-[320px] animate-pulse rounded-lg border border-border bg-card/30" />
+        <div className="min-h-[320px] rounded-lg border border-border bg-card/50 motion-safe:animate-pulse" />
       </div>
       <span className="sr-only">Loading the race…</span>
     </main>

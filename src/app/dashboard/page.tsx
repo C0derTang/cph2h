@@ -22,6 +22,7 @@ import {
 } from "@/lib/elo-sparkline";
 import { ensureUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
+import { HeroWord } from "@/components/hud/hero-word";
 import { MenuRowLink } from "@/components/menu/menu-row";
 import { ChallengeMenuRow } from "@/components/dashboard/challenge-menu-row";
 import type { RaceOutcome } from "@/lib/types";
@@ -181,7 +182,7 @@ function IdentityPlate({
   const isProvisional = user.racesPlayed < 10;
 
   return (
-    <div className="panel p-5">
+    <div className="panel bracket-frame p-5">
       <p className="eyebrow text-muted-foreground">
         Signed in
       </p>
@@ -199,7 +200,10 @@ function IdentityPlate({
           <ExternalLink className="size-3" aria-hidden />
         </a>
       ) : (
-        <p className="mt-1 font-mono text-[11px] text-verdict-fail">
+        <p className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-destructive">
+          <span className="warning-glyph" aria-hidden>
+            !
+          </span>
           Codeforces not linked
         </p>
       )}
@@ -278,9 +282,11 @@ function PlayHubContent({
         className="spotlight pointer-events-none absolute inset-0 -z-10"
       />
       <div className="shell grid gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:py-12">
-        {/* The main menu: a stack of giant color-coded action slabs. */}
+        {/* The main menu: the graffiti hero word over a stack of giant
+            color-coded action slabs. */}
         <div>
-          <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
+          <HeroWord word="play" className="pointer-events-none -ml-1 block" />
+          <p className="mt-3 inline-flex items-center gap-2 eyebrow text-muted-foreground">
             <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
             Main menu
           </p>
@@ -296,14 +302,16 @@ function PlayHubContent({
             <ChallengeMenuRow />
             <MenuRowLink
               href="/leaderboard"
-              accent="var(--verdict-pending)"
+              // Neutral accent: a nav destination, not a judge outcome —
+              // verdict hues are reserved for judged results (docs/design.md).
+              accent="var(--muted-foreground)"
               icon={Trophy}
               label="Leaderboard"
               tagline="Where you stand on the ranked ladder"
             />
             <MenuRowLink
               href="/settings/cf"
-              accent={cfLinked ? "var(--muted-foreground)" : "var(--verdict-fail)"}
+              accent={cfLinked ? "var(--muted-foreground)" : "var(--destructive)"}
               icon={cfLinked ? Settings : AlertTriangle}
               label="Settings"
               tagline={
@@ -316,7 +324,13 @@ function PlayHubContent({
         </div>
 
         {/* Side rail: identity chip, Elo trend, recent races — demoted. */}
-        <aside className="flex flex-col gap-4">
+        <aside className="relative flex flex-col gap-4">
+          <span
+            aria-hidden
+            className="hud-meta-vertical pointer-events-none absolute -right-5 top-1 hidden lg:block"
+          >
+            {"// /dashboard"}
+          </span>
           <IdentityPlate
             user={user}
             record={record}
@@ -399,7 +413,7 @@ function PlayHubContent({
                         </Badge>
                         <span
                           className={cn(
-                            "flex items-center gap-1 font-display text-sm font-semibold tabular-nums",
+                            "flex items-center gap-1 font-mono text-xs font-semibold tabular-nums",
                             deltaTone,
                           )}
                         >

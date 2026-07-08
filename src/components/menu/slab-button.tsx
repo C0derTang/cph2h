@@ -1,8 +1,8 @@
 /**
  * Slab button (issue #129) — the condensed sibling of the game-menu slab row
  * ({@link ./menu-row}). It carries the same signature language (left accent
- * stripe, tinted liquid-glass fill, uppercase display label, accent glow on
- * hover/focus) at button scale, for the significant CTAs across the app: the
+ * stripe, matte accent-tinted fill, uppercase display label, glitch-on-hover
+ * + accent glow) at button scale, for the significant CTAs across the app: the
  * lobby READY, the race action bar, result/queue actions, and primary form
  * submits. Small utility controls (icon toggles, mic/cam, pagination, ghost
  * "cancel"/"back" links) deliberately stay on the plain {@link ../ui/button}.
@@ -24,7 +24,7 @@ import { accentStyle } from "@/components/menu/menu-row";
  *  the fill tint, which is how hierarchy is kept: a bright identity hue reads as
  *  the dominant CTA, `neutral` as a quiet secondary, `destructive` as danger. */
 const TONE_ACCENT = {
-  /** Cyan self-identity — the default dominant CTA. */
+  /** Acid-yellow self-identity — the default dominant CTA. */
   primary: "var(--player-self)",
   self: "var(--player-self)",
   opponent: "var(--player-opponent)",

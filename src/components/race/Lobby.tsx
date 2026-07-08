@@ -21,7 +21,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  AlertTriangle,
   Check,
   Copy,
   Loader2,
@@ -34,6 +33,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SlabButton } from "@/components/menu/slab-button";
+import { HeroWord } from "@/components/hud/hero-word";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -347,9 +347,22 @@ export function Lobby({
         </div>
       )}
 
-      {/* VS poster lockup: champion (cyan) vs challenger (magenta) corners
-          split by a thin cyan rule, per docs/design.md. */}
-      <div className="relative grid gap-3 border-t border-border p-5 sm:grid-cols-2 sm:gap-0 sm:p-0">
+      {/* VS poster lockup: self (acid yellow) vs opponent (crimson) corners
+          split by a thin self-yellow rule, framed by corner brackets and
+          hud-meta edge markers, per docs/design.md v4. */}
+      <div className="bracket-frame relative grid gap-3 border-t border-border p-5 sm:grid-cols-2 sm:gap-0 sm:p-0">
+        <span
+          aria-hidden
+          className="hud-meta absolute top-2 left-3 hidden sm:block"
+        >
+          {"// self"}
+        </span>
+        <span
+          aria-hidden
+          className="hud-meta absolute top-2 right-3 hidden sm:block"
+        >
+          {"opp //"}
+        </span>
         <div
           aria-hidden
           className="absolute inset-y-6 left-1/2 hidden w-px -translate-x-1/2 bg-player-self/40 sm:block"
@@ -473,8 +486,20 @@ function LobbyShell({
   className?: string;
 }) {
   return (
-    <div className={cn("panel clip-notch overflow-hidden", className)}>
-      {children}
+    <div className={cn("relative", className)}>
+      {/* The screen's ONE hero word (docs/design.md placement map: lobby →
+          "versus", foreground tone — the RGB glitch fringe carries the color).
+          Straddles the plate's top edge at -z so the opaque panel masks its
+          lower half; pure set dressing, the lobby reads without it. */}
+      <HeroWord
+        word="versus"
+        tone="foreground"
+        className="pointer-events-none absolute top-0 left-1/2 -z-10 -translate-x-1/2 -translate-y-[58%] whitespace-nowrap"
+      />
+      <span aria-hidden className="hud-meta absolute -bottom-5 right-1">
+        {"cph2h // lobby"}
+      </span>
+      <div className="panel clip-notch overflow-hidden">{children}</div>
     </div>
   );
 }
@@ -854,9 +879,11 @@ function FiltersSection({
       {failureReason && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+          className="flex items-start gap-2 border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
         >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span aria-hidden className="warning-glyph mt-0.5">
+            !
+          </span>
           <div className="flex flex-col gap-0.5">
             <span className="font-medium">Couldn&apos;t start the race</span>
             <span className="text-destructive/90">

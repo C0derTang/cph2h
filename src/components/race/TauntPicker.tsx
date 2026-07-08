@@ -98,7 +98,7 @@ export function TauntPicker({ currentUserId, onSent, className }: TauntPickerPro
             title={text}
             disabled={onCooldown}
             onClick={() => handlePick(id)}
-            className="truncate border border-border bg-background px-2 py-1.5 text-left text-[11px] font-medium outline-none transition-colors hover:border-player-self/50 hover:bg-muted hover:text-player-self focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+            className="truncate rounded-[var(--radius-sm)] border border-border bg-background px-2 py-1.5 text-left text-[11px] font-medium outline-none transition-colors hover:border-player-self/50 hover:bg-muted hover:text-player-self focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-95 disabled:pointer-events-none disabled:opacity-50"
           >
             {text}
           </button>
@@ -114,7 +114,7 @@ export function TauntPicker({ currentUserId, onSent, className }: TauntPickerPro
             title={id}
             disabled={onCooldown}
             onClick={() => handlePick(id)}
-            className="flex items-center justify-center border border-border bg-background py-1.5 text-lg outline-none transition-colors hover:border-player-self/50 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+            className="flex items-center justify-center rounded-[var(--radius-sm)] border border-border bg-background py-1.5 text-lg outline-none transition-colors hover:border-player-self/50 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:active:scale-95 disabled:pointer-events-none disabled:opacity-50"
           >
             {glyph}
           </button>
