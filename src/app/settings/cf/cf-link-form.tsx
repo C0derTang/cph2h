@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SlabButton } from "@/components/menu/slab-button";
 import type { CfLinkResponse, CfVerifyStartResponse } from "@/lib/types";
 
 interface CfLinkFormProps {
@@ -165,16 +166,16 @@ export function CfLinkForm({
             </p>
           )}
 
-          <div className="flex items-center gap-2">
-            <Button
+          <div className="flex flex-wrap items-center gap-2">
+            <SlabButton
               type="submit"
-              size="sm"
+              tone="self"
               disabled={starting}
               data-testid="verify-start-btn"
             >
               {starting ? <Loader2 className="animate-spin" aria-hidden /> : null}
               {starting ? "Starting…" : "Start verification"}
-            </Button>
+            </SlabButton>
             {relinking && (
               <Button
                 type="button"
@@ -240,17 +241,17 @@ export function CfLinkForm({
             </p>
           )}
 
-          <div className="flex items-center gap-2">
-            <Button
+          <div className="flex flex-wrap items-center gap-2">
+            <SlabButton
               type="button"
-              size="sm"
+              tone="self"
               onClick={handleCheck}
               disabled={checking}
               data-testid="verify-check-btn"
             >
               {checking ? <Loader2 className="animate-spin" aria-hidden /> : null}
               {checking ? "Checking…" : "Check"}
-            </Button>
+            </SlabButton>
             <Button
               type="button"
               variant="ghost"

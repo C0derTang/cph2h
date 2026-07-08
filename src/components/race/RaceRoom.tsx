@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { SlabButton } from "@/components/menu/slab-button";
 import { ProblemPane } from "@/components/race/ProblemPane";
 import { Lobby } from "@/components/race/Lobby";
 import { RaceHUD } from "@/components/race/RaceHUD";
@@ -727,11 +728,11 @@ export function RaceRoom({
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-2 sm:flex-row">
         {problem && (
-          <Button
+          <SlabButton
             type="button"
-            size="lg"
+            tone="self"
             data-testid="submit-btn"
-            className="h-11 flex-1 text-sm"
+            className="flex-1"
             nativeButton={false}
             render={
               <a
@@ -743,13 +744,13 @@ export function RaceRoom({
           >
             <ExternalLink aria-hidden />
             Submit on Codeforces
-          </Button>
+          </SlabButton>
         )}
-        <Button
+        <SlabButton
           type="button"
-          size="lg"
+          tone="self"
           data-testid="check-now-btn"
-          className="h-11 flex-1 text-sm"
+          className="flex-1"
           onClick={handleCheckNow}
           disabled={checking}
         >
@@ -759,22 +760,21 @@ export function RaceRoom({
             <Check aria-hidden />
           )}
           {checking ? "Checking…" : "I submitted — check now"}
-        </Button>
+        </SlabButton>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {!iOfferedDraw && !opponentOfferedDraw && (
-          <Button
+          <SlabButton
             type="button"
-            variant="outline"
-            size="lg"
+            tone="neutral"
             data-testid="draw-offer-btn"
             onClick={() => void handleDrawAction("offer")}
             disabled={drawActionPending}
           >
             <Handshake aria-hidden />
             Offer draw
-          </Button>
+          </SlabButton>
         )}
         {iOfferedDraw && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -791,10 +791,9 @@ export function RaceRoom({
             </Button>
           </div>
         )}
-        <Button
+        <SlabButton
           type="button"
-          variant="destructive"
-          size="lg"
+          tone="destructive"
           className="ml-auto"
           onClick={handleForfeit}
           disabled={forfeiting}
@@ -806,7 +805,7 @@ export function RaceRoom({
             <Flag aria-hidden />
           )}
           {forfeiting ? "Throwing in the towel…" : "Throw in the towel"}
-        </Button>
+        </SlabButton>
       </div>
 
       <p className="text-xs leading-5 text-muted-foreground">
@@ -885,17 +884,17 @@ export function RaceRoom({
       </header>
       {problem ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <Button
+          <SlabButton
             type="button"
-            size="lg"
+            tone="self"
             data-testid="problem-link"
-            className="h-11 w-full text-sm"
+            className="w-full"
             nativeButton={false}
             render={<a href={problem.url} target="_blank" rel="noreferrer" />}
           >
             <ExternalLink aria-hidden />
             Open on Codeforces
-          </Button>
+          </SlabButton>
           {statement ? (
             <ProblemPane statement={statement} className="flex-1" />
           ) : (
@@ -959,17 +958,17 @@ export function RaceRoom({
           ))}
       </div>
       {problem && (
-        <Button
+        <SlabButton
           type="button"
-          size="lg"
+          tone="self"
           data-testid="problem-link"
-          className="h-11 shrink-0 text-sm"
+          className="shrink-0"
           nativeButton={false}
           render={<a href={problem.url} target="_blank" rel="noreferrer" />}
         >
           <ExternalLink aria-hidden />
           Open on Codeforces
-        </Button>
+        </SlabButton>
       )}
     </section>
   );
@@ -1153,16 +1152,15 @@ export function RaceRoom({
       )}
       <ResultCard snapshot={snapshot} currentUserId={currentUserId} />
       {withVideo && (
-        <Button
+        <SlabButton
           type="button"
-          variant="outline"
-          size="lg"
+          tone="neutral"
           data-testid="leave-call-btn"
           render={<Link href="/dashboard" />}
           nativeButton={false}
         >
           Leave call &amp; back to home
-        </Button>
+        </SlabButton>
       )}
       {overlay && (
         <RaceEndOverlay
