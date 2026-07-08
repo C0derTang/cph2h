@@ -43,7 +43,7 @@ export default function QueuePage() {
   const goToRace = useCallback(
     (raceId: string) => {
       setPhase("matched");
-      toast.success("Match found! Heading to the race…");
+      toast.success("Opponent found. Get in.");
       router.push(`/race/${raceId}`);
     },
     [router],
@@ -52,7 +52,7 @@ export default function QueuePage() {
   const errorFor = useCallback((res: Response): string => {
     if (res.status === 401) return "Please sign in to find a race.";
     if (res.status === 403) return "Link your Codeforces account first.";
-    return "Something went wrong. Please try again.";
+    return "Queue choked. Run it back.";
   }, []);
 
   const findRace = useCallback(async () => {
@@ -214,7 +214,7 @@ export default function QueuePage() {
               <>
                 <SlabButton tone="neutral" size="lg" disabled>
                   <LoaderCircle className="animate-spin" aria-hidden />
-                  {phase === "matched" ? "Match found!" : "Searching…"}
+                  {phase === "matched" ? "Opponent found." : "Searching…"}
                 </SlabButton>
                 <SlabButton
                   tone="destructive"

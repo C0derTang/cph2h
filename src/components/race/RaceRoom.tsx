@@ -821,7 +821,7 @@ export function RaceRoom({
         )}
         {iOfferedDraw && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Draw offered — waiting for opponent</span>
+            <span>Draw offered — they&rsquo;re stalling.</span>
             <Button
               type="button"
               variant="outline"

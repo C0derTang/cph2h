@@ -41,7 +41,7 @@ const HEADING: Record<Result, string> = {
 };
 
 const SUBHEADING: Record<Result, string> = {
-  win: "First to a correct submission. Nicely done.",
+  win: "First to a correct submission. Wasn’t close.",
   loss: "Your opponent solved it first. Run it back?",
   draw: "Neither player solved it in time.",
   aborted: "This race ended before a winner was decided.",

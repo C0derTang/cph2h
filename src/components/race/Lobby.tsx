@@ -123,7 +123,7 @@ export function Lobby({
   // `RaceRoom`'s `applySnapshot`; issue #75 — previously the action handlers
   // set the snapshot directly and never recomputed skew, so a stale skew
   // could linger through ready/cancel). Opponent-joined is surfaced by the VS
-  // lockup flipping from "Waiting to join…" rather than a redundant toast
+  // lockup flipping from "Nobody’s stepped up yet." rather than a redundant toast
   // (issue #141).
   const applySnapshot = useCallback((data: RaceSnapshot) => {
     setSkewMs(computeSkewMs(data.now, Date.now()));
@@ -428,7 +428,7 @@ export function Lobby({
                 Marking ready…
               </>
             ) : youReady ? (
-              "Waiting for opponent…"
+              "Still catching up."
             ) : !meetsCompeteGate ? (
               "Mic on. Volume up."
             ) : (
@@ -620,7 +620,7 @@ function PlayerRow({
             </p>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">Waiting to join…</p>
+          <p className="text-sm text-muted-foreground">Nobody&rsquo;s stepped up yet.</p>
         )}
       </div>
       {user && (
@@ -644,7 +644,7 @@ function PlayerRow({
 function statusHeading(snapshot: RaceSnapshot, nowMs: number): string {
   switch (snapshot.status) {
     case "pending":
-      return "Waiting for an opponent";
+      return "They’re stalling.";
     case "ready":
       return "Get ready";
     case "active": {
@@ -656,7 +656,7 @@ function statusHeading(snapshot: RaceSnapshot, nowMs: number): string {
         );
         return `Starting in ${secondsLeft}s`;
       }
-      return "Race started!";
+      return "Race started.";
     }
     case "finished":
       return "Race finished";
@@ -676,7 +676,7 @@ function statusSubheading(snapshot: RaceSnapshot, nowMs: number): string {
     case "active":
       return snapshot.startedAt && nowMs < new Date(snapshot.startedAt).getTime()
         ? "Get ready — the problem unlocks when the countdown ends."
-        : "Good luck!";
+        : "Don’t choke.";
     case "finished":
       return "This race has already ended.";
     case "aborted":
