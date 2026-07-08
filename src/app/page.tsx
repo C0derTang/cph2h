@@ -30,7 +30,7 @@ const STEPS = [
   {
     n: "04",
     title: "Climb or cope",
-    body: "First accepted verdict takes the round. Elo moves for both of you the moment it's over.",
+    body: "First accepted verdict takes the round. Elo moves for both of you the moment it’s over.",
   },
 ];
 
@@ -51,6 +51,10 @@ const FEATURES = [
     body: "No manual grading, no honor system. We poll your submission and trust whatever the judge says back.",
   },
 ];
+
+// Break the 3-up triptych: one lead feature gets the headline slot, the rest
+// stack alongside it as a runner-up spec list.
+const [LeadFeature, ...SupportingFeatures] = FEATURES;
 
 export default async function Home() {
   const { userId } = await auth();
@@ -133,8 +137,9 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="shell border-t border-border py-16 md:py-24">
+      {/* How it works — tighter than the hero/features slabs either side, so
+          the page doesn't read as three uniform sections stacked. */}
+      <section className="shell border-t border-border py-12 md:py-20">
         <h2 className="font-display text-3xl tracking-tight uppercase md:text-4xl">
           How a race plays out
         </h2>
@@ -155,24 +160,49 @@ export default async function Home() {
         </ol>
       </section>
 
-      {/* Features */}
-      <section className="shell border-t border-border py-16 md:py-24">
-        <div className="grid gap-4 md:grid-cols-3">
-          {FEATURES.map((feature) => (
-            <div key={feature.title} className="panel p-5">
-              <feature.icon
-                className="size-5 text-player-self"
+      {/* Features — one lead panel (the headline draw: live video) paired
+          with two stacked runner-up panels, not a 3-up triptych. Icons sit
+          inline with their heading rather than stacked above it. */}
+      <section className="shell border-t border-border py-20 md:py-28">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+          <div className="panel flex flex-col justify-center gap-3 p-6 md:p-8">
+            <div className="flex items-center gap-3">
+              <LeadFeature.icon
+                className="size-6 shrink-0 text-player-self"
                 aria-hidden
                 strokeWidth={1.75}
               />
-              <h3 className="mt-3 font-display text-lg tracking-tight uppercase">
-                {feature.title}
+              <h3 className="font-display text-xl tracking-tight uppercase md:text-2xl">
+                {LeadFeature.title}
               </h3>
-              <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-                {feature.body}
-              </p>
             </div>
-          ))}
+            <p className="max-w-md text-sm leading-6 text-muted-foreground md:text-base">
+              {LeadFeature.body}
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            {SupportingFeatures.map((feature) => (
+              <div
+                key={feature.title}
+                className="panel flex items-start gap-3 p-5"
+              >
+                <feature.icon
+                  className="mt-0.5 size-5 shrink-0 text-player-self"
+                  aria-hidden
+                  strokeWidth={1.75}
+                />
+                <div className="min-w-0">
+                  <h3 className="font-display text-lg tracking-tight uppercase">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+                    {feature.body}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
