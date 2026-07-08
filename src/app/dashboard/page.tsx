@@ -15,6 +15,11 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { formatOutcome, formatEloDelta } from "@/lib/format";
+import {
+  eloSparklinePoints,
+  SPARKLINE_VIEWBOX_WIDTH,
+  SPARKLINE_VIEWBOX_HEIGHT,
+} from "@/lib/elo-sparkline";
 import { ensureUser } from "@/lib/user";
 import { cn } from "@/lib/utils";
 import { MenuRowLink } from "@/components/menu/menu-row";
@@ -114,30 +119,24 @@ function EloSparkline({ history }: { history: { eloAfter: number }[] }) {
   }
 
   const values = history.map((h) => h.eloAfter).reverse();
-  const minElo = Math.min(...values);
-  const maxElo = Math.max(...values);
-  const range = maxElo - minElo || 1;
-
-  const points = values
-    .map((elo, i) => {
-      const x = (i / (values.length - 1)) * 100;
-      const y = 100 - ((elo - minElo) / range) * 100;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  const [lastX, lastY] = points.split(" ").pop()?.split(",") ?? ["0", "0"];
+  const points = eloSparklinePoints(values);
+  const pointsAttr = points.map((p) => `${p.x},${p.y}`).join(" ");
+  const last = points[points.length - 1];
 
   return (
-    <svg viewBox="0 0 100 40" className="h-16 w-full overflow-visible">
+    <svg
+      viewBox={`0 0 ${SPARKLINE_VIEWBOX_WIDTH} ${SPARKLINE_VIEWBOX_HEIGHT}`}
+      className="h-16 w-full overflow-visible"
+    >
       <polyline
-        points={points}
+        points={pointsAttr}
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
         className="text-player-self"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx={lastX} cy={lastY} r="1.75" className="fill-player-self" />
+      <circle cx={last.x} cy={last.y} r="1.75" className="fill-player-self" />
     </svg>
   );
 }
