@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Show, UserButton } from "@clerk/nextjs";
-import { ArrowLeft, Link2 } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isBackRoute } from "@/lib/nav-routes";
 
 // Simplified battle IA: the play hub and the ladder. "Play" lands on the
 // signed-in hub; "The Ladder" is the leaderboard, renamed in voice. Display
@@ -23,17 +24,11 @@ const LINKS = [
 // keeps the full nav.
 const MENU_ROUTES = new Set(["/", "/dashboard"]);
 
-// Sub-pages (race rooms, the queue, challenge flow, settings, the ladder) get
-// a single Back button in place of the primary LINKS bar, so they read as a
-// focused task screen rather than a hub with a competing link bar — matching
-// the dashboard's clean chrome (issue #163 follow-up).
-const BACK_ROUTE_PREFIXES = ["/leaderboard", "/queue", "/challenge", "/settings", "/race"];
-
-function isBackRoute(pathname: string) {
-  return BACK_ROUTE_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-}
+// Sub-pages (race rooms, the queue, challenge flow, settings, the ladder) drop
+// the primary LINKS bar entirely — they carry a single top-left Back button
+// (RouteBack, rendered in the layout) so they read as a focused task screen
+// rather than a hub with a competing link bar. `isBackRoute` (shared with
+// RouteBack) is the single source for that set.
 
 /**
  * The wordmark: cph2h set in the display face, uppercase, with a self-yellow
@@ -96,16 +91,6 @@ function AuthChip() {
   );
 }
 
-/** Back-to-hub button shown on sub-pages in place of the primary LINKS bar. */
-function BackButton() {
-  return (
-    <Button render={<Link href="/dashboard" />} nativeButton={false} variant="ghost" size="sm">
-      <ArrowLeft className="size-4" aria-hidden />
-      Back
-    </Button>
-  );
-}
-
 export function Nav() {
   const pathname = usePathname();
   const isBack = isBackRoute(pathname);
@@ -137,11 +122,10 @@ export function Nav() {
         <Wordmark />
 
         {/* App links are signed-in only — a signed-out visitor's destinations
-            are the auth chip's Sign in / Sign up, not the app IA. */}
-        <Show when="signed-in">
-          {isBack ? (
-            <BackButton />
-          ) : (
+            are the auth chip's Sign in / Sign up, not the app IA. Back routes
+            drop the link bar entirely (they carry the top-left RouteBack). */}
+        {!isBack && (
+          <Show when="signed-in">
             <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
               {LINKS.map((link) => (
                 <Link
@@ -153,8 +137,8 @@ export function Nav() {
                 </Link>
               ))}
             </nav>
-          )}
-        </Show>
+          </Show>
+        )}
 
         <div className="flex items-center gap-2">
           {/* The nav's single hud-meta scatter point: a route marker at the

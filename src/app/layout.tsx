@@ -13,6 +13,7 @@ import {
   Sedgwick_Ave_Display,
 } from "next/font/google";
 import { Nav } from "@/components/nav";
+import { RouteBack } from "@/components/nav/route-back";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -126,6 +127,7 @@ export default function RootLayout({
               painting above it without touching the page tree. */}
           <div aria-hidden className="noise-ground" />
           <Nav />
+          <RouteBack />
           {children}
           <Toaster position="bottom-right" richColors closeButton />
         </body>
