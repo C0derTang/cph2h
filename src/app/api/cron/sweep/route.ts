@@ -20,6 +20,7 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { queueEntries, races } from "@/lib/db/schema";
 import { pollActiveRace } from "@/lib/race/poll";
+import { refreshCfRatings } from "@/lib/cf/rating-refresh";
 
 /** Force-poll active races idle for longer than this many seconds. */
 const STALE_POLL_SECONDS = 60;
@@ -95,11 +96,23 @@ export async function GET(request: Request) {
     .where(lt(queueEntries.enqueuedAt, sql`now() - interval '5 minutes'`))
     .returning({ userId: queueEntries.userId });
 
+  // 4. Refresh linked CF ratings (daily snapshot re-read). Best-effort — a CF
+  //    hiccup must not fail the safety-net sweep above, so swallow and report.
+  let ratings = { checked: 0, updated: 0, failed: 0 };
+  try {
+    ratings = await refreshCfRatings();
+  } catch (err) {
+    console.error("[sweep] cf rating refresh failed", err);
+  }
+
   return NextResponse.json({
     ok: true,
     polled: resolved,
     pollFailed: failed,
     abortedPending: abortedRows.length,
     purgedQueue: purgedRows.length,
+    ratingsChecked: ratings.checked,
+    ratingsUpdated: ratings.updated,
+    ratingsFailed: ratings.failed,
   });
 }
