@@ -203,10 +203,6 @@ function noiseBurst(
 }
 
 const RECIPES: Record<SfxName, SfxRecipe> = {
-  // Light, high tick — one per countdown second.
-  countdown_tick: (ctx, dest) => {
-    tone(ctx, dest, { type: "square", freq: 880, duration: 0.08, peak: 0.25 });
-  },
   // Big horn/fanfare: a rising triad stab.
   race_start: (ctx, dest) => {
     tone(ctx, dest, { type: "sawtooth", freq: 220, duration: 0.22, peak: 0.4 });

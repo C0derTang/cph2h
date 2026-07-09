@@ -5,7 +5,6 @@
  * environment).
  */
 export type SfxName =
-  | "countdown_tick"
   | "race_start"
   | "verdict_ok"
   | "verdict_fail"

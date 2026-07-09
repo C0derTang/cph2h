@@ -20,13 +20,13 @@
  * mount on an already-finished race (e.g. a hard refresh) correctly stays
  * silent instead of replaying `win`/`lose`.
  *
- * Countdown ticks and the BGM loop are NOT snapshot-diff-driven (a snapshot
- * only arrives every few seconds via the poll loop) — both run off a local
- * ~250ms timer derived from the snapshot's own clock-skew-corrected
- * `now`/`startedAt`, mirroring the pattern in `RaceRoom.tsx`/`Lobby.tsx`.
+ * The BGM loop is NOT snapshot-diff-driven (a snapshot only arrives every few
+ * seconds via the poll loop) — it runs off a local ~250ms timer derived from
+ * the snapshot's own clock-skew-corrected `now`/`startedAt`, mirroring the
+ * pattern in `RaceRoom.tsx`/`Lobby.tsx`. The pre-race countdown is silent.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import type { RaceSnapshot } from "@/lib/types";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
@@ -80,10 +80,10 @@ export function RaceAudio({ snapshot, youId }: RaceAudioProps) {
     for (const name of sfx) playSfx(name);
   }, [snapshot, youId]);
 
-  // Countdown ticks (one per second while counting down) + BGM start/stop
-  // (post-countdown, while active). Local timer, not snapshot-diff-driven —
-  // see module doc.
-  const lastTickSecondRef = useRef<number | null>(null);
+  // BGM start/stop across the countdown boundary. Local timer, not
+  // snapshot-diff-driven — a snapshot only arrives every few seconds. The
+  // pre-race countdown is silent (no tick sound); only the BGM reacts to the
+  // countdown → active boundary.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const skewMs = computeSkewMs(snapshot.now, Date.now());
@@ -95,14 +95,7 @@ export function RaceAudio({ snapshot, youId }: RaceAudioProps) {
         return;
       }
       const nowMs = correctedNow(skewMs);
-      if (nowMs < startedAtMs) {
-        const secondsLeft = Math.ceil((startedAtMs - nowMs) / 1000);
-        if (secondsLeft !== lastTickSecondRef.current) {
-          lastTickSecondRef.current = secondsLeft;
-          playSfx("countdown_tick");
-        }
-        stopBgm();
-      } else if (bgmEnabled) {
+      if (nowMs >= startedAtMs && bgmEnabled) {
         startBgm();
       } else {
         stopBgm();
