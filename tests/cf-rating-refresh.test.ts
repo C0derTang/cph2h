@@ -9,7 +9,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { selectWhereMock, updateWhereMock, getUserInfoMock } = vi.hoisted(() => ({
   selectWhereMock: vi.fn(),
-  updateWhereMock: vi.fn((_call?: { id: string; value: unknown }) => Promise.resolve()),
+  updateWhereMock: vi.fn((call?: { id: string; value: unknown }) => {
+    void call;
+    return Promise.resolve();
+  }),
   getUserInfoMock: vi.fn(),
 }));
 

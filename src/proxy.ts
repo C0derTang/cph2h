@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -10,8 +11,15 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
+  if (isPublicRoute(req)) return;
+
+  const { userId } = await auth();
+  if (!userId) {
+    // Anonymous visitors get a 404 rather than a sign-in redirect: protected
+    // surfaces simply don't exist for them. Rewriting to a path with no route
+    // renders src/app/not-found.tsx; the explicit 404 status makes it a real
+    // Not Found (and applies to API routes under the matcher too).
+    return NextResponse.rewrite(new URL("/404", req.url), { status: 404 });
   }
 });
 
