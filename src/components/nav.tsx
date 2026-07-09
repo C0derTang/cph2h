@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Show, UserButton } from "@clerk/nextjs";
-import { Link2 } from "lucide-react";
+import { ArrowLeft, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Simplified battle IA: the play hub and the ladder. "Play" lands on the
@@ -22,6 +22,18 @@ const LINKS = [
 // chrome there (issue #124). Every other route — race rooms, queue, settings —
 // keeps the full nav.
 const MENU_ROUTES = new Set(["/", "/dashboard"]);
+
+// Sub-pages (race rooms, the queue, challenge flow, settings, the ladder) get
+// a single Back button in place of the primary LINKS bar, so they read as a
+// focused task screen rather than a hub with a competing link bar — matching
+// the dashboard's clean chrome (issue #163 follow-up).
+const BACK_ROUTE_PREFIXES = ["/leaderboard", "/queue", "/challenge", "/settings", "/race"];
+
+function isBackRoute(pathname: string) {
+  return BACK_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 /**
  * The wordmark: cph2h set in the display face, uppercase, with a self-yellow
@@ -84,8 +96,19 @@ function AuthChip() {
   );
 }
 
+/** Back-to-hub button shown on sub-pages in place of the primary LINKS bar. */
+function BackButton() {
+  return (
+    <Button render={<Link href="/dashboard" />} nativeButton={false} variant="ghost" size="sm">
+      <ArrowLeft className="size-4" aria-hidden />
+      Back
+    </Button>
+  );
+}
+
 export function Nav() {
   const pathname = usePathname();
+  const isBack = isBackRoute(pathname);
 
   // Minimal chrome on menu screens: just the wordmark and the account chip,
   // floating over the full-viewport game menu — no competing link bar.
@@ -116,17 +139,21 @@ export function Nav() {
         {/* App links are signed-in only — a signed-out visitor's destinations
             are the auth chip's Sign in / Sign up, not the app IA. */}
         <Show when="signed-in">
-          <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
-            {LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="eyebrow text-muted-foreground transition-colors hover:text-player-self"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          {isBack ? (
+            <BackButton />
+          ) : (
+            <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
+              {LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="eyebrow text-muted-foreground transition-colors hover:text-player-self"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          )}
         </Show>
 
         <div className="flex items-center gap-2">
@@ -139,22 +166,24 @@ export function Nav() {
         </div>
       </div>
 
-      <Show when="signed-in">
-        <nav
-          aria-label="Primary"
-          className="shell flex items-center gap-6 overflow-x-auto border-t border-border py-2 md:hidden"
-        >
-          {LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="shrink-0 eyebrow text-muted-foreground transition-colors hover:text-player-self"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-      </Show>
+      {!isBack && (
+        <Show when="signed-in">
+          <nav
+            aria-label="Primary"
+            className="shell flex items-center gap-6 overflow-x-auto border-t border-border py-2 md:hidden"
+          >
+            {LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="shrink-0 eyebrow text-muted-foreground transition-colors hover:text-player-self"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </Show>
+      )}
     </header>
   );
 }

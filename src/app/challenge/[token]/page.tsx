@@ -99,7 +99,11 @@ export default async function JoinChallengePage({
         className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
         <div className="spotlight absolute inset-0" />
-        <HeroWord word="answer" tone="opponent" className="absolute top-4 -left-1" />
+        <HeroWord
+          word="answer"
+          tone="opponent"
+          className="absolute top-4 -left-1 opacity-25"
+        />
       </div>
       <span aria-hidden className="hud-meta absolute top-6 right-6 md:right-8">
         {"//"}&nbsp;/challenge

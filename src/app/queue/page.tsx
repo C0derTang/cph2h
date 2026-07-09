@@ -143,7 +143,7 @@ export default function QueuePage() {
     <main className="shell-narrow relative flex flex-1 flex-col py-16 md:py-24">
       <HeroWord
         word="seek"
-        className="pointer-events-none absolute -left-1 top-5 -z-10"
+        className="pointer-events-none absolute -left-1 top-5 -z-10 opacity-20"
       />
       <div className="ticker rounded-[var(--radius)] px-4 py-2">
         <Swords className="size-3.5" aria-hidden />

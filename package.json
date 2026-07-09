@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "drizzle-kit migrate && next build",
+    "db:migrate": "drizzle-kit migrate",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test"

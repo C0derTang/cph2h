@@ -25,7 +25,7 @@ export default async function CfSettingsPage() {
           word="link"
           tone="muted"
           glitch={false}
-          className="absolute top-4 -left-1"
+          className="absolute top-4 -left-1 opacity-30"
         />
       </div>
 

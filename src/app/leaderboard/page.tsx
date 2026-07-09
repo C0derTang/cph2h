@@ -19,7 +19,7 @@ function EmptyLeaderboard() {
     <div className="shell relative py-12">
       <HeroWord
         word="ladder"
-        className="pointer-events-none absolute -left-2 top-4 -z-10"
+        className="pointer-events-none absolute -left-2 top-4 -z-10 opacity-20"
       />
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <Trophy className="h-12 w-12 text-player-self" />
@@ -86,7 +86,7 @@ function LeaderboardTable({
     <div className="shell relative py-8">
       <HeroWord
         word="ladder"
-        className="pointer-events-none absolute -left-2 -top-4 -z-10"
+        className="pointer-events-none absolute -left-2 -top-4 -z-10 opacity-20"
       />
       <span
         aria-hidden
