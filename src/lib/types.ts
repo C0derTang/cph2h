@@ -297,6 +297,17 @@ export interface QueueStatusResponse {
   currentBand: number | null;
 }
 
+/** Live activity counters for the queue page (GET /api/presence). `online` =
+ *  distinct users in an active race OR freshly in the matchmaking queue;
+ *  `playing` = distinct active-race participants (a subset of `online`). */
+export interface PresenceCounts {
+  online: number;
+  playing: number;
+}
+
+/** How often the queue page refreshes the online/playing counters. */
+export const PRESENCE_POLL_INTERVAL_MS = 8000;
+
 export interface CreateRaceResponse {
   raceId: string;
   challengeToken: string;

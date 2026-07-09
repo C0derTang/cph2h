@@ -17,7 +17,12 @@ import { Swords, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeroWord } from "@/components/hud/hero-word";
 import { SlabButton } from "@/components/menu/slab-button";
-import { QUEUE_POLL_INTERVAL_MS, type QueueStatusResponse } from "@/lib/types";
+import {
+  QUEUE_POLL_INTERVAL_MS,
+  PRESENCE_POLL_INTERVAL_MS,
+  type QueueStatusResponse,
+  type PresenceCounts,
+} from "@/lib/types";
 
 type Phase = "idle" | "searching" | "matched" | "error";
 
@@ -40,6 +45,7 @@ export default function QueuePage() {
   const [waitedSec, setWaitedSec] = useState(0);
   const [band, setBand] = useState<number | null>(null);
   const [enqueuedAt, setEnqueuedAt] = useState<number | null>(null);
+  const [presence, setPresence] = useState<PresenceCounts | null>(null);
 
   const goToRace = useCallback(
     (raceId: string) => {
@@ -128,6 +134,28 @@ export default function QueuePage() {
     };
   }, [phase, goToRace]);
 
+  // Live online/playing counters — polled independently of the match search so
+  // they update whether or not you're currently queued.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/presence");
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as PresenceCounts;
+        if (!cancelled) setPresence(data);
+      } catch {
+        // Transient — keep the last value and retry next tick.
+      }
+    };
+    load();
+    const id = setInterval(load, PRESENCE_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
   // Local 1s ticker so elapsed time advances smoothly between polls.
   useEffect(() => {
     if (phase !== "searching" || enqueuedAt == null) return;
@@ -157,6 +185,31 @@ export default function QueuePage() {
         Queue up and we&apos;ll match you with an opponent near your rating
         for a live 1v1. The rating band widens the longer you wait.
       </p>
+
+      {presence && (
+        <p
+          aria-live="polite"
+          className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 font-mono text-xs text-muted-foreground"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="size-1.5 rounded-full bg-verdict-ok motion-safe:animate-pulse"
+            />
+            <span className="font-semibold text-foreground tabular-nums">
+              {presence.online}
+            </span>
+            online
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-1.5 rounded-full bg-player-self" />
+            <span className="font-semibold text-foreground tabular-nums">
+              {presence.playing}
+            </span>
+            playing
+          </span>
+        </p>
+      )}
 
       <div className="panel bracket-frame relative mt-10 p-5">
         {searching && (
