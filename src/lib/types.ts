@@ -315,6 +315,15 @@ export interface LeaderboardEntry {
   user: PublicUser;
 }
 
+/**
+ * Response from `POST /api/tournament/register`. On success the client
+ * redirects to the Stripe Checkout `url`; on failure it maps `error` to a
+ * toast (`full`, `already_registered`, `payments_unavailable`, ...).
+ */
+export type TournamentRegisterResponse =
+  | { url: string }
+  | { error: string };
+
 // ---------------------------------------------------------------------------
 // Codeforces API shapes (subset we consume)
 // ---------------------------------------------------------------------------
