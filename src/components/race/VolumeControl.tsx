@@ -4,17 +4,16 @@
  * Opponent-audio volume: the persisted setting + the slider UI (issue #100).
  *
  * The browser can't read OS/system volume, so this in-app control — wired to
- * `RoomAudioRenderer`'s `volume` prop in `VideoTiles.tsx` — is the honest
- * enforceable stand-in: "> 0" is the compete-gate's `volumeAudible` check.
+ * `RoomAudioRenderer`'s `volume` prop in `VideoTiles.tsx` — is how opponent
+ * audio loudness is adjusted (it is a preference, not a ready-gate).
  * `useOpponentVolume` reads/writes `localStorage` through a tiny module-level
  * external store (via `useSyncExternalStore`) rather than a mount effect —
  * `getServerSnapshot` returns `DEFAULT_VOLUME` so SSR/hydration markup
  * matches, and React itself handles the post-hydration correction, so no
  * effect-based `setState` is needed (see `src/lib/race/av-requirements.ts`
- * for the underlying read/write/clamp helpers). Independent mounts (the
- * Lobby, then later the race room's `VideoTiles`) share this one store, so
- * the setting survives the lobby -> active transition and stays in sync if
- * both are ever mounted at once.
+ * for the underlying read/write/clamp helpers). Independent mounts share
+ * this one store, so the setting persists across sessions and stays in sync
+ * if multiple consumers are ever mounted at once.
  */
 
 import { useCallback, useSyncExternalStore } from "react";

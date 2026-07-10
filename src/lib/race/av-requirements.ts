@@ -1,18 +1,17 @@
 /**
- * Pure compete-gate rules (issue #100): "you can't compete muted or deaf."
+ * Pure compete-gate rules (issue #100): "you can't compete muted."
  *
- * Browsers cannot read OS/system volume, so the honest enforceable
- * requirement is (a) a live microphone track with permission granted, and
- * (b) the in-app opponent-audio volume the client controls (LiveKit
- * `RoomAudioRenderer`'s `volume` prop) set above zero. Enforcement is
- * client-side only — the ready button is gated, the API is not (see the
- * issue's "Reality constraint"). Camera is never part of this gate.
+ * The enforceable requirement is a live microphone track with permission
+ * granted. Enforcement is client-side only — the ready button is gated, the
+ * API is not (see the issue's "Reality constraint"). Camera is never part of
+ * this gate, and opponent-audio volume is a free preference (adjustable
+ * in-race), not a gate.
  *
  * This module holds the state model + predicate (both pure, unit-tested
- * here) and the SSR-safe localStorage helpers for the persisted volume
- * setting, mirroring the wrap-and-swallow pattern in
+ * here) and the SSR-safe localStorage helpers for the persisted
+ * opponent-audio volume setting, mirroring the wrap-and-swallow pattern in
  * `src/lib/editor/draft.ts` — a full/disabled storage quota must never break
- * the gate, it just falls back to the default volume.
+ * playback, it just falls back to the default volume.
  */
 
 /** Everything the compete gate needs to know to decide `canCompete`. */
@@ -21,24 +20,21 @@ export interface AvRequirementState {
   micGranted: boolean;
   /** A live (unmuted, actually producing audio) local microphone track. */
   micLive: boolean;
-  /** The persisted opponent-audio volume setting is > 0. */
-  volumeAudible: boolean;
 }
 
 /** Convenience default — every requirement unmet, as at first mount. */
 export const UNMET_AV_REQUIREMENTS: AvRequirementState = {
   micGranted: false,
   micLive: false,
-  volumeAudible: false,
 };
 
 /**
- * Ready-to-compete iff mic permission is granted AND the mic track is live
- * AND the opponent-audio volume is audible. All three are required — a
- * granted-but-not-live mic (e.g. the OS device vanished) must still block.
+ * Ready-to-compete iff mic permission is granted AND the mic track is live.
+ * Both are required — a granted-but-not-live mic (e.g. the OS device
+ * vanished) must still block.
  */
 export function canCompete(state: AvRequirementState): boolean {
-  return state.micGranted && state.micLive && state.volumeAudible;
+  return state.micGranted && state.micLive;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,7 +66,7 @@ export function clampVolume(volume: number): number {
   return Math.min(1, Math.max(0, volume));
 }
 
-/** The enforceable "not deaf" check: is the persisted volume above zero? */
+/** Is the persisted opponent-audio volume above zero? (Display-only.) */
 export function isVolumeAudible(volume: number): boolean {
   return volume > 0;
 }

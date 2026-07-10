@@ -19,10 +19,9 @@ describe("canCompete", () => {
   const met: AvRequirementState = {
     micGranted: true,
     micLive: true,
-    volumeAudible: true,
   };
 
-  it("is true when all three requirements are met", () => {
+  it("is true when both requirements are met", () => {
     expect(canCompete(met)).toBe(true);
   });
 
@@ -30,16 +29,12 @@ describe("canCompete", () => {
     expect(canCompete(UNMET_AV_REQUIREMENTS)).toBe(false);
   });
 
-  it("is false when mic permission is denied even if volume is audible", () => {
+  it("is false when mic permission is denied", () => {
     expect(canCompete({ ...met, micGranted: false })).toBe(false);
   });
 
   it("is false when mic is granted but not live (e.g. device vanished)", () => {
     expect(canCompete({ ...met, micLive: false })).toBe(false);
-  });
-
-  it("is false when mic is on but volume is muted", () => {
-    expect(canCompete({ ...met, volumeAudible: false })).toBe(false);
   });
 });
 

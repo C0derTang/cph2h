@@ -41,7 +41,6 @@ import { buildJoinUrl } from "@/lib/race/join-url";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
 import { canCompete } from "@/lib/race/av-requirements";
 import { useMicPermission } from "@/components/race/useMicPermission";
-import { useOpponentVolume, VolumeSlider } from "@/components/race/VolumeControl";
 import { AudioToggleButtons } from "@/components/race/AudioControls";
 import { LiveTickerIndicator } from "@/components/race/LiveTickerIndicator";
 import {
@@ -105,16 +104,13 @@ export function Lobby({
   }, [skewMs]);
 
   // Compete gate (issue #100): a client-side-only requirement, checked here
-  // so the "I'm ready" button can't be pressed muted or deaf. `useMicPermission`
+  // so the "I'm ready" button can't be pressed muted. `useMicPermission`
   // works without any LiveKit context (the Lobby renders standalone, before
-  // `LiveKitRoom` mounts in the active branch — see `RaceRoom.tsx`); the
-  // opponent-volume setting persists across that transition via localStorage.
+  // `LiveKitRoom` mounts in the active branch — see `RaceRoom.tsx`).
   const mic = useMicPermission();
-  const opponentVolume = useOpponentVolume();
   const meetsCompeteGate = canCompete({
     micGranted: mic.micGranted,
     micLive: mic.micLive,
-    volumeAudible: opponentVolume.volumeAudible,
   });
 
   // Applies any freshly-received `RaceSnapshot` — whether from the polling
@@ -397,7 +393,7 @@ export function Lobby({
         )}
 
         {(snapshot.status === "pending" || snapshot.status === "ready") && (
-          <CompeteGate mic={mic} opponentVolume={opponentVolume} />
+          <CompeteGate mic={mic} />
         )}
 
         {snapshot.status === "pending" && snapshot.challengeToken && (
@@ -441,7 +437,7 @@ export function Lobby({
             ) : youReady ? (
               "They’re still catching up."
             ) : !meetsCompeteGate ? (
-              "Mic on. Volume up."
+              "Mic on."
             ) : (
               "I'm ready"
             )}
@@ -505,18 +501,16 @@ function LobbyShell({
 }
 
 /**
- * Compete-gate checklist (issue #100): "Mic on. Volume up. No excuses."
- * Shows mic ✓/✗ with a "Grant mic" action and volume ✓/✗ with the live
- * slider right there — camera is explicitly called out as not required.
- * Pure presentation; the actual gating predicate (`canCompete`) lives with
- * the hooks in the parent so it can also disable the ready button.
+ * Compete-gate checklist (issue #100): "Mic on. No excuses."
+ * Shows mic ✓/✗ with a "Grant mic" action, plus the SFX/BGM toggles —
+ * camera is explicitly called out as not required. Pure presentation; the
+ * actual gating predicate (`canCompete`) lives with the hooks in the parent
+ * so it can also disable the ready button.
  */
 function CompeteGate({
   mic,
-  opponentVolume,
 }: {
   mic: ReturnType<typeof useMicPermission>;
-  opponentVolume: ReturnType<typeof useOpponentVolume>;
 }) {
   const micOk = mic.micGranted && mic.micLive;
   const micLabel = !mic.supported
@@ -531,7 +525,7 @@ function CompeteGate({
         <p className="eyebrow text-muted-foreground">
           Compete requirements
         </p>
-        <p className="text-sm">Mic on. Volume up. No excuses.</p>
+        <p className="text-sm">Mic on. No excuses.</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -564,26 +558,7 @@ function CompeteGate({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "shrink-0",
-            opponentVolume.volumeAudible ? "text-foreground" : "text-destructive",
-          )}
-          data-testid="volume-requirement"
-        >
-          {opponentVolume.volumeAudible ? (
-            <Check className="size-4" aria-hidden />
-          ) : (
-            <X className="size-4" aria-hidden />
-          )}
-        </span>
-        <VolumeSlider
-          volume={opponentVolume.volume}
-          onChange={opponentVolume.setVolume}
-          className="flex-1"
-          testId="volume-slider-lobby"
-        />
+      <div className="flex items-center justify-end gap-2">
         <AudioToggleButtons testIdSuffix="lobby" />
       </div>
 
