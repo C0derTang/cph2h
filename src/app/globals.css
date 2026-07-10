@@ -304,6 +304,19 @@
   box-shadow: 0 12px 28px -20px rgb(0 0 0 / 0.55);
 }
 
+/* problem-banner — the full-width race-room top plate (issue #165): same
+   fill/shadow/radius as `panel-solid`, plus a 2px self-yellow top rule (the
+   same "Clerk card" convention as the auth card in layout.tsx and the
+   `ticker` rule above) so the problem identity reads as the dominant plate
+   pinned above the stage, not a footnote beside it. */
+@utility problem-banner {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--player-self);
+  background-color: color-mix(in oklch, var(--card) 98%, transparent);
+  box-shadow: 0 12px 28px -20px rgb(0 0 0 / 0.55);
+}
+
 /* stat-plate — a flat inset cell for a single number + label. Hairline border,
    darker fill, a subtle inset shadow, and a single 6px corner tick (top-left)
    drawn in the border ink via background gradients — the small HUD detail that
