@@ -44,3 +44,12 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# local agent tooling (playwright MCP logs, Codex state, plugin lock)
+/.playwright-mcp/
+/.Codex/
+/AGENTS.md
+/skills-lock.json
+
+# stray screenshots from local verification runs
+/*.png
