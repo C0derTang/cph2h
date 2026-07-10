@@ -1,18 +1,14 @@
 /**
  * Pure decision core for the data-channel refetch throttle (issue #84,
- * PR #85 security review).
+ * PR #85 security review; kept as defense-in-depth per issue #164 even
+ * though client tokens no longer hold data-publish rights).
  *
- * With `canPublishData: true` on client tokens (needed so clients can send
- * `taunt` events, see `src/lib/livekit.ts`), a malicious opponent could
- * bypass the UI and publish forged NON-taunt `RaceEvent`s at arbitrary rate;
- * each one used to trigger an immediate snapshot refetch — a 1:1
- * amplification against our own `GET /api/races/[id]` from the victim's
- * browser. `RaceEvents` (in `RaceRoom.tsx`) therefore throttles the
- * event→refetch path to at most one refetch per `REFETCH_MIN_MS`, with
- * leading + trailing edges: the first event of a burst refetches
- * immediately, and one trailing refetch is scheduled for the tail so a
- * legitimate final event (e.g. `race_finished`) is never dropped — a flood
- * simply collapses to ~1 refetch/sec.
+ * `RaceEvents` (in `RaceRoom.tsx`) throttles the event→refetch path to at
+ * most one refetch per `REFETCH_MIN_MS`, with leading + trailing edges: the
+ * first event of a burst refetches immediately, and one trailing refetch is
+ * scheduled for the tail so a legitimate final event (e.g. `race_finished`)
+ * is never dropped — a flood of events simply collapses to ~1 refetch/sec
+ * against our own `GET /api/races/[id]`.
  *
  * This module is the pure timing math; the component owns the actual
  * `setTimeout`/refs. Reconnection-driven refetches are NOT routed through

@@ -7,10 +7,10 @@
  *   - pending/ready  → the standalone {@link Lobby} (#16)
  *   - active         → the stage (issue #99): {@link ProblemPane} (#9) beside a
  *                      dominant center stage of {@link VideoTiles} (opponent
- *                      spotlight + self PiP) with the {@link TauntPicker} and
- *                      big Submit/Check actions attached, and a {@link RaceHUD}
- *                      + {@link VerdictFeed} rail. No in-room editor: racers
- *                      write in their own environment and submit on codeforces.com.
+ *                      spotlight + self PiP) with the big Submit/Check actions
+ *                      attached, and a {@link RaceHUD} + {@link VerdictFeed}
+ *                      rail. No in-room editor: racers write in their own
+ *                      environment and submit on codeforces.com.
  *   - finished/aborted → {@link ResultCard}
  *
  * The `GET /api/races/[id]` snapshot is the single source of truth. LiveKit
@@ -52,7 +52,6 @@ import { VerdictFeed } from "@/components/race/VerdictFeed";
 import { ResultCard } from "@/components/race/ResultCard";
 import { RaceEndOverlay } from "@/components/race/RaceEndOverlay";
 import { VideoTiles } from "@/components/race/VideoTiles";
-import { TauntPicker } from "@/components/race/TauntPicker";
 import { useMicPermission } from "@/components/race/useMicPermission";
 import { RaceAudio } from "@/components/race/RaceAudio";
 import {
@@ -72,7 +71,6 @@ import {
   absenceSecondsRemaining,
   shouldShowAbsenceCountdown,
 } from "@/lib/race/presence";
-import { addTaunt, expireTaunt, type TauntBubbles } from "@/lib/race/taunts";
 import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
 import {
   detectOverlayOutcome,
@@ -143,7 +141,6 @@ export function RaceRoom({
   // against `nowTick` (already ticking every 1s while active) rather than a
   // dedicated interval.
   const [lastCheckedAt, setLastCheckedAt] = useState<number | null>(null);
-  const [taunts, setTaunts] = useState<TauntBubbles>({});
   // Local 1s tick, only while active, so the absence-forfeit countdown ticks
   // down between snapshot receipts (the server still decides the actual finish).
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -579,28 +576,6 @@ export function RaceRoom({
     [drawActionPending, raceId, refetch, applySnapshot],
   );
 
-  // --- Taunts (issue #84) — purely presentational, never refetch-driven ---
-  // `handleTauntReceived` applies an opponent's (or, harmlessly, an echoed
-  // self-) taunt arriving over the LiveKit data channel; `handleTauntSent`
-  // applies this client's own bubble optimistically the instant it sends,
-  // since LiveKit never echoes a publisher's own data message back to it.
-  // `handleTauntExpire` clears a bubble once its display window elapses,
-  // guarded by `sentAt` so a stale timer can't clobber a newer replacement.
-  const handleTauntReceived = useCallback((byUserId: string, tauntId: string) => {
-    setTaunts((prev) => addTaunt(prev, byUserId, tauntId, Date.now()));
-  }, []);
-
-  const handleTauntSent = useCallback(
-    (tauntId: string) => {
-      setTaunts((prev) => addTaunt(prev, currentUserId, tauntId, Date.now()));
-    },
-    [currentUserId],
-  );
-
-  const handleTauntExpire = useCallback((byUserId: string, sentAt: number) => {
-    setTaunts((prev) => expireTaunt(prev, byUserId, sentAt));
-  }, []);
-
   // --- Opponent disconnect grace: only counts a *sustained* absence, so a
   // brief reconnect blip never flashes the banner. -------------------------
   const handlePresenceChange = useCallback((present: boolean) => {
@@ -755,9 +730,6 @@ export function RaceRoom({
     startedAtMs != null
       ? absenceSecondsRemaining(opponentLastSeenMs, startedAtMs, absenceNowMs)
       : 0;
-
-  const selfTaunt = taunts[currentUserId] ?? null;
-  const opponentTaunt = opponent ? taunts[opponent.id] ?? null : null;
 
   // Auto-poll indicator (issue #107): seconds since the last successful
   // verdict-poll response, ticking via the same 1s `nowTick` the absence
@@ -925,10 +897,10 @@ export function RaceRoom({
   );
 
   // Center stage — the opponent's face under the spotlight is the dominant
-  // element (issue #99): the video spotlight + attached "Spit a bar" picker,
-  // with the big action bar directly beneath. VideoTiles / TauntPicker read
-  // LiveKit room context, so they only mount when video is connected.
-  // `flex-1` is a no-op as a direct CSS grid child (the 3-col
+  // element (issue #99): the video spotlight, with the big action bar
+  // directly beneath. VideoTiles reads LiveKit room context, so it only
+  // mounts when video is connected. `flex-1` is a no-op as a direct CSS grid
+  // child (the 3-col
   // statement-present layout below) and makes this pane grow to fill the
   // remaining height when nested inside the stage-column flex wrapper (issue
   // #109's 2-col, statement-absent layout) — safe to apply unconditionally.
@@ -939,23 +911,7 @@ export function RaceRoom({
         className="spotlight pointer-events-none absolute inset-0 -z-10"
       />
       {withVideo ? (
-        <>
-          <VideoTiles
-            selfTaunt={selfTaunt}
-            opponentTaunt={opponentTaunt}
-            onSelfTauntExpire={
-              selfTaunt
-                ? () => handleTauntExpire(currentUserId, selfTaunt.sentAt)
-                : undefined
-            }
-            onOpponentTauntExpire={
-              opponentTaunt && opponent
-                ? () => handleTauntExpire(opponent.id, opponentTaunt.sentAt)
-                : undefined
-            }
-          />
-          <TauntPicker currentUserId={currentUserId} onSent={handleTauntSent} />
-        </>
+        <VideoTiles />
       ) : (
         <div className="panel flex aspect-video items-center justify-center p-4 text-xs text-muted-foreground">
           Video is unavailable.
@@ -1340,11 +1296,7 @@ export function RaceRoom({
               : "flex min-h-0 flex-1 flex-col"
           }
         >
-          <RaceEvents
-            onEvent={refetch}
-            onReconnected={handleReconnected}
-            onTaunt={handleTauntReceived}
-          />
+          <RaceEvents onEvent={refetch} onReconnected={handleReconnected} />
           {opponent && (
             <PresenceWatcher
               opponentId={opponent.id}
@@ -1366,37 +1318,21 @@ export function RaceRoom({
  * In-room listener: forwards LiveKit data-channel `RaceEvent`s (hints) and
  * (re)connections to the parent as snapshot-refetch triggers. Renders nothing.
  *
- * `taunt` events are the one exception (issue #84): they are purely
- * presentational and MUST NOT trigger a snapshot refetch (spamming taunts
- * would otherwise hammer `GET /api/races/[id]`), so they're filtered into
- * `onTaunt` before the `onEvent` refetch path ever sees them. The sender
- * identity is taken from LiveKit's own `msg.from` (assigned at token mint,
- * unforgeable by the client) rather than trusted from the payload's
- * `byUserId` field — clients can publish arbitrary data on this channel
- * (see `mintToken` in `src/lib/livekit.ts`), so a forged `byUserId` must not
- * be able to impersonate another player's bubble. A mismatch is dropped
- * silently, same as any other malformed/unknown taunt payload.
- *
- * The NON-taunt branch is throttled (PR #85 security review): because
- * clients hold data-publish rights, a malicious opponent could publish
- * forged non-taunt events (e.g. `{type:"verdict"}`) at arbitrary rate,
- * turning each into a `GET /api/races/[id]` from the victim's browser — a
- * 1:1 amplification DoS against our own API. Events collapse to at most one
- * refetch per `REFETCH_MIN_MS`, leading + trailing edge (the pure timing
- * math lives in `@/lib/race/refetch-throttle`): the first event of a burst
- * refetches immediately, and one trailing refetch covers the tail so a
- * legitimate final event (e.g. `race_finished`) is never dropped.
+ * The refetch path is throttled (PR #85 security review, kept as
+ * defense-in-depth even though clients no longer hold data-publish rights —
+ * see `src/lib/race/refetch-throttle.ts`): events collapse to at most one
+ * refetch per `REFETCH_MIN_MS`, leading + trailing edge — the first event of
+ * a burst refetches immediately, and one trailing refetch covers the tail so
+ * a legitimate final event (e.g. `race_finished`) is never dropped.
  * `onReconnected` is deliberately NOT throttled — connection state is
- * LiveKit-server-driven, not attacker-controllable.
+ * LiveKit-server-driven.
  */
 function RaceEvents({
   onEvent,
   onReconnected,
-  onTaunt,
 }: {
   onEvent: () => void;
   onReconnected: () => void;
-  onTaunt: (byUserId: string, tauntId: string) => void;
 }) {
   const lastRefetch = useRef(0);
   const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1410,13 +1346,6 @@ function RaceEvents({
   useDataChannel(LIVEKIT_DATA_TOPIC, (msg) => {
     const event = decodeRaceEvent(msg.payload);
     if (!event) return;
-    if (event.type === "taunt") {
-      const senderId = msg.from?.identity;
-      if (senderId && senderId === event.byUserId) {
-        onTaunt(event.byUserId, event.tauntId);
-      }
-      return;
-    }
     if (event.type === "race_finished") {
       // The finish is the one event we never throttle (issue #113): the
       // loser's mic is about to cut, so refetch the authoritative snapshot
@@ -1426,9 +1355,9 @@ function RaceEvents({
       onEventRef.current();
       return;
     }
-    // We only need to know a (non-taunt) event arrived — the snapshot is
-    // authoritative. Throttled: leading edge fires now, a burst's tail is
-    // covered by a single trailing refetch, everything in between drops.
+    // We only need to know an event arrived — the snapshot is authoritative.
+    // Throttled: leading edge fires now, a burst's tail is covered by a
+    // single trailing refetch, everything in between drops.
     const decision = refetchThrottleDecision(lastRefetch.current, Date.now());
     if (decision.action === "now") {
       lastRefetch.current = Date.now();

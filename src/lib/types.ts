@@ -47,42 +47,6 @@ export const UNLOCK_REFETCH_BACKOFF_MS = [500, 1000, 2000] as const;
  */
 export const ABSENCE_FORFEIT_SEC = 60;
 
-/** Client-enforced minimum gap between taunts sent by one player. */
-export const TAUNT_COOLDOWN_MS = 3000;
-
-/** How long a taunt bubble stays on screen before auto-dismissing. */
-export const TAUNT_DISPLAY_MS = 4000;
-
-/**
- * Preset taunts (id -> display text). Presets only — no free text — so there
- * is no moderation surface. Sent over the LiveKit data channel as a `taunt`
- * RaceEvent; purely presentational, never persisted.
- */
-export const TAUNT_PRESETS: Record<string, string> = {
-  "skill-issue": "Skill issue.",
-  "grandma": "My grandma types faster.",
-  "wa-chief": "That's a WA, chief.",
-  "already-done": "brb, already done",
-  "read-statement": "Try reading the statement.",
-  "pseudo": "I solved this in my head.",
-  "off-by-one": "Off by one? Classic you.",
-  "brute-force": "Brute force won't save you.",
-  "tle-incoming": "TLE incoming. I can smell it.",
-  "free-elo": "Thanks for the free Elo.",
-  "stack-overflow": "Stack Overflow can't help you now.",
-  "gg": "gg go next",
-} as const;
-
-/** Emote taunts (id -> emoji). Rendered large-glyph, same wire as presets. */
-export const TAUNT_EMOTES: Record<string, string> = {
-  "skull": "💀",
-  "fire": "🔥",
-  "clown": "🤡",
-  "sob": "😭",
-  "goat": "🐐",
-  "trash": "🗑️",
-} as const;
-
 export const DEFAULT_CPP_TEMPLATE = `#include <bits/stdc++.h>
 using namespace std;
 
@@ -266,13 +230,7 @@ export type RaceEvent =
   | { type: "draw_offered"; byUserId: string }
   | { type: "draw_declined"; byUserId: string }
   | { type: "problem_selection_failed"; reason: ProblemSelectionFailureReason }
-  | { type: "filters_updated" }
-  /**
-   * Ephemeral trash-talk taunt (preset id from TAUNT_PRESETS or TAUNT_EMOTES).
-   * Purely presentational: renders as a comic bubble on the sender's video
-   * tile and MUST NOT trigger a snapshot refetch. Never persisted.
-   */
-  | { type: "taunt"; byUserId: string; tauntId: string };
+  | { type: "filters_updated" };
 
 export function encodeRaceEvent(event: RaceEvent): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(event));
