@@ -85,7 +85,7 @@ LiveKit powers real-time voice, video, and data channels for race events.
 4. Add to Vercel environment variables:
    - `LIVEKIT_API_KEY` (the API key from step 3)
    - `LIVEKIT_API_SECRET` (the secret from step 3)
-   - `NEXT_PUBLIC_LIVEKIT_URL` (the WebSocket URL, used by the client)
+   - `LIVEKIT_URL` (the WebSocket URL; clients receive it from `/api/livekit/token`)
 
 #### Local Development
 
@@ -102,8 +102,7 @@ The complete list of environment variables required for deployment:
 | `CLERK_SECRET_KEY` | Clerk (Marketplace) | Secret | Clerk backend token | `sk_test_xyz789...` |
 | `LIVEKIT_API_KEY` | LiveKit Cloud | Secret | LiveKit server API key | `DEVKEY...` |
 | `LIVEKIT_API_SECRET` | LiveKit Cloud | Secret | LiveKit server API secret | `long-random-string...` |
-| `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Cloud | Public | LiveKit WebSocket URL for clients | `wss://your-workspace.livekit.cloud` |
-| `LIVEKIT_URL` | LiveKit Cloud | Secret | LiveKit server URL for room management (same host as the public URL) | `wss://your-workspace.livekit.cloud` |
+| `LIVEKIT_URL` | LiveKit Cloud | Secret | LiveKit WebSocket URL (server-side room management; also handed to clients via `/api/livekit/token`) | `wss://your-workspace.livekit.cloud` |
 | `CRON_SECRET` | Manual (generate) | Secret | Bearer token protecting `/api/cron/*` routes | (see below) |
 | `RACE_TEST_MODE` | Manual | Secret | Set to `0` in production; `1` only in dev for testing (enables `/api/dev/inject-verdict`) | `0` |
 
@@ -220,7 +219,7 @@ Vercel supports environment variable overrides per deployment:
 
 ### "LiveKit connection failed"
 
-- Verify `NEXT_PUBLIC_LIVEKIT_URL` is correct and publicly accessible
+- Verify `LIVEKIT_URL` is correct and publicly accessible
 - Check that `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` match your LiveKit project
 - Ensure the LiveKit workspace is active
 

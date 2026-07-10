@@ -64,6 +64,8 @@ next-env.d.ts
 /scripts/delete-*.ts
 /scripts/backfill-*.ts
 /scripts/*.local.ts
+/delete-*.mjs
+/backfill-*.mjs
 
 # editors / OS
 .vscode/
