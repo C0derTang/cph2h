@@ -922,113 +922,51 @@ export function RaceRoom({
     </section>
   );
 
-  // Link-first (issue #107): once `problem` is present (our own DB via the CF
-  // API — never Cloudflare-blocked), the big "Open on Codeforces" button is
-  // the pane's main affordance. The embedded, scraped `statement` is an
-  // enhancement layered below when it's present; when it isn't (scrape
-  // blocked/best-effort), a one-liner replaces it — no spinner, no retry
-  // loop for the statement itself beyond the existing snapshot refetches.
-  const problemPane = (
-    <section className="panel-solid flex min-h-0 flex-col gap-3 overflow-hidden p-5">
-      <header className="flex flex-col gap-1">
-        <span className="eyebrow text-muted-foreground">
-          Problem
-        </span>
+  // Full-width problem banner (issue #165): pinned to the TOP of the active
+  // view instead of collapsing to a thin header bar beside/above a dominant
+  // video stage — the single source for identity (id · name · rating) and
+  // the "Open on Codeforces" link, in both the statement-present and
+  // statement-absent layouts (see `panes` below), so the problem is never
+  // reduced to a footnote when the scrape is Cloudflare-blocked (the common
+  // case). Pre-unlock renders the same locked/loading copy the old
+  // `problemPane`/`compactProblemHeader` fragments used, via the existing
+  // `countdownEnded` / `showProblemSpinner` — no new gating logic, no leak.
+  const problemBanner = (
+    <section className="problem-banner flex shrink-0 flex-wrap items-center justify-between gap-4 p-4 sm:p-5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <span className="eyebrow text-muted-foreground">Problem</span>
         <h1
           data-testid="problem-title"
-          className="font-display text-lg tracking-tight uppercase"
+          className="font-display text-xl tracking-tight uppercase sm:text-2xl"
         >
           {problem ? `${problem.id} · ${problem.name}` : "Problem locked"}
         </h1>
-        {problem && (
+        {problem ? (
           <span className="font-mono text-xs text-muted-foreground">
             Rating {problem.rating}
           </span>
+        ) : countdownEnded ? (
+          <div
+            data-testid="problem-loading"
+            role="status"
+            className="flex items-center gap-2 text-xs text-muted-foreground"
+          >
+            {showProblemSpinner && (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            )}
+            Pulling up the problem…
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            The problem unlocks when the countdown ends.
+          </p>
         )}
-      </header>
-      {problem ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <SlabButton
-            type="button"
-            tone="self"
-            data-testid="problem-link"
-            className="w-full"
-            nativeButton={false}
-            render={<a href={problem.url} target="_blank" rel="noreferrer" />}
-          >
-            <ExternalLink aria-hidden />
-            Open on Codeforces
-          </SlabButton>
-          {statement ? (
-            <ProblemPane statement={statement} className="flex-1" />
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Statement&apos;s on CF — link above.
-            </p>
-          )}
-        </div>
-      ) : countdownEnded ? (
-        <div
-          data-testid="problem-loading"
-          role="status"
-          className="flex flex-1 items-center justify-center gap-2 text-center text-sm text-muted-foreground"
-        >
-          {showProblemSpinner && (
-            <Loader2 className="size-4 animate-spin" aria-hidden />
-          )}
-          Pulling up the problem…
-        </div>
-      ) : (
-        <div className="flex flex-1 items-center justify-center text-center text-sm text-muted-foreground">
-          The problem unlocks when the countdown ends.
-        </div>
-      )}
-    </section>
-  );
-
-  // Compact problem header (issue #109): when the embedded statement never
-  // arrives (the common case — Cloudflare-blocked scrape), the full
-  // `problemPane` column collapses and this single-row bar takes its place,
-  // sitting above the stage instead of beside it. Same testids, same
-  // pre-unlock copy as `problemPane` above — composition only, no new state.
-  const compactProblemHeader = (
-    <section className="panel flex shrink-0 flex-wrap items-center justify-between gap-3 p-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1
-            data-testid="problem-title"
-            className="font-display text-lg tracking-tight uppercase"
-          >
-            {problem ? `${problem.id} · ${problem.name}` : "Problem locked"}
-          </h1>
-          {problem && (
-            <span className="font-mono text-xs text-muted-foreground">
-              Rating {problem.rating}
-            </span>
-          )}
-        </div>
-        {!problem &&
-          (countdownEnded ? (
-            <div
-              data-testid="problem-loading"
-              role="status"
-              className="flex items-center gap-2 text-xs text-muted-foreground"
-            >
-              {showProblemSpinner && (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden />
-              )}
-              Pulling up the problem…
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              The problem unlocks when the countdown ends.
-            </p>
-          ))}
       </div>
       {problem && (
         <SlabButton
           type="button"
           tone="self"
+          size="lg"
           data-testid="problem-link"
           className="shrink-0"
           nativeButton={false}
@@ -1040,6 +978,19 @@ export function RaceRoom({
       )}
     </section>
   );
+
+  // Statement pane (issue #165): the banner above owns identity + the CF
+  // link now, so this column is just the scraped statement + samples — an
+  // enhancement layered in only when the (best-effort, often
+  // Cloudflare-blocked) scrape actually landed. Absent entirely when there's
+  // no statement; `panes` drops the whole grid column in that case rather
+  // than rendering an empty pane.
+  const statementPane = statement ? (
+    <section className="panel-solid flex min-h-0 flex-col gap-3 overflow-hidden p-5">
+      <span className="eyebrow text-muted-foreground">Statement</span>
+      <ProblemPane statement={statement} className="flex-1" />
+    </section>
+  ) : null;
 
   const sideRail = (withVideo: boolean) => (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
@@ -1167,34 +1118,37 @@ export function RaceRoom({
     </aside>
   );
 
-  // Opponent spotlight dominates the middle; when a scraped `statement` is
-  // present the full problem pane sits to its left (narrower, 3-col), the HUD
-  // + verdict feed rail to its right. Otherwise (issue #109 — the common
-  // case, since the CF scrape is best-effort) the problem column collapses:
-  // the compact header bar sits above the stage instead, and the stage
-  // reclaims that column's width in a 2-col grid (stage | rail).
-  const panes = (withVideo: boolean) =>
-    statement ? (
-      <div
-        data-testid="race-room"
-        className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,320px)]"
-      >
-        {problemPane}
-        {centerStage(withVideo)}
-        {sideRail(withVideo)}
-      </div>
-    ) : (
-      <div
-        data-testid="race-room"
-        className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]"
-      >
-        <div className="flex min-h-0 flex-col gap-4">
-          {compactProblemHeader}
+  // `problemBanner` renders once, full-width, at the top of the active view
+  // (issue #165) — above the grid, never dethroning the video stage below.
+  // Opponent spotlight still dominates the middle; when a scraped
+  // `statement` landed, the statement + samples pane sits to its left
+  // (narrower, 3-col), the HUD + verdict feed rail to its right. Otherwise
+  // (the common case, since the CF scrape is best-effort) that column
+  // disappears entirely — the banner above already carries identity + the
+  // link — and the stage reclaims the width in a 2-col grid (stage | rail).
+  const panes = (withVideo: boolean) => (
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {problemBanner}
+      {statementPane ? (
+        <div
+          data-testid="race-room"
+          className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,320px)]"
+        >
+          {statementPane}
           {centerStage(withVideo)}
+          {sideRail(withVideo)}
         </div>
-        {sideRail(withVideo)}
-      </div>
-    );
+      ) : (
+        <div
+          data-testid="race-room"
+          className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]"
+        >
+          {centerStage(withVideo)}
+          {sideRail(withVideo)}
+        </div>
+      )}
+    </div>
+  );
 
   // Result screen with the post-race call kept alive (issue #121): the video
   // tiles (mic/cam toggles intact) sit above the ResultCard so both players
