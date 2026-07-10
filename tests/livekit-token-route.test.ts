@@ -142,7 +142,6 @@ describe("POST /api/livekit/token", () => {
       room: "room-1",
       canPublish: true,
       canSubscribe: true,
-      canPublishData: true,
     });
     // Pins the empty-room timeout before the client connects (issue #121) so
     // the room self-destructs once both players leave the post-race call.

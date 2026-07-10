@@ -19,12 +19,6 @@
  * can't see. This is purely a tile-level visual; race-level presence still
  * lives in RaceRoom's `PresenceWatcher` / disconnect-grace banner.
  *
- * Taunt bubble anchoring (issue #84): `selfTaunt`/`opponentTaunt` are
- * optional so callers without the taunt feature wired up (or a race with no
- * active taunt) render exactly as before. Each bubble is keyed on its
- * `sentAt` so a same-sender replacement remounts `TauntBubble` fresh,
- * restarting its pop-in + auto-dismiss timer.
- *
  * Opponent-audio volume (issue #100): `RoomAudioRenderer`'s `volume` prop is
  * driven by the persisted setting from `useOpponentVolume` (checked at
  * ready-up by the compete gate — see `Lobby.tsx`), with a matching
@@ -46,30 +40,14 @@ import {
 
 import { cn } from "@/lib/utils";
 import { classifyVideoLayout } from "@/lib/race/video-layout";
-import { TauntBubble } from "@/components/race/TauntBubble";
 import { useOpponentVolume, VolumeSlider } from "@/components/race/VolumeControl";
 import { AudioToggleButtons } from "@/components/race/AudioControls";
-import type { TauntBubbleState } from "@/lib/race/taunts";
 
 export interface VideoTilesProps {
   className?: string;
-  /** Active taunt bubble anchored to the local player's PiP tile, if any. */
-  selfTaunt?: TauntBubbleState | null;
-  /** Active taunt bubble anchored to the opponent's spotlight tile, if any. */
-  opponentTaunt?: TauntBubbleState | null;
-  /** Fired when the self bubble's display window elapses. */
-  onSelfTauntExpire?: () => void;
-  /** Fired when the opponent bubble's display window elapses. */
-  onOpponentTauntExpire?: () => void;
 }
 
-export function VideoTiles({
-  className,
-  selfTaunt,
-  opponentTaunt,
-  onSelfTauntExpire,
-  onOpponentTauntExpire,
-}: VideoTilesProps) {
+export function VideoTiles({ className }: VideoTilesProps) {
   const tracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: true }],
     { onlySubscribed: false },
@@ -155,23 +133,11 @@ export function VideoTiles({
           </span>
         )}
 
-        {opponentTaunt && (
-          <TauntBubble
-            key={opponentTaunt.sentAt}
-            tauntId={opponentTaunt.tauntId}
-            anchor="opponent"
-            onExpire={() => onOpponentTauntExpire?.()}
-          />
-        )}
-
         <div
           data-testid="self-tile"
           // bottom-7 (not bottom-2) so the PiP corner clears the opponent name
           // chip's full-width bottom band (~22px tall) instead of clipping its
           // colored bar underneath (PR #77 review polish note, issue #70).
-          // Not itself `overflow-hidden` (unlike the visual tile inside it) so
-          // the self taunt bubble — positioned `bottom-full` relative to this
-          // wrapper — can pop up above the PiP without being clipped.
           className="absolute right-2 bottom-7 w-[30%] min-w-20"
         >
           <div className="relative aspect-video size-full overflow-hidden rounded-[var(--radius-sm)] bg-muted/60 shadow-lg ring-2 ring-player-self">
@@ -186,15 +152,6 @@ export function VideoTiles({
               You
             </span>
           </div>
-
-          {selfTaunt && (
-            <TauntBubble
-              key={selfTaunt.sentAt}
-              tauntId={selfTaunt.tauntId}
-              anchor="self"
-              onExpire={() => onSelfTauntExpire?.()}
-            />
-          )}
         </div>
       </div>
 

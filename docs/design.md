@@ -76,7 +76,6 @@ everywhere else.
 | Forfeit button | Throw in the towel |
 | Waiting for opponent | They're stalling. |
 | Leaderboard name | **The Ladder** |
-| Taunt picker action | **Spit a bar** |
 
 ### Voice rules
 
@@ -85,8 +84,8 @@ everywhere else.
   lives in the copy *around* the data, never inside it.
 - **Deadpan and superior, not loud.** The line is funnier delivered flat.
   "Nobody's stepped up." beats an exclamation. Let the confidence sit.
-- **Active, second-person.** "Step up," "Throw in the towel," "Spit a bar" —
-  aimed at *you* or *them*, never at "the user."
+- **Active, second-person.** "Step up," "Throw in the towel" — aimed at
+  *you* or *them*, never at "the user."
 - **One explicit beat per surface, max.** Pick the moment that hits hardest
   and let the rest play straight.
 - **Errors and empties still do their job.** Say what happened and how to

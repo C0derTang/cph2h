@@ -68,7 +68,7 @@ beforeEach(() => {
 });
 
 describe("mintToken", () => {
-  it("grants roomJoin + publish/subscribe + data publish (taunts, issue #84)", async () => {
+  it("grants roomJoin + publish/subscribe", async () => {
     const token = await mintToken({ room: "room-1", identity: "user-1", name: "Alice" });
 
     expect(token).toBe("mock-jwt-token");
@@ -81,7 +81,6 @@ describe("mintToken", () => {
       room: "room-1",
       canPublish: true,
       canSubscribe: true,
-      canPublishData: true,
     });
     expect(toJwtMock).toHaveBeenCalledTimes(1);
   });
