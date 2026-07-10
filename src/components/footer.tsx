@@ -1,8 +1,16 @@
-// Site-wide footer, rendered once in the root layout. `mt-auto` pins it to
-// the bottom of the flex-column <body> on short pages.
+"use client";
+
+import { usePathname } from "next/navigation";
+
+// Site-wide footer, rendered once in the root layout. Client component only
+// so it can read the pathname: the /race/[id] HUD is a full-viewport screen
+// where a trailing footer is unwanted, so it renders nothing there.
 export function Footer() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/race/")) return null;
+
   return (
-    <footer className="shell mt-auto flex flex-col gap-3 border-t border-border py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+    <footer className="shell flex flex-col gap-3 border-t border-border py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
       <span className="inline-flex flex-col items-start leading-none">
         <span className="font-display text-base tracking-wide text-foreground uppercase">
           cph2h
