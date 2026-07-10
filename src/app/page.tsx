@@ -63,24 +63,6 @@ export default async function Home() {
 
   return (
     <main className="flex-1">
-      {/* Tournament banner — full-bleed strip above the hero, driving to the
-          event page. Small by design; the accent rule ties it to the self hue. */}
-      <Link
-        href="/tournament"
-        className="group flex w-full items-center justify-center gap-x-3 gap-y-1 border-b border-player-self/40 bg-player-self/10 px-4 py-2 text-center transition-colors hover:bg-player-self/15 max-sm:flex-col"
-      >
-        <span className="font-mono text-[11px] tracking-wide text-foreground sm:text-xs">
-          <span aria-hidden>🏆</span> Inaugural cph2h tournament · 128 players ·
-          $5 entry · $500 prize pool
-        </span>
-        <span className="inline-flex items-center gap-1 eyebrow text-player-self">
-          Register
-          <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
-            →
-          </span>
-        </span>
-      </Link>
-
       {/* Hero — the battle poster */}
       <section className="relative overflow-hidden">
         {/* Overhead spotlight: the ambient self/opponent identity pools over the glitch ground. */}

@@ -7,9 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/leaderboard",
   "/api/leaderboard",
-  "/tournament", // public event pitch — logged-out visitors see it, register gates itself
   "/api/cron(.*)", // authenticated via CRON_SECRET bearer token instead
-  "/api/stripe/webhook", // Stripe-signature authenticated, not Clerk
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

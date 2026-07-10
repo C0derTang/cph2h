@@ -42,14 +42,6 @@ export const raceOutcomeEnum = pgEnum("race_outcome", [
   "aborted",
 ]);
 
-// Tournament registration lifecycle: a row is `pending` the moment a Stripe
-// Checkout session is created, and flips to `paid` only from the verified
-// `checkout.session.completed` webhook — never from the client.
-export const registrationStatusEnum = pgEnum("registration_status", [
-  "pending",
-  "paid",
-]);
-
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
@@ -262,32 +254,6 @@ export const queueEntries = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Tournament registrations
-//
-// The inaugural 128-player event. One row per user (userId PK). Created
-// `pending` alongside a Stripe Checkout session; the Stripe webhook flips it to
-// `paid`. `paid` rows are the public registrants list and count against the cap.
-// ---------------------------------------------------------------------------
-
-export const tournamentRegistrations = pgTable(
-  "tournament_registrations",
-  {
-    userId: uuid("user_id")
-      .primaryKey()
-      .references(() => users.id),
-    // CF handle snapshotted at registration time (users.cfHandle can change).
-    cfHandle: text("cf_handle").notNull(),
-    status: registrationStatusEnum("status").notNull().default("pending"),
-    stripeSessionId: text("stripe_session_id"),
-    paidAt: timestamp("paid_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => [index("tournament_registrations_status_idx").on(t.status)],
-);
-
-// ---------------------------------------------------------------------------
 // Elo history
 // ---------------------------------------------------------------------------
 
@@ -339,7 +305,3 @@ export type NewQueueEntry = typeof queueEntries.$inferInsert;
 
 export type EloHistoryEntry = typeof eloHistory.$inferSelect;
 export type NewEloHistoryEntry = typeof eloHistory.$inferInsert;
-
-export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect;
-export type NewTournamentRegistration =
-  typeof tournamentRegistrations.$inferInsert;
