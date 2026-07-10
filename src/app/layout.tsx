@@ -55,7 +55,7 @@ const sedgwickAve = Sedgwick_Ave_Display({
 });
 
 export const metadata: Metadata = {
-  title: "cph2h — same problem, same clock, catch these bars",
+  title: "cph2h",
   description:
     "Head-to-head Codeforces battles with voice, video, and a real Elo ladder. Shittalk your way to a higher rating.",
 };
