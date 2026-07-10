@@ -45,11 +45,30 @@ next-env.d.ts
 # clerk configuration (can include secrets)
 /.clerk/
 
-# local agent tooling (playwright MCP logs, Codex state, plugin lock)
+# local agent tooling (playwright MCP logs, Claude/Codex state, plugin lock)
 /.playwright-mcp/
+/.claude/
 /.Codex/
 /AGENTS.md
 /skills-lock.json
 
-# stray screenshots from local verification runs
+# stray screenshots / recordings from local verification runs
 /*.png
+/*.jpg
+/*.jpeg
+/*.webp
+/*.gif
+/*.mp4
+
+# one-off local DB scripts (tracked scripts: seed, populate-problems, e2e-setup)
+/scripts/delete-*.ts
+/scripts/backfill-*.ts
+/scripts/*.local.ts
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+
+# logs
+*.log
