@@ -1,12 +1,11 @@
 /**
  * Live activity counters for the queue page (see GET /api/presence).
  *
- * There's no global presence/heartbeat, so "online" is derived from the two
- * things the platform actually tracks: who is in an active race and who is
- * freshly in the matchmaking queue.
+ * There's no global presence/heartbeat, so both counters are derived from the
+ * two things the platform actually tracks:
  *
  *  - `playing` = distinct participants of in-window active races.
- *  - `online`  = `playing` ∪ distinct users with a *fresh* queue row.
+ *  - `queued`  = distinct users with a *fresh* queue row.
  *
  * Both use freshness filters because the safety-net sweep (which purges stale
  * queue rows and resolves overdue active races) only runs daily — so without
@@ -55,8 +54,6 @@ export async function getPresenceCounts(): Promise<PresenceCounts> {
       ),
     );
 
-  const online = new Set(playing);
-  for (const row of queuedRows) online.add(row.userId);
-
-  return { online: online.size, playing: playing.size };
+  // `userId` is the queue table's primary key, so rows are already distinct.
+  return { queued: queuedRows.length, playing: playing.size };
 }

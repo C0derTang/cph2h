@@ -1,7 +1,7 @@
 /**
  * GET /api/presence — live activity counters for the queue page.
  *
- * Returns {@link PresenceCounts} (online / playing). Non-sensitive aggregate
+ * Returns {@link PresenceCounts} (queued / playing). Non-sensitive aggregate
  * numbers; the route sits behind the default Clerk gate (proxy.ts) like the
  * rest of the app, which is fine because only signed-in users reach /queue.
  */

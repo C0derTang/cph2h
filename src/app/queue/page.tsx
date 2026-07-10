@@ -134,7 +134,7 @@ export default function QueuePage() {
     };
   }, [phase, goToRace]);
 
-  // Live online/playing counters — polled independently of the match search so
+  // Live queued/playing counters — polled independently of the match search so
   // they update whether or not you're currently queued.
   useEffect(() => {
     let cancelled = false;
@@ -197,9 +197,9 @@ export default function QueuePage() {
               className="size-1.5 rounded-full bg-verdict-ok motion-safe:animate-pulse"
             />
             <span className="font-semibold text-foreground tabular-nums">
-              {presence.online}
+              {presence.queued}
             </span>
-            online
+            queued
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden className="size-1.5 rounded-full bg-player-self" />

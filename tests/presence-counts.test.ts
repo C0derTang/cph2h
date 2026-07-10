@@ -1,8 +1,8 @@
 /**
- * Tests for src/lib/presence-counts.ts — the queue page's online/playing
+ * Tests for src/lib/presence-counts.ts — the queue page's queued/playing
  * counters. Verifies distinct counting across both players of active races
- * (with a null p2), and that `online` is the union of active-race participants
- * and fresh queue rows (deduped against players already racing).
+ * (with a null p2), and that `queued` counts only fresh queue rows (it is
+ * not unioned with active-race participants).
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,20 +44,20 @@ beforeEach(() => {
 });
 
 describe("getPresenceCounts", () => {
-  it("counts distinct players and unions the fresh queue into online", async () => {
+  it("counts distinct players and fresh queue rows independently", async () => {
     racesWhereMock.mockResolvedValue([
       { p1: "a", p2: "b" },
       { p1: "c", p2: null }, // solo/abandoned side — p2 null must not throw or count
     ]);
     queueWhereMock.mockResolvedValue([
       { userId: "d" },
-      { userId: "a" }, // already racing — deduped, not double-counted
+      { userId: "e" },
     ]);
 
     const result = await getPresenceCounts();
 
-    // playing = {a,b,c} ; online = {a,b,c,d}
-    expect(result).toEqual({ online: 4, playing: 3 });
+    // playing = {a,b,c} ; queued = {d,e}
+    expect(result).toEqual({ queued: 2, playing: 3 });
   });
 
   it("returns zeros when nobody is racing or queued", async () => {
@@ -66,15 +66,15 @@ describe("getPresenceCounts", () => {
 
     const result = await getPresenceCounts();
 
-    expect(result).toEqual({ online: 0, playing: 0 });
+    expect(result).toEqual({ queued: 0, playing: 0 });
   });
 
-  it("counts queued-only users as online with zero playing", async () => {
+  it("counts queued-only users with zero playing", async () => {
     racesWhereMock.mockResolvedValue([]);
     queueWhereMock.mockResolvedValue([{ userId: "x" }, { userId: "y" }]);
 
     const result = await getPresenceCounts();
 
-    expect(result).toEqual({ online: 2, playing: 0 });
+    expect(result).toEqual({ queued: 2, playing: 0 });
   });
 });
