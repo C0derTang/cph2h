@@ -50,6 +50,13 @@
       "when": 1783551896392,
       "tag": "0006_amazing_susan_delgado",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783645019049,
+      "tag": "0007_optimal_shard",
+      "breakpoints": true
     }
   ]
 }
