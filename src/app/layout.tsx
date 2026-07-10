@@ -68,6 +68,11 @@ export default function RootLayout({
   return (
     <ClerkProvider
       afterSignOutUrl="/"
+      // In-app auth pages, not the hosted Account Portal — without these the
+      // card's cross-links ("Sign up" on /sign-in and vice versa) point at
+      // accounts.cph2h.com instead of our own routes.
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
       appearance={{
         // Dark base theme so Clerk's own contrast/state logic starts from the
         // same footing as our stage, then every surface is remapped onto the
