@@ -47,6 +47,17 @@ export async function POST(
     return NextResponse.json({ error: "payments_unavailable" }, { status: 503 });
   }
 
+  // Expire the previous Checkout session, if any, so a user who re-registers
+  // from a stale tab can't complete two payments for one seat. Best-effort: an
+  // already-expired/completed session throws, which we ignore.
+  if (existing?.stripeSessionId) {
+    try {
+      await stripe.checkout.sessions.expire(existing.stripeSessionId);
+    } catch {
+      // already expired, completed, or gone — nothing to do
+    }
+  }
+
   // Ensure a pending row exists (idempotent — no-op if one is already there).
   await db
     .insert(tournamentRegistrations)
