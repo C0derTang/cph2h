@@ -12,6 +12,7 @@ import {
   Chakra_Petch,
   Sedgwick_Ave_Display,
 } from "next/font/google";
+import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
 import { RouteBack } from "@/components/nav/route-back";
 import { Toaster } from "@/components/ui/sonner";
@@ -129,6 +130,7 @@ export default function RootLayout({
           <Nav />
           <RouteBack />
           {children}
+          <Footer />
           <Toaster position="bottom-right" richColors closeButton />
         </body>
       </html>
