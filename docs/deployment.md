@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide covers deploying cph2h to production on Vercel with full integration for Neon, Clerk, LiveKit, and Piston.
+This guide covers deploying cph2h to production on Vercel with full integration for Neon, Clerk, and LiveKit.
 
 ## Vercel Setup
 
@@ -91,20 +91,6 @@ LiveKit powers real-time voice, video, and data channels for race events.
 
 In `.env.local`, use the same LiveKit credentials.
 
-### 4. Piston (Code Execution)
-
-[Piston](https://github.com/engineer-man/piston) compiles and runs sample tests for C++ submissions. cph2h uses the free, public Piston instance hosted at `https://emkc.org/api/v2/piston` by default — no signup, no API key, no infra to run.
-
-#### Setup
-
-No account or key is required. Optionally set `PISTON_URL` (in Vercel and/or `.env.local`) to point at a self-hosted Piston instance instead; if unset, it defaults to the public endpoint.
-
-Keep in mind the public instance is rate-limited to roughly **5 requests/second** across all of its users. This is a soft dependency for a best-effort "run samples" feature (not the authoritative CF verdict, #11), so occasional throttling under heavy load is an accepted tradeoff — self-host Piston if you need higher throughput or guaranteed uptime.
-
-#### Local Development
-
-No setup needed; `.env.local` can leave `PISTON_URL` unset to use the public endpoint.
-
 ## Environment Variables
 
 The complete list of environment variables required for deployment:
@@ -117,22 +103,19 @@ The complete list of environment variables required for deployment:
 | `LIVEKIT_API_KEY` | LiveKit Cloud | Secret | LiveKit server API key | `DEVKEY...` |
 | `LIVEKIT_API_SECRET` | LiveKit Cloud | Secret | LiveKit server API secret | `long-random-string...` |
 | `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Cloud | Public | LiveKit WebSocket URL for clients | `wss://your-workspace.livekit.cloud` |
-| `PISTON_URL` | Manual (optional) | Public | Piston code-execution endpoint; defaults to the free public instance if unset | `https://emkc.org/api/v2/piston` |
-| `CF_CRED_KEY` | Manual (generate) | Secret | 32-byte hex key for AES-256-GCM encryption of stored Codeforces passwords | (see below) |
+| `LIVEKIT_URL` | LiveKit Cloud | Secret | LiveKit server URL for room management (same host as the public URL) | `wss://your-workspace.livekit.cloud` |
 | `CRON_SECRET` | Manual (generate) | Secret | Bearer token protecting `/api/cron/*` routes | (see below) |
 | `RACE_TEST_MODE` | Manual | Secret | Set to `0` in production; `1` only in dev for testing (enables `/api/dev/inject-verdict`) | `0` |
 
 ### Generating Secrets
 
-For `CF_CRED_KEY` and `CRON_SECRET`, generate strong random values:
+For `CRON_SECRET`, generate a strong random value:
 
 ```bash
 # On macOS/Linux:
-openssl rand -hex 16     # For CF_CRED_KEY (32 hex chars = 16 bytes)
-openssl rand -hex 32     # For CRON_SECRET (64 hex chars = 32 bytes)
+openssl rand -hex 32     # 64 hex chars = 32 bytes
 
 # On Windows (PowerShell):
-[System.Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(16))
 [System.Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
@@ -290,7 +273,6 @@ Before deploying to production:
   - Clerk production application
   - Neon production database
   - LiveKit production workspace
-  - Piston: using the public instance is fine for production, but consider self-hosting if you outgrow its ~5 req/s rate limit
 
 - [ ] **Monitoring & alerts are set up**
   - Vercel deployment alerts

@@ -1,136 +1,82 @@
 # cph2h
 
-Head-to-head Codeforces races: challenge a friend or quick-match by Elo, then race to solve the same problem first — with voice and video chat, an in-platform C++ editor, and direct submission to Codeforces.
+Head-to-head Codeforces races: challenge a friend or quick-match by Elo, then race to solve the same problem first — face to face over voice and video.
+
+**Live at [cph2h.vercel.app](https://cph2h.vercel.app).**
+
+## How a race works
+
+1. Link your Codeforces handle (ownership proven via a compile-error challenge — no password ever collected).
+2. Challenge a friend by link or hop in the quick-match queue (paired by Elo).
+3. Both players ready up, a countdown runs, and the problem unlocks for both at the same instant.
+4. Solve locally and submit on codeforces.com as usual — the platform polls the public CF API and detects your verdict within seconds.
+5. First `Accepted` wins. Elo updates atomically; closing the tab mid-race forfeits after a grace period.
 
 ## Features
 
-- **Challenge or Quick-Match**: Invite a friend directly or get matched by Elo rating for a fair fight
-- **Real-time Voice & Video**: Integrated LiveKit for voice and video chat during races
-- **In-Browser C++ Editor**: Monaco editor with syntax highlighting, inline compilation via Piston, and personal C++ templates
-- **Direct Codeforces Integration**: Submit solutions directly to Codeforces and see verdicts in real-time
-- **Elo Rating System**: Provisional (10 races) and standard K-factors track your skill over time
-- **Race Leaderboard**: See top racers and your own progress
+- **Challenge or Quick-Match** — direct invite links, or Elo-based pairing with rating/contest-date problem filters
+- **Live voice & video** — LiveKit-powered opponent spotlight during the race
+- **Verdict detection** — no manual reporting; verdicts come from Codeforces itself via API polling
+- **Elo ladder** — provisional and standard K-factors, public leaderboard
+- **Problem fairness** — the problem is never revealed before the synchronized start, and filters exclude problems either player has already solved
 
 ## Stack
 
-- **Frontend**: Next.js 16 (App Router) on Vercel
-- **Database**: Neon Postgres with Drizzle ORM
+- **Framework**: Next.js 16 (App Router) + React 19, deployed on Vercel
+- **Database**: Neon Postgres + Drizzle ORM (HTTP driver, atomic single-statement state transitions)
 - **Auth**: Clerk
-- **Real-time**: LiveKit Cloud (voice/video + race event broadcasts)
-- **Code Execution**: Piston (free, keyless sample test compilation & runs)
-- **Code Editor**: Monaco (C++ syntax, per-user template)
+- **Real-time**: LiveKit Cloud (voice/video; race events as hints — the REST snapshot is the source of truth)
+- **Codeforces**: public CF API only (verdict polling, handle verification, problem metadata)
 
-## Getting Started
+## Local development
 
-### Prerequisites
-
-- Node.js 18+ and pnpm
-- A Clerk account
-- A Neon Postgres database
-- LiveKit Cloud credentials
-- A Codeforces account (to link in the app)
-- No signup needed for sample test compilation — Piston is free and keyless (see [`docs/deployment.md`](./docs/deployment.md))
-
-### Local Development
-
-1. **Clone and install:**
+Prerequisites: Node.js 20+, pnpm, plus free-tier accounts for Neon, Clerk, and LiveKit Cloud.
 
 ```bash
 git clone https://github.com/C0derTang/cph2h.git
 cd cph2h
 pnpm install
-```
-
-2. **Set up environment variables:**
-
-```bash
-cp .env.example .env.local
-```
-
-Then fill in the values. See [`docs/deployment.md`](./docs/deployment.md#environment-variables) for details on each variable and where to obtain it. Alternatively, pull from Vercel:
-
-```bash
-vercel link   # link to your Vercel project
-vercel env pull .env.local
-```
-
-3. **Run migrations:**
-
-```bash
+cp .env.example .env.local   # fill in values — see docs/deployment.md
 pnpm exec drizzle-kit migrate
-```
-
-4. **Start the development server:**
-
-```bash
+pnpm exec tsx --env-file=.env.local scripts/populate-problems.ts   # seed the CF problem pool
 pnpm dev
 ```
 
-Visit `http://localhost:3000` and sign in with Clerk.
-
-5. **Optional: Seed test data**
-
-If you want to populate the database with test problems and races, run:
-
-```bash
-pnpm exec tsx scripts/seed.ts   # if a seed script exists
-```
+Visit `http://localhost:3000` and sign in with Clerk. See [`docs/deployment.md`](./docs/deployment.md) for every environment variable and where to obtain it.
 
 ## Commands
 
-### Development
-
 ```bash
-pnpm dev                    # Start dev server on :3000
+pnpm dev                    # dev server on :3000
+pnpm exec eslint .          # lint
+pnpm exec tsc --noEmit      # typecheck
+pnpm exec vitest run        # unit tests (tests/**)
+pnpm test:e2e               # Playwright smoke (needs a running app)
+pnpm exec drizzle-kit generate   # migration from schema change
+pnpm exec drizzle-kit migrate    # apply migrations
 ```
 
-### Testing & Linting
+## Architecture
 
-```bash
-pnpm exec eslint .          # Lint the codebase
-pnpm exec tsc --noEmit      # Type check without emitting
-pnpm exec vitest run        # Run tests once
-pnpm exec vitest            # Run tests in watch mode
-```
+Pure logic in `src/lib/`, thin I/O shells in `src/app/api/`:
 
-### Database
+- `src/lib/race/` — race lifecycle (`pending → ready → active → finished|aborted`), verdict polling, presence/forfeit
+- `src/lib/matchmaking.ts` — quick-match pairing (`FOR UPDATE SKIP LOCKED` single-statement claim)
+- `src/lib/cf/` — Codeforces API client, handle verification, solve-history import
+- `src/lib/types.ts` — shared contract: race DTOs, LiveKit event union
 
-```bash
-pnpm exec drizzle-kit migrate          # Run pending migrations
-pnpm exec drizzle-kit generate         # Generate migration files from schema changes
-pnpm exec drizzle-kit studio           # Open Drizzle Studio (DB explorer)
-```
+Key invariants: all state transitions are atomic compare-and-swap SQL (`UPDATE ... WHERE status='expected'`); `finishRace` is idempotent and is the sole Elo-application mutex; the problem is server-side gated until `startedAt`. LiveKit events are hints — clients refetch `GET /api/races/[id]` whenever an event can't be applied cleanly.
 
-## Architecture Overview
-
-The app is organized by **pure logic + thin routes**:
-
-- **`src/lib/`**: All business logic is pure (no I/O, no side effects)
-  - `src/lib/race/`: Race lifecycle (create, finish, poll verdicts)
-  - `src/lib/matchmaking.ts`: Quick-match pairing with SKIP LOCKED
-  - `src/lib/cf/`: Codeforces integration (login, submit, fetch problems)
-  - `src/lib/livekit.ts`: LiveKit room + event publishing
-- **`src/app/api/`**: Thin I/O shells that apply pure results atomically
-- **`src/lib/types.ts`**: Shared contracts (RaceSnapshot, LiveKit events, DTOs)
-
-Key principle: **Events are hints; `GET /api/races/[id]` is the source of truth.** Clients refetch the race snapshot whenever they receive a LiveKit event and cannot apply it cleanly.
-
-See [`docs/architecture.md`](./docs/architecture.md) for more detail on the race lifecycle, verdict polling, and matchmaking.
+More detail in [`docs/architecture.md`](./docs/architecture.md).
 
 ## Deployment
 
-Full deployment instructions (Vercel, Neon, Clerk, LiveKit, Piston setup, cron config) are in [`docs/deployment.md`](./docs/deployment.md).
-
-Before deploying to production, review the [production checklist](./docs/deployment.md#production-checklist).
-
-## Screenshots & GIFs
-
-[Placeholders for screenshots showing the race interface, chat, editor, etc.]
+Vercel + Neon + Clerk + LiveKit; full runbook and production checklist in [`docs/deployment.md`](./docs/deployment.md).
 
 ## Contributing
 
-This is a personal project; feel free to fork and extend!
+Personal project — issues and PRs welcome, or fork and extend.
 
 ## License
 
-MIT
+[MIT](./LICENSE)
