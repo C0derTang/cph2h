@@ -38,6 +38,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@neondatabase/serverless@1.1.0)
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
       katex:
         specifier: ^0.17.0
         version: 0.17.0

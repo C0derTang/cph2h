@@ -3,7 +3,11 @@ import { ensureUser } from "@/lib/user";
 import { HeroWord } from "@/components/hud/hero-word";
 import { CfLinkForm } from "./cf-link-form";
 
-export default async function CfSettingsPage() {
+export default async function CfSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   // Provisions the `users` row on first authenticated access (issue #48) so
   // the linked-state read below works pre-link, not just after CF linking.
   const user = await ensureUser();
@@ -11,6 +15,10 @@ export default async function CfSettingsPage() {
   const linkedHandle = user?.cfHandle ?? null;
   const linkedRating = user?.cfRating ?? null;
   const linkedAt = user?.cfLinkedAt ? user.cfLinkedAt.toISOString() : null;
+
+  // The OAuth callback redirects back here with `?error=<code>` on failure.
+  const rawError = (await searchParams).error;
+  const error = Array.isArray(rawError) ? (rawError[0] ?? null) : (rawError ?? null);
 
   return (
     <main className="shell-narrow relative flex flex-1 flex-col py-16 md:py-24">
@@ -39,8 +47,8 @@ export default async function CfSettingsPage() {
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
             Link your Codeforces handle so we can pull your race verdicts
-            automatically. No password needed — you prove ownership with a
-            one-time compile-error submission.
+            automatically. No password needed — you authorize the connection on
+            Codeforces with one click.
           </p>
         </div>
       </div>
@@ -50,6 +58,7 @@ export default async function CfSettingsPage() {
           linkedHandle={linkedHandle}
           linkedRating={linkedRating}
           linkedAt={linkedAt}
+          error={error}
         />
       </div>
     </main>

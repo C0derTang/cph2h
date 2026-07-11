@@ -2,7 +2,7 @@
  * Daily CF-rating refresh (sweep cron).
  *
  * `users.cf_rating` is otherwise a one-time snapshot taken at handle-link time
- * (`POST /api/cf/verify/check`) — nothing updates it afterward, so a player's
+ * (`GET /api/cf/oauth/callback`) — nothing updates it afterward, so a player's
  * rating goes stale the moment their real Codeforces rating moves. This module
  * re-reads the current rating for every linked handle from the public CF
  * `user.info` API and writes back only the rows whose rating actually changed.
