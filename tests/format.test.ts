@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatOutcome, formatEloDelta } from "@/lib/format";
+import { formatOutcome, formatEloDelta, formatReportReason } from "@/lib/format";
 
 describe("format helpers", () => {
   describe("formatOutcome", () => {
@@ -43,6 +43,15 @@ describe("format helpers", () => {
     it("returns 'X' for negative delta (minus sign included)", () => {
       expect(formatEloDelta(-5)).toBe("-5");
       expect(formatEloDelta(-50)).toBe("-50");
+    });
+  });
+
+  describe("formatReportReason", () => {
+    it("maps every ReportReason to a human-readable label", () => {
+      expect(formatReportReason("cheating")).toBe("Cheating");
+      expect(formatReportReason("av_violation")).toBe("A/V violation");
+      expect(formatReportReason("abusive")).toBe("Abusive");
+      expect(formatReportReason("other")).toBe("Other");
     });
   });
 });
