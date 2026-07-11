@@ -1,8 +1,8 @@
 /**
  * Test-only DB seeding for the e2e race smoke test (issue #18).
  *
- * The real Codeforces-link flow (the compile-error verify routes under
- * `/api/cf/verify/*`) confirms ownership against codeforces.com, which e2e
+ * The real Codeforces-link flow (the OpenID Connect routes under
+ * `/api/cf/oauth/*`) confirms ownership against codeforces.com, which e2e
  * cannot drive. Every race route gates on `requireLinkedUser()`
  * (src/lib/race/session.ts), which only checks `users.cf_linked_at` — so we
  * seed that column (and a fake `cf_handle`) directly instead of routing

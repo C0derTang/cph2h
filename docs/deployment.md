@@ -103,6 +103,8 @@ The complete list of environment variables required for deployment:
 | `LIVEKIT_API_KEY` | LiveKit Cloud | Secret | LiveKit server API key | `DEVKEY...` |
 | `LIVEKIT_API_SECRET` | LiveKit Cloud | Secret | LiveKit server API secret | `long-random-string...` |
 | `LIVEKIT_URL` | LiveKit Cloud | Secret | LiveKit WebSocket URL (server-side room management; also handed to clients via `/api/livekit/token`) | `wss://your-workspace.livekit.cloud` |
+| `CF_OAUTH_CLIENT_ID` | Codeforces (codeforces.com/settings/api) | Secret | OpenID Connect client id for "Link with Codeforces" | `cph2h-...` |
+| `CF_OAUTH_CLIENT_SECRET` | Codeforces (codeforces.com/settings/api) | Secret | OIDC client secret; also the HS256 key the id_token is signed with | `long-random-string...` |
 | `CRON_SECRET` | Manual (generate) | Secret | Bearer token protecting `/api/cron/*` routes | (see below) |
 | `RACE_TEST_MODE` | Manual | Secret | Set to `0` in production; `1` only in dev for testing (enables `/api/dev/inject-verdict`) | `0` |
 

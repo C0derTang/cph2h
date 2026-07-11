@@ -1,8 +1,8 @@
 /**
  * Import a user's Codeforces solve history into `user_problems`.
  *
- * Extracted from the old password-login link route so the compile-error
- * verification flow (`POST /api/cf/verify/check`) can reuse the exact same
+ * Extracted from the old password-login link route so the CF OpenID Connect
+ * link flow (`GET /api/cf/oauth/callback`) can reuse the exact same
  * import logic. Walks the user's full submission history via the public
  * `user.status` API (paginated) and marks `user_problems.solved`.
  *
@@ -114,7 +114,7 @@ async function updateImportState(
  * `user_problems -> problems` foreign key is never violated (the problem
  * catalogue is populated by a separate sync job).
  *
- * Does NOT stamp `solveHistorySyncedAt` — the verify/check link route calls
+ * Does NOT stamp `solveHistorySyncedAt` — the OAuth callback link route calls
  * this directly (a fresh link has no baseline to compare against yet; the
  * first ready-time refresh establishes one via the null-`syncedAt` branch of
  * {@link importSolveHistoryIncremental}, which does stamp).

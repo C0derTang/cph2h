@@ -3,7 +3,7 @@
  *
  * The display name itself is no longer user-editable (issue #120) — it
  * follows the linked Codeforces handle, synced in
- * `src/app/api/cf/verify/check/route.ts`. This module now only holds the
+ * `src/app/api/cf/oauth/callback/route.ts`. This module now only holds the
  * fallback used before a user links CF, via `deriveUsername` in
  * `src/lib/user.ts`.
  *
