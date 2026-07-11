@@ -53,6 +53,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     solveHistorySyncedAt: null,
     solveHistoryImportCursor: null,
     createdAt: null,
+    isAdmin: false,
     ...overrides,
   };
 }

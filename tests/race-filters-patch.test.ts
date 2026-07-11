@@ -125,6 +125,7 @@ function mockSessionAs(userId: string) {
       solveHistorySyncedAt: null,
       solveHistoryImportCursor: null,
       createdAt: null,
+      isAdmin: false,
     },
   });
 }

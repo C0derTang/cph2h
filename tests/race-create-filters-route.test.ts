@@ -50,6 +50,7 @@ function mockSession() {
       solveHistorySyncedAt: null,
       solveHistoryImportCursor: null,
       createdAt: null,
+      isAdmin: false,
     },
   });
 }
