@@ -55,3 +55,32 @@ export function isKnownRoute(pathname: string): boolean {
     MENU_ROUTES.has(pathname) || isBackRoute(pathname) || isAuthRoute(pathname)
   );
 }
+
+/** Fixed labels for the HUD route marker, keyed by known-prefix. Values are
+ *  constants, never derived from the input pathname (issue #190) — a 404
+ *  under a known prefix (e.g. `/settings/admin`) must reveal at most that the
+ *  section exists, never echo what was actually typed. */
+const ROUTE_MARKER_LABELS: Record<string, string> = {
+  "/queue": "queue",
+  "/race": "race",
+  "/challenge": "challenge",
+  "/settings": "settings",
+  "/leaderboard": "ladder",
+  "/sign-in": "auth",
+  "/sign-up": "auth",
+};
+
+/** Returns the fixed HUD marker label for the section `pathname` falls
+ *  under, or `null` if it isn't one of the known back/auth prefixes (menu
+ *  routes and unknown paths never show the marker). Reuses the exact/
+ *  `prefix/…` matching rule shared with `isBackRoute` and `isAuthRoute` so a
+ *  lookalike like `/settingsX` never false-matches. The result is always one
+ *  of the fixed strings above — never a substring of `pathname`. */
+export function routeMarkerLabel(pathname: string): string | null {
+  for (const prefix of Object.keys(ROUTE_MARKER_LABELS)) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return ROUTE_MARKER_LABELS[prefix];
+    }
+  }
+  return null;
+}

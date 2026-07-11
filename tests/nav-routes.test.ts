@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBackRoute, isKnownRoute } from "@/lib/nav-routes";
+import { isBackRoute, isKnownRoute, routeMarkerLabel } from "@/lib/nav-routes";
 
 describe("isBackRoute", () => {
   it("matches exact back-route prefixes", () => {
@@ -76,5 +76,51 @@ describe("isKnownRoute", () => {
     expect(isKnownRoute("/settingsX")).toBe(false);
     expect(isKnownRoute("/sign-inX")).toBe(false);
     expect(isKnownRoute("/racecar")).toBe(false);
+  });
+});
+
+describe("routeMarkerLabel", () => {
+  it("returns the fixed label for each known section's exact prefix", () => {
+    expect(routeMarkerLabel("/queue")).toBe("queue");
+    expect(routeMarkerLabel("/race")).toBe("race");
+    expect(routeMarkerLabel("/challenge")).toBe("challenge");
+    expect(routeMarkerLabel("/settings")).toBe("settings");
+    expect(routeMarkerLabel("/leaderboard")).toBe("ladder");
+    expect(routeMarkerLabel("/sign-in")).toBe("auth");
+    expect(routeMarkerLabel("/sign-up")).toBe("auth");
+  });
+
+  it("returns the same fixed label for subpaths, including garbage ones", () => {
+    expect(routeMarkerLabel("/queue/abc123")).toBe("queue");
+    expect(routeMarkerLabel("/race/abc123")).toBe("race");
+    expect(routeMarkerLabel("/challenge/new")).toBe("challenge");
+    expect(routeMarkerLabel("/settings/cf")).toBe("settings");
+    expect(routeMarkerLabel("/leaderboard/weekly")).toBe("ladder");
+    expect(routeMarkerLabel("/sign-in/factor-one")).toBe("auth");
+    expect(routeMarkerLabel("/sign-up/verify-email-address")).toBe("auth");
+  });
+
+  it("pins that a nonexistent subpath under a known prefix yields the fixed label, not the raw path", () => {
+    // The bug this issue fixes: /settings/admin 404s but must never echo
+    // "/settings/admin" — only the fixed "settings" label.
+    expect(routeMarkerLabel("/settings/admin")).toBe("settings");
+  });
+
+  it("returns null for menu routes", () => {
+    expect(routeMarkerLabel("/")).toBeNull();
+    expect(routeMarkerLabel("/dashboard")).toBeNull();
+  });
+
+  it("returns null for unknown paths", () => {
+    expect(routeMarkerLabel("/nope")).toBeNull();
+    expect(routeMarkerLabel("/foo/bar")).toBeNull();
+    expect(routeMarkerLabel("/admin")).toBeNull();
+    expect(routeMarkerLabel("/admin/reports")).toBeNull();
+  });
+
+  it("does not treat a lookalike prefix as a subpath match", () => {
+    expect(routeMarkerLabel("/settingsX")).toBeNull();
+    expect(routeMarkerLabel("/sign-inX")).toBeNull();
+    expect(routeMarkerLabel("/racecar")).toBeNull();
   });
 });
