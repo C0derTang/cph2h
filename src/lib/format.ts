@@ -1,4 +1,4 @@
-import type { RaceOutcome } from "@/lib/types";
+import type { RaceOutcome, ReportReason } from "@/lib/types";
 
 /**
  * Format a race outcome as Win/Loss/Draw from a given player's perspective.
@@ -24,4 +24,19 @@ export function formatOutcome(
 export function formatEloDelta(delta: number | null): string {
   if (delta === null) return "—";
   return delta >= 0 ? `+${delta}` : `${delta}`;
+}
+
+const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  cheating: "Cheating",
+  av_violation: "A/V violation",
+  abusive: "Abusive",
+  other: "Other",
+};
+
+/**
+ * Human-readable label for a report reason (admin dashboard reason badge,
+ * issue #176).
+ */
+export function formatReportReason(reason: ReportReason): string {
+  return REPORT_REASON_LABELS[reason];
 }
