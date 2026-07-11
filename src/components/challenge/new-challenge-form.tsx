@@ -418,5 +418,8 @@ function createErrorMessage(error?: string): string {
   if (error === "no_problems_in_range") {
     return "No cached problems match your filters — widen the range and try again.";
   }
+  if (error === "cheater_blocked") {
+    return "This Codeforces account is on a public cheating blocklist and can’t race.";
+  }
   return "Could not create the challenge. Try again.";
 }

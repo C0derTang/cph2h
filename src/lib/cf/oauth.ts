@@ -53,6 +53,7 @@ export type OAuthErrorCode =
   | "oauth_exchange"
   | "oauth_invalid_token"
   | "handle_taken"
+  | "cheater_blocked"
   | "oauth_failed";
 
 // ---------------------------------------------------------------------------

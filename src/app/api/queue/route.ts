@@ -4,8 +4,9 @@
  * All handlers require a signed-in user with a linked Codeforces account
  * (`requireLinkedUser`, gated on `cfLinkedAt`).
  *
- *  - POST   enqueue: try to pair immediately (band 100); on a hit create a
- *           `ready` race, else upsert the caller's queue row.
+ *  - POST   enqueue: blocks known cheaters (issue #184), else tries to pair
+ *           immediately (band 100); on a hit create a `ready` race, else
+ *           upsert the caller's queue row.
  *  - GET    status: if the caller's queue row is gone, report their newest
  *           ready/active race; otherwise widen the band by wait time, retry
  *           pairing, and report progress.
@@ -13,6 +14,10 @@
  *
  * Pairing atomicity is handled inside `tryPair` (single SQL statement with
  * `FOR UPDATE SKIP LOCKED`); see `src/lib/matchmaking.ts`.
+ *
+ * The cheater check is enqueue-only per issue #184 (not GET/DELETE) — a
+ * blocked handle never gets a queue row in the first place, so there is
+ * nothing to further gate on poll/leave.
  */
 
 import { NextResponse } from "next/server";
@@ -22,6 +27,7 @@ import { queueEntries, races } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { createRace } from "@/lib/race/create";
 import { bandForWait, tryPair, BAND_BASE } from "@/lib/matchmaking";
+import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import type { QueueStatusResponse } from "@/lib/types";
 
 /** Create a `ready` quick-match race with the caller as p1. */
@@ -57,6 +63,13 @@ export async function POST() {
   }
 
   const me = session.user;
+
+  // Block known cheaters from entering the queue (issue #184). Fail-open: a
+  // null set (list unavailable) always allows.
+  const cheaterSet = await getCheaterSet();
+  if (me.cfHandle && cheaterSet && isKnownCheater(me.cfHandle, cheaterSet)) {
+    return NextResponse.json({ error: "cheater_blocked" }, { status: 403 });
+  }
 
   // Pair-on-enqueue at the base band. `me` is not in the queue yet, so a hit
   // deletes only the opponent's row.

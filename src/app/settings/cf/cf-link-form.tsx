@@ -23,6 +23,8 @@ const ERROR_MESSAGES: Record<OAuthErrorCode, string> = {
   oauth_exchange: "Couldn’t reach Codeforces to complete the link. Try again shortly.",
   oauth_invalid_token: "Couldn’t verify the Codeforces response. Please try again.",
   handle_taken: "That Codeforces handle is already linked to another account.",
+  cheater_blocked:
+    "This Codeforces account is on a public cheating blocklist and can’t be linked.",
   oauth_failed: "Linking failed. Please try again.",
 };
 
