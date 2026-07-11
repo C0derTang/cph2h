@@ -13,8 +13,8 @@
  * would reset to null right when it matters most (the active -> finished
  * transition) and silently drop the win/lose cue. Instead the last-seen
  * snapshot per race is kept in a small module-level cache — the same
- * "external store" shape `VolumeControl.tsx`/`AudioControls.tsx` already use
- * for cross-mount state — keyed by `snapshot.id`, so the diff survives the
+ * "external store" shape `AudioControls.tsx` already uses for cross-mount
+ * state — keyed by `snapshot.id`, so the diff survives the
  * remount. `detectAudioTransitions` (the pure, unit-tested half of this
  * module) never fires anything off a `null` previous snapshot, so a fresh
  * mount on an already-finished race (e.g. a hard refresh) correctly stays

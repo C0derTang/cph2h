@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
 import { buildJoinUrl } from "@/lib/race/join-url";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
 import { canCompete } from "@/lib/race/av-requirements";
-import { useMicPermission } from "@/components/race/useMicPermission";
+import { useCamPermission, useMicPermission } from "@/components/race/useMicPermission";
 import { AudioToggleButtons } from "@/components/race/AudioControls";
 import { LiveTickerIndicator } from "@/components/race/LiveTickerIndicator";
 import {
@@ -103,14 +103,18 @@ export function Lobby({
     skewMsRef.current = skewMs;
   }, [skewMs]);
 
-  // Compete gate (issue #100): a client-side-only requirement, checked here
-  // so the "I'm ready" button can't be pressed muted. `useMicPermission`
-  // works without any LiveKit context (the Lobby renders standalone, before
-  // `LiveKitRoom` mounts in the active branch — see `RaceRoom.tsx`).
+  // Compete gate (issue #100, extended to camera by #171): a client-side-only
+  // requirement, checked here so the "I'm ready" button can't be pressed
+  // muted or invisible. `useMicPermission`/`useCamPermission` work without
+  // any LiveKit context (the Lobby renders standalone, before `LiveKitRoom`
+  // mounts in the active branch — see `RaceRoom.tsx`).
   const mic = useMicPermission();
+  const cam = useCamPermission();
   const meetsCompeteGate = canCompete({
     micGranted: mic.micGranted,
     micLive: mic.micLive,
+    camGranted: cam.camGranted,
+    camLive: cam.camLive,
   });
 
   // Applies any freshly-received `RaceSnapshot` — whether from the polling
@@ -393,7 +397,7 @@ export function Lobby({
         )}
 
         {(snapshot.status === "pending" || snapshot.status === "ready") && (
-          <CompeteGate mic={mic} />
+          <CompeteGate mic={mic} cam={cam} />
         )}
 
         {snapshot.status === "pending" && snapshot.challengeToken && (
@@ -437,7 +441,7 @@ export function Lobby({
             ) : youReady ? (
               "They’re still catching up."
             ) : !meetsCompeteGate ? (
-              "Mic on."
+              "Mic + camera on."
             ) : (
               "I'm ready"
             )}
@@ -501,16 +505,18 @@ function LobbyShell({
 }
 
 /**
- * Compete-gate checklist (issue #100): "Mic on. No excuses."
- * Shows mic ✓/✗ with a "Grant mic" action, plus the SFX/BGM toggles —
- * camera is explicitly called out as not required. Pure presentation; the
- * actual gating predicate (`canCompete`) lives with the hooks in the parent
- * so it can also disable the ready button.
+ * Compete-gate checklist (issue #100, extended by #171): "Mic and camera on.
+ * No excuses." Shows mic ✓/✗ and camera ✓/✗, each with its own "Grant"
+ * action, plus the SFX/BGM toggles. Pure presentation; the actual gating
+ * predicate (`canCompete`) lives with the hooks in the parent so it can also
+ * disable the ready button.
  */
 function CompeteGate({
   mic,
+  cam,
 }: {
   mic: ReturnType<typeof useMicPermission>;
+  cam: ReturnType<typeof useCamPermission>;
 }) {
   const micOk = mic.micGranted && mic.micLive;
   const micLabel = !mic.supported
@@ -519,13 +525,20 @@ function CompeteGate({
       ? "Mic blocked — allow it in your browser's site settings"
       : "Grant mic";
 
+  const camOk = cam.camGranted && cam.camLive;
+  const camLabel = !cam.supported
+    ? "Camera unsupported in this browser"
+    : cam.permissionState === "denied"
+      ? "Camera blocked — allow it in your browser's site settings"
+      : "Grant camera";
+
   return (
     <div className="stat-plate flex flex-col gap-3 p-3" data-testid="compete-gate">
       <div className="flex flex-col gap-0.5">
         <p className="eyebrow text-muted-foreground">
           Compete requirements
         </p>
-        <p className="text-sm">Mic on. No excuses.</p>
+        <p className="text-sm">Mic and camera on. No excuses.</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -558,14 +571,39 @@ function CompeteGate({
         )}
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span
+          className={cn(
+            "flex items-center gap-1.5 text-sm",
+            camOk ? "text-foreground" : "text-destructive",
+          )}
+          data-testid="cam-requirement"
+        >
+          {camOk ? <Check className="size-4" aria-hidden /> : <X className="size-4" aria-hidden />}
+          {camOk ? "Camera on" : "Camera off"}
+        </span>
+        {!camOk && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void cam.requestCam()}
+            disabled={cam.requesting || !cam.supported}
+            data-testid="grant-cam-btn"
+          >
+            {cam.requesting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <Video className="size-4" aria-hidden />
+            )}
+            {camLabel}
+          </Button>
+        )}
+      </div>
+
       <div className="flex items-center justify-end gap-2">
         <AudioToggleButtons testIdSuffix="lobby" />
       </div>
-
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Video className="size-3.5 shrink-0" aria-hidden />
-        Camera&apos;s optional — nobody needs to see you rage-quit.
-      </p>
     </div>
   );
 }

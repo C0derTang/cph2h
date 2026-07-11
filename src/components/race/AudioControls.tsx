@@ -3,13 +3,12 @@
 /**
  * Audio preference toggles (issue #112): independent SFX/BGM mute switches.
  *
- * Mirrors `VolumeControl.tsx`'s module-level external-store pattern
- * (`useSyncExternalStore` over `localStorage`, `getServerSnapshot` returning
- * the default so SSR/hydration markup matches) so `useAudioPrefs` can be
- * mounted independently in both the lobby and the race room's `VideoTiles`
- * and stay in sync — and so `RaceAudio.tsx` can react to a toggle flip
- * immediately (turning BGM off mid-race silences it on the very next tick,
- * not just on the next race).
+ * Uses a module-level external-store pattern (`useSyncExternalStore` over
+ * `localStorage`, `getServerSnapshot` returning the default so SSR/hydration
+ * markup matches) so `useAudioPrefs` can be mounted independently in both
+ * the lobby and the race room's `VideoTiles` and stay in sync — and so
+ * `RaceAudio.tsx` can react to a toggle flip immediately (turning BGM off
+ * mid-race silences it on the very next tick, not just on the next race).
  */
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
