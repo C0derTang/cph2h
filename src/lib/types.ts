@@ -316,6 +316,52 @@ export interface LeaderboardEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Reports + admin dashboard
+// ---------------------------------------------------------------------------
+
+export const REPORT_REASONS = ["cheating", "av_violation", "abusive", "other"] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+export type ReportStatus = "open" | "resolved";
+
+export interface CreateReportRequest {
+  raceId: string;
+  reason: ReportReason;
+  note?: string;
+}
+
+export interface ReportDTO {
+  id: string;
+  raceId: string;
+  reason: ReportReason;
+  note: string | null;
+  status: ReportStatus;
+  createdAt: string; // ISO
+  resolvedAt: string | null; // ISO
+  reporter: PublicUser;
+  reported: PublicUser;
+}
+
+export interface ReportSubmissionEvidence {
+  userId: string;
+  verdict: string | null;
+  submittedAt: string; // ISO
+}
+
+/** Aggregate stats for the admin dashboard (GET /api/admin/overview). */
+export interface AdminOverview {
+  totalUsers: number;
+  totalRaces: number;
+  races7d: number;
+  openReports: number;
+  /** Last 30 days, one entry per day, ISO date (`YYYY-MM-DD`). */
+  racesPerDay: { date: string; count: number }[];
+  /** Verdict distribution from `race_submissions`. */
+  verdictDist: { verdict: string; count: number }[];
+  /** Elo distribution bucketed into 100-wide buckets. */
+  eloHistogram: { bucketFloor: number; count: number }[];
+}
+
+// ---------------------------------------------------------------------------
 // Codeforces API shapes (subset we consume)
 // ---------------------------------------------------------------------------
 

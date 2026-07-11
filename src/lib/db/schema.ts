@@ -19,6 +19,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { DEFAULT_CPP_TEMPLATE, type SampleTest } from "@/lib/types";
@@ -70,6 +71,7 @@ export const users = pgTable("users", {
    */
   solveHistoryImportCursor: integer("solve_history_import_cursor"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  isAdmin: boolean("is_admin").notNull().default(false),
 });
 
 // ---------------------------------------------------------------------------
@@ -276,6 +278,37 @@ export const eloHistory = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    raceId: uuid("race_id")
+      .notNull()
+      .references(() => races.id),
+    reporterId: uuid("reporter_id")
+      .notNull()
+      .references(() => users.id),
+    reportedId: uuid("reported_id")
+      .notNull()
+      .references(() => users.id),
+    /** Values constrained by `ReportReason` in src/lib/types.ts, not a PG enum. */
+    reason: text("reason").notNull(),
+    note: text("note"),
+    /** `'open' | 'resolved'` — see `ReportStatus` in src/lib/types.ts. */
+    status: text("status").notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("reports_race_id_reporter_id_idx").on(t.raceId, t.reporterId),
+    index("reports_status_idx").on(t.status),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Inferred row types
 // ---------------------------------------------------------------------------
 
@@ -305,3 +338,6 @@ export type NewQueueEntry = typeof queueEntries.$inferInsert;
 
 export type EloHistoryEntry = typeof eloHistory.$inferSelect;
 export type NewEloHistoryEntry = typeof eloHistory.$inferInsert;
+
+export type Report = typeof reports.$inferSelect;
+export type NewReport = typeof reports.$inferInsert;
