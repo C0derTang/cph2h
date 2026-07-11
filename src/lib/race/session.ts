@@ -29,3 +29,33 @@ export async function requireLinkedUser(): Promise<SessionResult> {
 
   return { ok: true, user };
 }
+
+/**
+ * Admin session gate (issue #175).
+ *
+ * Deliberately 404, not 401/403: a non-admin (including a signed-out caller)
+ * must not learn that an admin surface exists at all.
+ */
+export type AdminSessionResult =
+  | { ok: true; user: User }
+  | { ok: false; status: 404; error: "not_found" };
+
+/**
+ * Pure decision given an already-resolved user row (or `null` for
+ * signed-out). Split out from {@link requireAdmin} so the admin gate is
+ * unit-testable without mocking `ensureUser`/Clerk.
+ */
+export function decideAdminAccess(user: User | null): AdminSessionResult {
+  if (!user || !user.isAdmin) return { ok: false, status: 404, error: "not_found" };
+  return { ok: true, user };
+}
+
+/**
+ * Require a signed-in user with `users.isAdmin`. Returns the DB row on
+ * success, or a structured 404 the caller maps to a response — non-admins
+ * (and signed-out callers) get the same 404 an unmapped route would.
+ */
+export async function requireAdmin(): Promise<AdminSessionResult> {
+  const user = await ensureUser();
+  return decideAdminAccess(user);
+}
