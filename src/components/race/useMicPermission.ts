@@ -1,25 +1,33 @@
 "use client";
 
 /**
- * Microphone-permission probe for the compete gate (issue #100).
+ * Media-permission probe for the compete gate (issue #100, generalized to
+ * cover camera in #171).
  *
  * Rendered *before* any `LiveKitRoom` exists (the Lobby is standalone — see
  * `RaceRoom.tsx`, which only mounts `LiveKitRoom` once the race is `active`),
- * so this cannot lean on LiveKit's local-participant mic state. Instead it
- * talks to the browser directly:
+ * so this cannot lean on LiveKit's local-participant mic/cam state. Instead
+ * it talks to the browser directly:
  *
- * - Where supported, `navigator.permissions.query({ name: "microphone" })`
+ * - Where supported, `navigator.permissions.query({ name: "microphone" | "camera" })`
  *   gives the current OS/browser permission state passively (no prompt) and
  *   an `onchange` event — the mechanism the race room uses to detect a
- *   mid-race revocation (grace banner only, per the issue; never a forfeit).
- * - `requestMic()` calls `getUserMedia({ audio: true })`, which is what
- *   actually triggers the browser's permission prompt on "prompt" state (and
- *   is the *only* signal at all in browsers without the Permissions API
- *   "microphone" descriptor, e.g. older Firefox/Safari).
+ *   mid-race mic revocation (grace banner only, per issue #100; never a
+ *   forfeit).
+ * - The explicit request (`requestMic`/`requestCam`) calls `getUserMedia`
+ *   (`{ audio: true }` / `{ video: true }`), which is what actually triggers
+ *   the browser's permission prompt on "prompt" state (and is the *only*
+ *   signal at all in browsers without the Permissions API descriptor for
+ *   that kind, e.g. older Firefox/Safari).
  *
  * A probe's track is stopped immediately after checking `readyState` — this
- * hook never holds a live mic open; LiveKit acquires its own track once
- * connected in the race room.
+ * hook never holds a live mic/camera open; LiveKit acquires its own tracks
+ * once connected in the race room.
+ *
+ * `useMediaPermission` is the shared implementation, parameterized by
+ * `kind`; `useMicPermission` and `useCamPermission` are thin, kind-specific
+ * wrappers so existing call sites (and the `micGranted`/`micLive`/
+ * `requestMic` field names they depend on) survive unchanged.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -28,27 +36,29 @@ import {
   type MicPermissionState,
 } from "@/lib/race/av-requirements";
 
-export interface MicPermissionInfo {
-  /** Permission-API/probe-derived: mic access is currently granted. */
-  micGranted: boolean;
-  /** The most recent probe actually obtained a live, enabled audio track. */
-  micLive: boolean;
+type MediaKind = "microphone" | "camera";
+
+interface MediaPermissionInfo {
+  /** Permission-API/probe-derived: access is currently granted. */
+  granted: boolean;
+  /** The most recent probe actually obtained a live, enabled track. */
+  live: boolean;
   /** True while a `getUserMedia` probe is in flight (button loading state). */
   requesting: boolean;
   /** Raw state when known via the Permissions API; `null` if never probed / unsupported. */
   permissionState: MicPermissionState | null;
   /** False when this browser has no `getUserMedia` at all (very old/insecure context). */
   supported: boolean;
-  /** Prompts for mic access (or silently re-verifies if already granted). */
-  requestMic: () => Promise<void>;
+  /** Prompts for access (or silently re-verifies if already granted). */
+  request: () => Promise<void>;
 }
 
-export function useMicPermission(): MicPermissionInfo {
+function useMediaPermission(kind: MediaKind): MediaPermissionInfo {
   const supported =
     typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
 
   const [permissionState, setPermissionState] = useState<MicPermissionState | null>(null);
-  const [micLive, setMicLive] = useState(false);
+  const [live, setLive] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -61,16 +71,20 @@ export function useMicPermission(): MicPermissionInfo {
     if (!supported) return;
     setRequesting(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const track = stream.getAudioTracks()[0] ?? null;
-      const live = track != null && track.readyState === "live" && track.enabled;
-      stream.getAudioTracks().forEach((t) => t.stop());
+      const stream = await navigator.mediaDevices.getUserMedia(
+        kind === "microphone" ? { audio: true } : { video: true },
+      );
+      const tracks =
+        kind === "microphone" ? stream.getAudioTracks() : stream.getVideoTracks();
+      const track = tracks[0] ?? null;
+      const isLive = track != null && track.readyState === "live" && track.enabled;
+      tracks.forEach((t) => t.stop());
       if (!mountedRef.current) return;
-      setMicLive(live);
+      setLive(isLive);
       setPermissionState("granted");
     } catch (err) {
       if (!mountedRef.current) return;
-      setMicLive(false);
+      setLive(false);
       const name = err instanceof DOMException ? err.name : "";
       // NotAllowedError (Chromium) / PermissionDeniedError (older Firefox) —
       // anything else (NotFoundError: no device, etc.) is treated as "still
@@ -83,7 +97,7 @@ export function useMicPermission(): MicPermissionInfo {
     } finally {
       if (mountedRef.current) setRequesting(false);
     }
-  }, [supported]);
+  }, [supported, kind]);
 
   // Passive Permissions-API probe: reflects current state without prompting,
   // and subscribes to `onchange` so a revocation mid-race is caught live.
@@ -98,12 +112,12 @@ export function useMicPermission(): MicPermissionInfo {
       if (status.state === "granted") {
         void probe();
       } else {
-        setMicLive(false);
+        setLive(false);
       }
     };
 
     navigator.permissions
-      .query({ name: "microphone" })
+      .query({ name: kind })
       .then((s) => {
         if (cancelled) return;
         status = s;
@@ -112,22 +126,64 @@ export function useMicPermission(): MicPermissionInfo {
         s.addEventListener("change", handleChange);
       })
       .catch(() => {
-        // "microphone" isn't a recognized permission descriptor in this
-        // browser — fall back entirely to the explicit requestMic() probe.
+        // This permission descriptor isn't recognized in this browser — fall
+        // back entirely to the explicit request() probe.
       });
 
     return () => {
       cancelled = true;
       status?.removeEventListener("change", handleChange);
     };
-  }, [probe]);
+  }, [probe, kind]);
 
   return {
-    micGranted: micGrantedFromPermissionState(permissionState),
-    micLive,
+    granted: micGrantedFromPermissionState(permissionState),
+    live,
     requesting,
     permissionState,
     supported,
-    requestMic: probe,
+    request: probe,
+  };
+}
+
+export interface MicPermissionInfo {
+  micGranted: boolean;
+  micLive: boolean;
+  requesting: boolean;
+  permissionState: MicPermissionState | null;
+  supported: boolean;
+  requestMic: () => Promise<void>;
+}
+
+export function useMicPermission(): MicPermissionInfo {
+  const info = useMediaPermission("microphone");
+  return {
+    micGranted: info.granted,
+    micLive: info.live,
+    requesting: info.requesting,
+    permissionState: info.permissionState,
+    supported: info.supported,
+    requestMic: info.request,
+  };
+}
+
+export interface CamPermissionInfo {
+  camGranted: boolean;
+  camLive: boolean;
+  requesting: boolean;
+  permissionState: MicPermissionState | null;
+  supported: boolean;
+  requestCam: () => Promise<void>;
+}
+
+export function useCamPermission(): CamPermissionInfo {
+  const info = useMediaPermission("camera");
+  return {
+    camGranted: info.granted,
+    camLive: info.live,
+    requesting: info.requesting,
+    permissionState: info.permissionState,
+    supported: info.supported,
+    requestCam: info.request,
   };
 }

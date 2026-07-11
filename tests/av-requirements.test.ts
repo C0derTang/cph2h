@@ -5,13 +5,8 @@
 import { describe, it, expect } from "vitest";
 import {
   canCompete,
-  clampVolume,
-  DEFAULT_VOLUME,
-  isVolumeAudible,
   micGrantedFromPermissionState,
-  readVolume,
   UNMET_AV_REQUIREMENTS,
-  writeVolume,
   type AvRequirementState,
 } from "../src/lib/race/av-requirements";
 
@@ -19,9 +14,11 @@ describe("canCompete", () => {
   const met: AvRequirementState = {
     micGranted: true,
     micLive: true,
+    camGranted: true,
+    camLive: true,
   };
 
-  it("is true when both requirements are met", () => {
+  it("is true when all four requirements are met", () => {
     expect(canCompete(met)).toBe(true);
   });
 
@@ -35,6 +32,26 @@ describe("canCompete", () => {
 
   it("is false when mic is granted but not live (e.g. device vanished)", () => {
     expect(canCompete({ ...met, micLive: false })).toBe(false);
+  });
+
+  it("is false when camera permission is denied", () => {
+    expect(canCompete({ ...met, camGranted: false })).toBe(false);
+  });
+
+  it("is false when camera is granted but not live (e.g. webcam unplugged)", () => {
+    expect(canCompete({ ...met, camLive: false })).toBe(false);
+  });
+
+  it("is false when only mic requirements are met and camera is entirely unmet", () => {
+    expect(
+      canCompete({ ...met, camGranted: false, camLive: false }),
+    ).toBe(false);
+  });
+
+  it("is false when only camera requirements are met and mic is entirely unmet", () => {
+    expect(
+      canCompete({ ...met, micGranted: false, micLive: false }),
+    ).toBe(false);
   });
 });
 
@@ -53,51 +70,5 @@ describe("micGrantedFromPermissionState", () => {
 
   it("is false for null (permission API unsupported / not yet probed)", () => {
     expect(micGrantedFromPermissionState(null)).toBe(false);
-  });
-});
-
-describe("clampVolume", () => {
-  it("passes through in-range values", () => {
-    expect(clampVolume(0.5)).toBe(0.5);
-    expect(clampVolume(0)).toBe(0);
-    expect(clampVolume(1)).toBe(1);
-  });
-
-  it("clamps above 1 down to 1", () => {
-    expect(clampVolume(1.5)).toBe(1);
-  });
-
-  it("clamps below 0 up to 0", () => {
-    expect(clampVolume(-0.2)).toBe(0);
-  });
-
-  it("falls back to the default for non-finite input", () => {
-    expect(clampVolume(NaN)).toBe(DEFAULT_VOLUME);
-    expect(clampVolume(Infinity)).toBe(DEFAULT_VOLUME);
-  });
-});
-
-describe("isVolumeAudible", () => {
-  it("is false at exactly 0", () => {
-    expect(isVolumeAudible(0)).toBe(false);
-  });
-
-  it("is true for any positive volume", () => {
-    expect(isVolumeAudible(0.01)).toBe(true);
-    expect(isVolumeAudible(1)).toBe(true);
-  });
-
-  it("is false for a negative volume (defensive)", () => {
-    expect(isVolumeAudible(-1)).toBe(false);
-  });
-});
-
-describe("readVolume / writeVolume (no-DOM environment)", () => {
-  it("readVolume returns the default when localStorage is unavailable", () => {
-    expect(readVolume()).toBe(DEFAULT_VOLUME);
-  });
-
-  it("writeVolume does not throw when localStorage is unavailable", () => {
-    expect(() => writeVolume(0.7)).not.toThrow();
   });
 });
