@@ -40,6 +40,7 @@ import {
   MicOff,
   MonitorSmartphone,
   RefreshCw,
+  ShieldAlert,
   WifiOff,
 } from "lucide-react";
 
@@ -50,6 +51,7 @@ import { Lobby } from "@/components/race/Lobby";
 import { RaceHUD } from "@/components/race/RaceHUD";
 import { VerdictFeed } from "@/components/race/VerdictFeed";
 import { ResultCard } from "@/components/race/ResultCard";
+import { ReportDialog } from "@/components/race/ReportDialog";
 import { RaceEndOverlay } from "@/components/race/RaceEndOverlay";
 import { VideoTiles } from "@/components/race/VideoTiles";
 import { useMicPermission } from "@/components/race/useMicPermission";
@@ -133,6 +135,9 @@ export function RaceRoom({
   // "Throw in the towel" action opens this dialog instead of forfeiting
   // directly; the dialog's own confirm button runs the actual mutation.
   const [forfeitDialogOpen, setForfeitDialogOpen] = useState(false);
+  // Report-opponent dialog (issue #174): a subtle, non-destructive action —
+  // filing a report never mutates race state client-side.
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [drawActionPending, setDrawActionPending] = useState(false);
   const [pollDegraded, setPollDegraded] = useState(false);
   // Stamped (local `Date.now()`) on every successful verdict-poll response —
@@ -649,6 +654,30 @@ export function RaceRoom({
   const opponentOfferedDraw =
     drawOfferBy !== null && opponent !== null && drawOfferBy === opponent.id;
 
+  // Report opponent (issue #174): visible in-race or post-race, whenever an
+  // opponent actually exists — never on a solo/pending-challenge race.
+  const canReport =
+    (status === "active" || status === "finished") && opponent !== null;
+  const reportDialog = (
+    <ReportDialog
+      open={reportDialogOpen}
+      onOpenChange={setReportDialogOpen}
+      raceId={raceId}
+    />
+  );
+  const reportButton = canReport && (
+    <Button
+      type="button"
+      variant="destructive"
+      size="sm"
+      data-testid="report-opponent-btn"
+      onClick={() => setReportDialogOpen(true)}
+    >
+      <ShieldAlert aria-hidden />
+      Report opponent
+    </Button>
+  );
+
   // --- Lobby (pending / ready) -------------------------------------------
   if (status === "pending" || status === "ready") {
     return (
@@ -687,6 +716,8 @@ export function RaceRoom({
           {status}
         </span>
         <ResultCard snapshot={snapshot} currentUserId={currentUserId} />
+        {reportButton && <div className="mt-3">{reportButton}</div>}
+        {reportDialog}
         {overlay && (
           <RaceEndOverlay
             outcome={overlay.outcome}
@@ -809,21 +840,23 @@ export function RaceRoom({
             </Button>
           </div>
         )}
-        <SlabButton
-          type="button"
-          tone="destructive"
-          className="ml-auto"
-          onClick={() => setForfeitDialogOpen(true)}
-          disabled={forfeiting}
-          data-testid="forfeit-btn"
-        >
-          {forfeiting ? (
-            <Loader2 className="animate-spin" aria-hidden />
-          ) : (
-            <Flag aria-hidden />
-          )}
-          {forfeiting ? "Throwing in the towel…" : "Throw in the towel"}
-        </SlabButton>
+        <div className="ml-auto flex items-center gap-2">
+          {reportButton}
+          <SlabButton
+            type="button"
+            tone="destructive"
+            onClick={() => setForfeitDialogOpen(true)}
+            disabled={forfeiting}
+            data-testid="forfeit-btn"
+          >
+            {forfeiting ? (
+              <Loader2 className="animate-spin" aria-hidden />
+            ) : (
+              <Flag aria-hidden />
+            )}
+            {forfeiting ? "Throwing in the towel…" : "Throw in the towel"}
+          </SlabButton>
+        </div>
       </div>
 
       <p className="text-xs leading-5 text-muted-foreground">
@@ -919,6 +952,7 @@ export function RaceRoom({
       )}
       {actions}
       {forfeitDialog}
+      {reportDialog}
     </section>
   );
 
@@ -1173,6 +1207,8 @@ export function RaceRoom({
         </div>
       )}
       <ResultCard snapshot={snapshot} currentUserId={currentUserId} />
+      {reportButton}
+      {reportDialog}
       {withVideo && (
         <SlabButton
           type="button"
