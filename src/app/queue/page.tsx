@@ -56,8 +56,11 @@ export default function QueuePage() {
     [router],
   );
 
-  const errorFor = useCallback((res: Response): string => {
+  const errorFor = useCallback((res: Response, body: { error?: string }): string => {
     if (res.status === 401) return "Please sign in to find a race.";
+    if (body.error === "cheater_blocked") {
+      return "This Codeforces account is on a public cheating blocklist and can’t race.";
+    }
     if (res.status === 403) return "Link your Codeforces account first.";
     return "Queue choked. Run it back.";
   }, []);
@@ -72,9 +75,10 @@ export default function QueuePage() {
     try {
       const res = await fetch("/api/queue", { method: "POST" });
       if (!res.ok) {
-        const message = errorFor(res);
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        const message = errorFor(res, body);
         setError(message);
-        setNeedsCfLink(res.status === 403);
+        setNeedsCfLink(res.status === 403 && body.error !== "cheater_blocked");
         setPhase("error");
         toast.error(message);
         return;

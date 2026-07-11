@@ -5,11 +5,17 @@
  * On success the race moves `pending -> ready` via a conditional update guarded
  * on `status='pending'`; a lost race (zero rows updated) re-reads and returns
  * the current snapshot.
+ *
+ * Issue #184: after `requireLinkedUser`, a caller whose linked handle is on
+ * the community cheater blocklist gets 403 `cheater_blocked` before any DB
+ * read/write — covers accounts linked before the list caught them. Fail-open
+ * on list unavailability — see `src/lib/cf/cheaters.ts`.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { and, eq, isNull } from "drizzle-orm";
+import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import { db } from "@/lib/db";
 import { races } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
@@ -23,6 +29,17 @@ export async function POST(req: NextRequest) {
   const session = await requireLinkedUser();
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
+  }
+
+  // Block known cheaters from accepting a challenge (issue #184). Fail-open:
+  // a null set (list unavailable) always allows.
+  const cheaterSet = await getCheaterSet();
+  if (
+    session.user.cfHandle &&
+    cheaterSet &&
+    isKnownCheater(session.user.cfHandle, cheaterSet)
+  ) {
+    return NextResponse.json({ error: "cheater_blocked" }, { status: 403 });
   }
 
   let token: string;

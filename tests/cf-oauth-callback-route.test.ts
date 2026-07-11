@@ -27,6 +27,7 @@ const {
   getUserInfoMock,
   importSolveHistoryMock,
   getOAuthConfigMock,
+  getCheaterSetMock,
 } = vi.hoisted(() => ({
   ensureUserMock: vi.fn(),
   selectMock: vi.fn(),
@@ -35,6 +36,7 @@ const {
   getUserInfoMock: vi.fn(),
   importSolveHistoryMock: vi.fn(),
   getOAuthConfigMock: vi.fn(),
+  getCheaterSetMock: vi.fn(),
 }));
 
 vi.mock("@/lib/user", () => ({ ensureUser: ensureUserMock }));
@@ -61,6 +63,11 @@ vi.mock("@/lib/cf/history", () => ({ importSolveHistory: importSolveHistoryMock 
 vi.mock("@/lib/cf/oauth-server", () => ({
   getOAuthConfig: getOAuthConfigMock,
   getRequestOrigin: () => ORIGIN,
+}));
+
+vi.mock("@/lib/cf/cheaters", () => ({
+  getCheaterSet: getCheaterSetMock,
+  isKnownCheater: (handle: string, set: Set<string>) => set.has(handle.toLowerCase()),
 }));
 
 import { GET } from "../src/app/api/cf/oauth/callback/route";
@@ -123,6 +130,7 @@ beforeEach(() => {
   getOAuthConfigMock
     .mockReset()
     .mockReturnValue({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
+  getCheaterSetMock.mockReset().mockResolvedValue(new Set());
 });
 
 afterEach(() => {
@@ -190,6 +198,57 @@ describe("GET /api/cf/oauth/callback", () => {
 
     expect(locationOf(response).searchParams.get("error")).toBe("oauth_denied");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a handle on the cheater blocklist and never links (issue #184)", async () => {
+    getCheaterSetMock.mockResolvedValue(new Set(["tourist"]));
+    stubTokenFetch(await signIdToken(CLIENT_SECRET, { rating: 3800 }));
+
+    const response = await GET(makeRequest());
+
+    expect(locationOf(response).searchParams.get("error")).toBe("cheater_blocked");
+    expect(updateSetMock).not.toHaveBeenCalled();
+  });
+
+  it("cheater check is case-insensitive", async () => {
+    getCheaterSetMock.mockResolvedValue(new Set(["tourist"]));
+    stubTokenFetch(await signIdToken(CLIENT_SECRET, { handle: "TOURIST", rating: 3800 }));
+
+    const response = await GET(makeRequest());
+
+    expect(locationOf(response).searchParams.get("error")).toBe("cheater_blocked");
+    expect(updateSetMock).not.toHaveBeenCalled();
+  });
+
+  it("fails open and links when the cheater list is unavailable", async () => {
+    getCheaterSetMock.mockResolvedValue(null);
+    stubTokenFetch(await signIdToken(CLIENT_SECRET, { rating: 3800 }));
+
+    const response = await GET(makeRequest());
+
+    expect(locationOf(response).searchParams.get("linked")).toBe("1");
+    expect(updateSetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("enforces the cheater check before the handle-conflict check", async () => {
+    getCheaterSetMock.mockResolvedValue(new Set(["tourist"]));
+    mockConflictRows([{ id: "user-2" }]);
+    stubTokenFetch(await signIdToken(CLIENT_SECRET, { rating: 3800 }));
+
+    const response = await GET(makeRequest());
+
+    // A handle that is both a known cheater AND owned by another user
+    // reports cheater_blocked, not handle_taken — cheater check runs first.
+    expect(locationOf(response).searchParams.get("error")).toBe("cheater_blocked");
+  });
+
+  it("does not check the cheater list before the state/token checks pass", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await GET(makeRequest({ state: "not-the-cookie-state" }));
+
+    expect(getCheaterSetMock).not.toHaveBeenCalled();
   });
 
   it("rejects a handle already linked to another user", async () => {

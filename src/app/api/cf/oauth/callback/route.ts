@@ -7,10 +7,12 @@
  *  3. verifies the `id_token` — HS256 signature with the CLIENT SECRET, plus
  *     `iss`/`aud`/`exp` — via `jose`, then re-checks the claims with the pure
  *     validator,
- *  4. links the `handle` claim to the caller's `users` row (rejecting a handle
+ *  4. rejects a `handle` on the community cheater blocklist (issue #184;
+ *     fail-open on list unavailability — see `src/lib/cf/cheaters.ts`),
+ *  5. links the `handle` claim to the caller's `users` row (rejecting a handle
  *     already owned by another user), sets the display name to match (issue
  *     #120), and imports solve history,
- *  5. redirects back to the settings page with a success or `?error=` code.
+ *  6. redirects back to the settings page with a success or `?error=` code.
  *
  * All redirects target the fixed same-origin `${OAUTH_RESULT_PATH}` — there is
  * no open redirect. The `state` cookie is cleared on every path, making it
@@ -28,6 +30,7 @@ import { jwtVerify } from "jose";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { getUserInfo, CfApiError } from "@/lib/cf/client";
+import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import { importSolveHistory } from "@/lib/cf/history";
 import { ensureUser } from "@/lib/user";
 import { getOAuthConfig, getRequestOrigin } from "@/lib/cf/oauth-server";
@@ -154,7 +157,16 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
   const { handle } = validation;
 
-  // 4. Reject a handle already linked to a different account (pre-check; the
+  // 4. Reject a handle on the community cheater blocklist (issue #184).
+  //    Fail-open: `cheaterSet` is null when the list can't be fetched/parsed
+  //    (e.g. GitHub is down), and a null set always allows — platform
+  //    availability must never depend on GitHub's uptime.
+  const cheaterSet = await getCheaterSet();
+  if (cheaterSet && isKnownCheater(handle, cheaterSet)) {
+    return finish("cheater_blocked");
+  }
+
+  // 5. Reject a handle already linked to a different account (pre-check; the
   //    unique constraint below is the actual source of truth under races).
   const [owner] = await db
     .select({ id: users.id })
@@ -176,7 +188,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
   }
 
-  // 5. Link the handle; the display name follows the linked handle (issue #120).
+  // 6. Link the handle; the display name follows the linked handle (issue #120).
   try {
     await db
       .update(users)
@@ -189,7 +201,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     throw err;
   }
 
-  // 6. Import solve history (best-effort; failure does not fail the link).
+  // 7. Import solve history (best-effort; failure does not fail the link).
   try {
     await importSolveHistory(user.id, handle);
   } catch {

@@ -11,10 +11,15 @@
  * problem matches (`countAvailableProblems`) — otherwise the request is
  * rejected with 422 `no_problems_in_range` and nothing is persisted.
  * Filterless requests behave exactly as before this issue.
+ *
+ * Issue #184: after `requireLinkedUser`, a caller whose linked handle is on
+ * the community cheater blocklist gets 403 `cheater_blocked` and no race is
+ * created. Fail-open on list unavailability — see `src/lib/cf/cheaters.ts`.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import { countAvailableProblems } from "@/lib/cf/problem-availability";
 import { createRace, generateChallengeToken } from "@/lib/race/create";
 import { hasAnyFilter, raceFiltersSchema, toRaceProblemFilters } from "@/lib/race/filters";
@@ -33,6 +38,13 @@ export async function POST(req: NextRequest) {
   const session = await requireLinkedUser();
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
+  }
+
+  // Block known cheaters from creating a challenge (issue #184). Fail-open: a
+  // null set (list unavailable) always allows.
+  const cheaterSet = await getCheaterSet();
+  if (session.user.cfHandle && cheaterSet && isKnownCheater(session.user.cfHandle, cheaterSet)) {
+    return NextResponse.json({ error: "cheater_blocked" }, { status: 403 });
   }
 
   let timeLimitSec = DEFAULT_TIME_LIMIT_SEC;

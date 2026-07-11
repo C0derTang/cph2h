@@ -13,13 +13,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { SessionResult } from "../src/lib/race/session";
 
-const { requireLinkedUserMock, createRaceMock, generateChallengeTokenMock, countAvailableProblemsMock } =
-  vi.hoisted(() => ({
-    requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
-    createRaceMock: vi.fn(),
-    generateChallengeTokenMock: vi.fn(() => "tok-abc"),
-    countAvailableProblemsMock: vi.fn(),
-  }));
+const {
+  requireLinkedUserMock,
+  createRaceMock,
+  generateChallengeTokenMock,
+  countAvailableProblemsMock,
+  getCheaterSetMock,
+  isKnownCheaterMock,
+} = vi.hoisted(() => ({
+  requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
+  createRaceMock: vi.fn(),
+  generateChallengeTokenMock: vi.fn(() => "tok-abc"),
+  countAvailableProblemsMock: vi.fn(),
+  getCheaterSetMock: vi.fn(),
+  isKnownCheaterMock: vi.fn(),
+}));
 
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/race/create", () => ({
@@ -28,6 +36,10 @@ vi.mock("@/lib/race/create", () => ({
 }));
 vi.mock("@/lib/cf/problem-availability", () => ({
   countAvailableProblems: countAvailableProblemsMock,
+}));
+vi.mock("@/lib/cf/cheaters", () => ({
+  getCheaterSet: getCheaterSetMock,
+  isKnownCheater: isKnownCheaterMock,
 }));
 
 import { POST } from "../src/app/api/races/route";
@@ -68,6 +80,8 @@ beforeEach(() => {
   createRaceMock.mockReset();
   generateChallengeTokenMock.mockClear();
   countAvailableProblemsMock.mockReset();
+  getCheaterSetMock.mockReset().mockResolvedValue(new Set());
+  isKnownCheaterMock.mockReset().mockReturnValue(false);
   mockSession();
   createRaceMock.mockResolvedValue({ id: "race-1", livekitRoom: "race-race-1" });
 });
@@ -167,5 +181,39 @@ describe("POST /api/races — problem filters", () => {
     expect(res.status).toBe(401);
     expect(countAvailableProblemsMock).not.toHaveBeenCalled();
     expect(createRaceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/races — cheater blocklist (issue #184)", () => {
+  it("returns 403 cheater_blocked and does not create a race", async () => {
+    getCheaterSetMock.mockResolvedValue(new Set(["mecf"]));
+    isKnownCheaterMock.mockReturnValue(true);
+
+    const res = await POST(makeRequest({ timeLimitSec: 1200 }));
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("cheater_blocked");
+    expect(countAvailableProblemsMock).not.toHaveBeenCalled();
+    expect(createRaceMock).not.toHaveBeenCalled();
+  });
+
+  it("fails open and creates the race when the cheater list is unavailable", async () => {
+    getCheaterSetMock.mockResolvedValue(null);
+
+    const res = await POST(makeRequest({ timeLimitSec: 1200 }));
+
+    expect(res.status).toBe(201);
+    expect(isKnownCheaterMock).not.toHaveBeenCalled();
+    expect(createRaceMock).toHaveBeenCalled();
+  });
+
+  it("allows a handle not on the list", async () => {
+    getCheaterSetMock.mockResolvedValue(new Set(["someoneelse"]));
+    isKnownCheaterMock.mockReturnValue(false);
+
+    const res = await POST(makeRequest({ timeLimitSec: 1200 }));
+
+    expect(res.status).toBe(201);
+    expect(createRaceMock).toHaveBeenCalled();
   });
 });
