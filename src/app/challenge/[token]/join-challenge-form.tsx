@@ -211,6 +211,8 @@ function joinErrorMessage(error?: string): string {
       return "This challenge link is invalid.";
     case "cf_not_linked":
       return "Link your Codeforces account first.";
+    case "cheater_blocked":
+      return "This Codeforces account is on a public cheating blocklist and can’t race.";
     default:
       return "Could not join the race. Try again.";
   }
