@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Show, UserButton } from "@clerk/nextjs";
 import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isBackRoute } from "@/lib/nav-routes";
+import { MENU_ROUTES, isBackRoute, isKnownRoute } from "@/lib/nav-routes";
 
 // Simplified battle IA: the play hub and the ladder. "Play" lands on the
 // signed-in hub; "The Ladder" is the leaderboard, renamed in voice. Display
@@ -20,9 +20,11 @@ const LINKS = [
 
 // The menu screens (landing + dashboard) are self-contained game menus whose
 // big slab rows already carry navigation, so the nav collapses to minimal
-// chrome there (issue #124). Every other route — race rooms, queue, settings —
-// keeps the full nav.
-const MENU_ROUTES = new Set(["/", "/dashboard"]);
+// chrome there (issue #124). Every other known route — race rooms, queue,
+// settings — keeps the full nav. Unknown routes (404s) also collapse to this
+// minimal chrome below, so a missing page never echoes its pathname or shows
+// the retired link bar (issue #188). `MENU_ROUTES` lives in nav-routes so
+// `isKnownRoute` can share it — one source of truth.
 
 // Sub-pages (race rooms, the queue, challenge flow, settings, the ladder) drop
 // the primary LINKS bar entirely — they carry a single top-left Back button
@@ -95,9 +97,12 @@ export function Nav() {
   const pathname = usePathname();
   const isBack = isBackRoute(pathname);
 
-  // Minimal chrome on menu screens: just the wordmark and the account chip,
-  // floating over the full-viewport game menu — no competing link bar.
-  if (MENU_ROUTES.has(pathname)) {
+  // Minimal chrome on menu screens — and on unknown routes (404s), which get
+  // the exact same treatment so a missing page never leaks its pathname or
+  // shows the retired link bar (issue #188): just the wordmark and the
+  // account chip, floating over the full-viewport game menu — no competing
+  // link bar.
+  if (MENU_ROUTES.has(pathname) || !isKnownRoute(pathname)) {
     return (
       <header className="relative z-40">
         <div className="shell flex h-16 items-center justify-between gap-4">

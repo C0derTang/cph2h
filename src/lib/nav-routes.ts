@@ -4,6 +4,12 @@
  * on-screen Back button (top-left, SlabButton style — see RouteBack) instead of
  * the primary link bar. Kept here so both the header <Nav> and <RouteBack>
  * agree on the same set without duplicating the prefix list.
+ *
+ * `/admin` is deliberately absent from EVERY route set in this module — the
+ * admin surface is unadvertised and 404s for non-admins (the 404-not-403
+ * design from issue #175), so the nav must be unable to distinguish it from a
+ * nonexistent path: `/admin` gets the same minimal menu-screen chrome as any
+ * unknown route, for admins and non-admins alike.
  */
 
 export const BACK_ROUTE_PREFIXES = [
@@ -19,5 +25,33 @@ export const BACK_ROUTE_PREFIXES = [
 export function isBackRoute(pathname: string): boolean {
   return BACK_ROUTE_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/** The menu screens (landing + dashboard) are self-contained game menus whose
+ *  big slab rows already carry navigation, so the header nav collapses to
+ *  minimal chrome there (issue #124). The single source of truth for both
+ *  <Nav> and `isKnownRoute`. */
+export const MENU_ROUTES = new Set(["/", "/dashboard"]);
+
+/** Auth pages are Clerk catch-all routes (`/sign-in/[[...sign-in]]`,
+ *  `/sign-up/[[...sign-up]]`) — prefix-matched the same way as back routes so
+ *  their internal steps (e.g. `/sign-in/factor-one`) still count as known. */
+const AUTH_ROUTE_PREFIXES = ["/sign-in", "/sign-up"] as const;
+
+function isAuthRoute(pathname: string): boolean {
+  return AUTH_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/** True for any route the app actually serves: menu routes, back routes, and
+ *  auth pages. False for everything else — i.e. what 404s. Used to collapse
+ *  the header to the same minimal chrome as a menu screen on unknown paths,
+ *  so a 404 never echoes the requested pathname or shows the retired link
+ *  bar. Pure and dependency-free, matching the rest of this module. */
+export function isKnownRoute(pathname: string): boolean {
+  return (
+    MENU_ROUTES.has(pathname) || isBackRoute(pathname) || isAuthRoute(pathname)
   );
 }
