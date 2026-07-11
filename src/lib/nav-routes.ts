@@ -1,9 +1,15 @@
 /**
  * Shared nav route classification. The "back routes" are the non-menu app
- * surfaces (leaderboard, queue, challenge, settings, race, admin) that get a
- * single on-screen Back button (top-left, SlabButton style — see RouteBack)
- * instead of the primary link bar. Kept here so both the header <Nav> and
- * <RouteBack> agree on the same set without duplicating the prefix list.
+ * surfaces (leaderboard, queue, challenge, settings, race) that get a single
+ * on-screen Back button (top-left, SlabButton style — see RouteBack) instead of
+ * the primary link bar. Kept here so both the header <Nav> and <RouteBack>
+ * agree on the same set without duplicating the prefix list.
+ *
+ * `/admin` is deliberately absent from EVERY route set in this module — the
+ * admin surface is unadvertised and 404s for non-admins (the 404-not-403
+ * design from issue #175), so the nav must be unable to distinguish it from a
+ * nonexistent path: `/admin` gets the same minimal menu-screen chrome as any
+ * unknown route, for admins and non-admins alike.
  */
 
 export const BACK_ROUTE_PREFIXES = [
@@ -12,7 +18,6 @@ export const BACK_ROUTE_PREFIXES = [
   "/challenge",
   "/settings",
   "/race",
-  "/admin",
 ] as const;
 
 /** True on a back route (exact prefix match or `prefix/…` subpath) — e.g.

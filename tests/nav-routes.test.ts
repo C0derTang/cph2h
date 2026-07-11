@@ -16,9 +16,11 @@ describe("isBackRoute", () => {
     expect(isBackRoute("/race/abc123")).toBe(true);
   });
 
-  it("matches /admin as a back route", () => {
-    expect(isBackRoute("/admin")).toBe(true);
-    expect(isBackRoute("/admin/reports")).toBe(true);
+  it("does NOT match /admin — the admin surface is deliberately unadvertised", () => {
+    // /admin 404s for non-admins (404-not-403, issue #175); the nav must not
+    // be able to distinguish it from a nonexistent path.
+    expect(isBackRoute("/admin")).toBe(false);
+    expect(isBackRoute("/admin/reports")).toBe(false);
   });
 
   it("does not match menu routes or unrelated paths", () => {
@@ -28,9 +30,8 @@ describe("isBackRoute", () => {
   });
 
   it("does not match a path that merely starts with a prefix's letters", () => {
-    // /adminX is a different route than /admin, not a subpath of it.
-    expect(isBackRoute("/adminX")).toBe(false);
     expect(isBackRoute("/racecar")).toBe(false);
+    expect(isBackRoute("/settingsX")).toBe(false);
   });
 });
 
@@ -46,8 +47,15 @@ describe("isKnownRoute", () => {
     expect(isKnownRoute("/challenge/new")).toBe(true);
     expect(isKnownRoute("/settings/cf")).toBe(true);
     expect(isKnownRoute("/race/abc123")).toBe(true);
-    expect(isKnownRoute("/admin")).toBe(true);
-    expect(isKnownRoute("/admin/reports")).toBe(true);
+  });
+
+  it("is false for /admin — indistinguishable from a nonexistent path", () => {
+    // The admin surface is unadvertised (404-not-403, issue #175): its chrome
+    // must be pixel-identical to a truly unknown route's, so /admin is in no
+    // known-route set.
+    expect(isKnownRoute("/admin")).toBe(false);
+    expect(isKnownRoute("/admin/reports")).toBe(false);
+    expect(isKnownRoute("/admin/anything")).toBe(false);
   });
 
   it("is true for auth pages, including their subpaths", () => {
@@ -63,9 +71,10 @@ describe("isKnownRoute", () => {
   });
 
   it("does not treat a lookalike prefix as a subpath match", () => {
-    // /adminX must NOT match /admin — it's a different top-level route, not
-    // a subpath of it, and must fall through to "unknown".
-    expect(isKnownRoute("/adminX")).toBe(false);
+    // /settingsX must NOT match /settings — it's a different top-level route,
+    // not a subpath of it, and must fall through to "unknown".
+    expect(isKnownRoute("/settingsX")).toBe(false);
     expect(isKnownRoute("/sign-inX")).toBe(false);
+    expect(isKnownRoute("/racecar")).toBe(false);
   });
 });
