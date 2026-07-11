@@ -5,7 +5,12 @@ import { usePathname } from "next/navigation";
 import { Show, UserButton } from "@clerk/nextjs";
 import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MENU_ROUTES, isBackRoute, isKnownRoute } from "@/lib/nav-routes";
+import {
+  MENU_ROUTES,
+  isBackRoute,
+  isKnownRoute,
+  routeMarkerLabel,
+} from "@/lib/nav-routes";
 
 // Simplified battle IA: the play hub and the ladder. "Play" lands on the
 // signed-in hub; "The Ladder" is the leaderboard, renamed in voice. Display
@@ -96,6 +101,7 @@ function AuthChip() {
 export function Nav() {
   const pathname = usePathname();
   const isBack = isBackRoute(pathname);
+  const markerLabel = routeMarkerLabel(pathname);
 
   // Minimal chrome on menu screens — and on unknown routes (404s), which get
   // the exact same treatment so a missing page never leaks its pathname or
@@ -147,10 +153,15 @@ export function Nav() {
 
         <div className="flex items-center gap-2">
           {/* The nav's single hud-meta scatter point: a route marker at the
-              right edge of the bar (decorative HUD chrome, not navigation). */}
-          <span aria-hidden className="hud-meta mr-2 hidden md:inline">
-            {`// ${pathname}`}
-          </span>
+              right edge of the bar (decorative HUD chrome, not navigation).
+              Always a fixed section label from routeMarkerLabel -- never the
+              raw pathname (issue #190) -- so a 404 under a known prefix (e.g.
+              `/settings/admin`) can't leak user-typed input through the nav. */}
+          {markerLabel !== null && (
+            <span aria-hidden className="hud-meta mr-2 hidden md:inline">
+              {`// ${markerLabel}`}
+            </span>
+          )}
           <AuthChip />
         </div>
       </div>
