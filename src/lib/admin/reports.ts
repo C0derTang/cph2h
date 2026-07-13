@@ -12,6 +12,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   raceSubmissions,
+  races,
   reports,
   users,
   type Report,
@@ -20,7 +21,9 @@ import {
 import { toPublicUser } from "@/lib/race/snapshot";
 import type {
   PublicUser,
+  RaceStatus,
   ReportDTO,
+  ReportRaceEvidence,
   ReportReason,
   ReportStatus,
   ReportSubmissionEvidence,
@@ -117,11 +120,16 @@ export async function getReportById(id: string): Promise<ReportDTO | null> {
 
 /**
  * `GET /api/admin/reports/[id]/evidence` — the report plus the race's
- * `race_submissions` timeline, oldest first (submit/solve order).
+ * `race_submissions` timeline (oldest first, submit/solve order) and the
+ * race row itself (issue #192, for the admin-facing duration display).
  */
 export async function getReportEvidence(
   id: string,
-): Promise<{ report: ReportDTO; submissions: ReportSubmissionEvidence[] } | null> {
+): Promise<{
+  report: ReportDTO;
+  submissions: ReportSubmissionEvidence[];
+  race: ReportRaceEvidence | null;
+} | null> {
   const report = await getReportById(id);
   if (!report) return null;
 
@@ -138,7 +146,22 @@ export async function getReportEvidence(
     }))
     .sort((a, b) => Date.parse(a.submittedAt) - Date.parse(b.submittedAt));
 
-  return { report, submissions };
+  const [raceRow] = await db
+    .select()
+    .from(races)
+    .where(eq(races.id, report.raceId))
+    .limit(1);
+
+  const race: ReportRaceEvidence | null = raceRow
+    ? {
+        status: raceRow.status as RaceStatus,
+        startedAt: raceRow.startedAt ? raceRow.startedAt.toISOString() : null,
+        finishedAt: raceRow.finishedAt ? raceRow.finishedAt.toISOString() : null,
+        timeLimitSec: raceRow.timeLimitSec,
+      }
+    : null;
+
+  return { report, submissions, race };
 }
 
 /**

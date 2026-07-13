@@ -347,6 +347,17 @@ export interface ReportSubmissionEvidence {
   submittedAt: string; // ISO
 }
 
+/**
+ * Race row fields surfaced in report evidence (issue #192) so admins can see
+ * how long the race lasted alongside the submission timeline.
+ */
+export interface ReportRaceEvidence {
+  status: RaceStatus;
+  startedAt: string | null; // ISO
+  finishedAt: string | null; // ISO
+  timeLimitSec: number;
+}
+
 /** Aggregate stats for the admin dashboard (GET /api/admin/overview). */
 export interface AdminOverview {
   totalUsers: number;
