@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { LayoutGrid, LogIn, Swords, UserPlus } from "lucide-react";
+import { ArrowRight, LayoutGrid, LogIn, Swords, UserPlus } from "lucide-react";
 import { HeroWord } from "@/components/hud/hero-word";
 import { SlabButton } from "@/components/menu/slab-button";
 import {
@@ -47,6 +47,32 @@ export default async function Home() {
 
   return (
     <main className="flex-1">
+      {/* Tournament banner — a slim, full-viewport-width strip, the first
+          thing inside <main>, announcing the Launch Tournament (issue #201).
+          The whole strip is one Link so the announcement doubles as the CTA.
+          Built on the `ticker` HUD-strip recipe (mono, uppercase,
+          wide-tracked, self-yellow top rule) rather than a new banner
+          treatment; the mid-line facts drop on small screens, keeping just
+          the title + CTA. */}
+      <Link
+        href="/tournament"
+        className="group ticker w-full justify-center gap-2 px-4 py-2 text-center transition-colors hover:text-player-self sm:gap-3 sm:px-6"
+      >
+        <span className="font-semibold text-foreground transition-colors group-hover:text-player-self">
+          The Launch Tournament
+        </span>
+        <span className="hidden text-muted-foreground sm:inline">
+          64 players · $500 prize pool · late July
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-player-self">
+          Details
+          <ArrowRight
+            aria-hidden
+            className="size-3.5 transition-transform group-hover:translate-x-0.5"
+          />
+        </span>
+      </Link>
+
       {/* Hero — the battle poster */}
       <section className="relative overflow-hidden">
         {/* Overhead spotlight: the ambient self/opponent identity pools over the glitch ground. */}
