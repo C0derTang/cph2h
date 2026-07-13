@@ -946,3 +946,93 @@
     transform: none;
   }
 }
+
+/* ----------------------------------------------------------------------------
+   Race vignettes (issue #194) — the landing "how it works" step panels
+   (`src/components/hud/race-vignettes.tsx`). `vignette-stack` overlaps two
+   states in one grid cell; layer A is the loop's mid-state (searching /
+   judging / unresolved), layer B is the loop's FINAL, resolved state
+   (matched · AC · +12). The static rule below shows layer B by default, so
+   `prefers-reduced-motion: reduce` gets the resolved frame for free with
+   zero extra overrides — animation only reintroduces layer A's turn once
+   `no-preference` is confirmed. One shared 7s loop duration keeps every
+   vignette on the page pulsing in sync.
+---------------------------------------------------------------------------- */
+@utility vignette-stack {
+  display: grid;
+}
+
+.vignette-stack > * {
+  grid-area: 1 / 1;
+}
+
+.vignette-layer-a {
+  opacity: 0;
+}
+
+.vignette-layer-b {
+  opacity: 1;
+}
+
+.vignette-wave-bar {
+  transform-origin: bottom;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* steps(1, end) holds each keyframe's value until the next stop, so the
+     swap is a hard snap (the glitch aesthetic) rather than a crossfade. */
+  @keyframes vignette-swap-a {
+    0%,
+    44% {
+      opacity: 1;
+    }
+    45%,
+    100% {
+      opacity: 0;
+    }
+  }
+  @keyframes vignette-swap-b {
+    0%,
+    44% {
+      opacity: 0;
+    }
+    45%,
+    100% {
+      opacity: 1;
+    }
+  }
+  .vignette-layer-a {
+    animation: vignette-swap-a 7s steps(1, end) infinite;
+  }
+  .vignette-layer-b {
+    animation: vignette-swap-b 7s steps(1, end) infinite;
+  }
+
+  /* Queue scan bar — sweeps while layer A ("searching…") has its turn. */
+  @keyframes vignette-scan {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(420%);
+    }
+  }
+  .vignette-scan-bar {
+    animation: vignette-scan 1.6s ease-in-out infinite;
+  }
+
+  /* Waveform bars — a squared, stepped bounce (not a smooth tween), staggered
+     per bar via inline `animation-delay` in RaceVignettes. */
+  @keyframes vignette-wave {
+    0%,
+    100% {
+      transform: scaleY(0.3);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+  .vignette-wave-bar {
+    animation: vignette-wave 0.9s steps(4, jump-both) infinite;
+  }
+}
