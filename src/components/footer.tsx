@@ -19,6 +19,14 @@ export function Footer() {
       </span>
       <div className="flex flex-col gap-1.5 sm:items-end">
         <p>Built for people who&apos;d rather battle than grind alone.</p>
+        <a
+          href="https://discord.gg/ENQ4Bq93gJ"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono text-[11px] text-player-self hover:underline"
+        >
+          discord.gg/ENQ4Bq93gJ
+        </a>
         <p>&copy; {new Date().getFullYear()} cph2h. All rights reserved.</p>
         {/* hud-meta scatter point: build tag in the footer corner. */}
         <span aria-hidden className="hud-meta">

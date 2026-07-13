@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Mail, UserPlus } from "lucide-react";
+import { Mail, MessageCircle, UserPlus } from "lucide-react";
 import { HeroWord } from "@/components/hud/hero-word";
 import { SlabButton } from "@/components/menu/slab-button";
 import { Stat } from "@/components/ui/stat";
@@ -77,7 +77,7 @@ const PROCESS = [
   {
     n: "03",
     title: "Coordinate",
-    caption: "Arrange a time with your opponent inside the 24h window.",
+    caption: "Arrange a time with your opponent on Discord inside the 24h window.",
   },
   {
     n: "04",
@@ -132,7 +132,7 @@ export default function TournamentPage() {
             Codeforces problem per round, first correct verdict advances.
           </p>
 
-          <div className="mt-8">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <SlabButton
               tone="self"
               size="lg"
@@ -141,6 +141,15 @@ export default function TournamentPage() {
             >
               <UserPlus className="size-5" aria-hidden />
               Sign up to compete
+            </SlabButton>
+            <SlabButton
+              tone="neutral"
+              size="lg"
+              render={<a href="https://discord.gg/ENQ4Bq93gJ" target="_blank" rel="noopener noreferrer" />}
+              nativeButton={false}
+            >
+              <MessageCircle className="size-5" aria-hidden />
+              Join the Discord
             </SlabButton>
           </div>
         </div>
