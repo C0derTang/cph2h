@@ -8,12 +8,14 @@ describe("isBackRoute", () => {
     expect(isBackRoute("/challenge")).toBe(true);
     expect(isBackRoute("/settings")).toBe(true);
     expect(isBackRoute("/race")).toBe(true);
+    expect(isBackRoute("/tournament")).toBe(true);
   });
 
   it("matches back-route subpaths", () => {
     expect(isBackRoute("/challenge/new")).toBe(true);
     expect(isBackRoute("/settings/cf")).toBe(true);
     expect(isBackRoute("/race/abc123")).toBe(true);
+    expect(isBackRoute("/tournament/rules")).toBe(true);
   });
 
   it("does NOT match /admin — the admin surface is deliberately unadvertised", () => {
@@ -32,6 +34,7 @@ describe("isBackRoute", () => {
   it("does not match a path that merely starts with a prefix's letters", () => {
     expect(isBackRoute("/racecar")).toBe(false);
     expect(isBackRoute("/settingsX")).toBe(false);
+    expect(isBackRoute("/tournamentx")).toBe(false);
   });
 });
 
@@ -47,6 +50,8 @@ describe("isKnownRoute", () => {
     expect(isKnownRoute("/challenge/new")).toBe(true);
     expect(isKnownRoute("/settings/cf")).toBe(true);
     expect(isKnownRoute("/race/abc123")).toBe(true);
+    expect(isKnownRoute("/tournament")).toBe(true);
+    expect(isKnownRoute("/tournament/rules")).toBe(true);
   });
 
   it("is false for /admin — indistinguishable from a nonexistent path", () => {
@@ -76,6 +81,9 @@ describe("isKnownRoute", () => {
     expect(isKnownRoute("/settingsX")).toBe(false);
     expect(isKnownRoute("/sign-inX")).toBe(false);
     expect(isKnownRoute("/racecar")).toBe(false);
+    // Same rule for /tournament: /tournamentx is a different route, not a
+    // subpath of /tournament, so it must remain unknown (garbage route).
+    expect(isKnownRoute("/tournamentx")).toBe(false);
   });
 });
 
@@ -88,6 +96,7 @@ describe("routeMarkerLabel", () => {
     expect(routeMarkerLabel("/leaderboard")).toBe("ladder");
     expect(routeMarkerLabel("/sign-in")).toBe("auth");
     expect(routeMarkerLabel("/sign-up")).toBe("auth");
+    expect(routeMarkerLabel("/tournament")).toBe("tournament");
   });
 
   it("returns the same fixed label for subpaths, including garbage ones", () => {
@@ -98,6 +107,7 @@ describe("routeMarkerLabel", () => {
     expect(routeMarkerLabel("/leaderboard/weekly")).toBe("ladder");
     expect(routeMarkerLabel("/sign-in/factor-one")).toBe("auth");
     expect(routeMarkerLabel("/sign-up/verify-email-address")).toBe("auth");
+    expect(routeMarkerLabel("/tournament/rules")).toBe("tournament");
   });
 
   it("pins that a nonexistent subpath under a known prefix yields the fixed label, not the raw path", () => {
@@ -122,5 +132,6 @@ describe("routeMarkerLabel", () => {
     expect(routeMarkerLabel("/settingsX")).toBeNull();
     expect(routeMarkerLabel("/sign-inX")).toBeNull();
     expect(routeMarkerLabel("/racecar")).toBeNull();
+    expect(routeMarkerLabel("/tournamentx")).toBeNull();
   });
 });
