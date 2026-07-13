@@ -169,8 +169,14 @@ export function QueueVignette() {
 export function FaceOffVignette() {
   return (
     <div aria-hidden className="panel flex h-40 flex-col overflow-hidden">
-      <div className="flex flex-1 items-center justify-center p-2">
-        <div className="relative aspect-video w-full overflow-hidden rounded-[var(--radius)] bg-muted/40 ring-2 ring-player-opponent/70">
+      {/* min-h-0 + a height-driven tile (h-full, not w-full): a width-driven
+          aspect-video tile can't shrink inside the fixed h-40 panel (flex
+          min-height:auto), so it overflowed and pushed the ticker footer out
+          through overflow-hidden at narrow grid widths. Deriving the width
+          from the flexed height fits every breakpoint; max-w-full guards
+          degenerate narrow cases. */}
+      <div className="flex min-h-0 flex-1 items-center justify-center p-2">
+        <div className="relative aspect-video h-full max-w-full overflow-hidden rounded-[var(--radius)] bg-muted/40 ring-2 ring-player-opponent/70">
           <div className="flex size-full items-center justify-center">
             <WaveformBars tone="opponent" />
           </div>
@@ -179,7 +185,7 @@ export function FaceOffVignette() {
           </span>
 
           <div className="absolute right-1.5 bottom-6 w-[30%] min-w-14">
-            <div className="relative aspect-video size-full overflow-hidden rounded-[var(--radius-sm)] bg-muted/60 ring-2 ring-player-self">
+            <div className="relative aspect-video size-full overflow-hidden rounded-[var(--radius-sm)] bg-muted/60 shadow-lg ring-2 ring-player-self">
               <div className="flex size-full items-center justify-center">
                 <WaveformBars tone="self" size="sm" />
               </div>
