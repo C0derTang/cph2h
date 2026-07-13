@@ -58,7 +58,9 @@ export function QueueVignette() {
             <span className="text-muted-foreground"> · vs · </span>
             <span className="text-player-opponent">maras 1552</span>
           </span>
-          <span className="stamp shrink-0 text-[9px] text-verdict-ok">
+          {/* Digit-bearing stamps override the stamp's display face — the
+              numeral rule holds inside chrome too. */}
+          <span className="stamp shrink-0 font-mono text-[9px] text-verdict-ok tabular-nums">
             Δ12
           </span>
         </div>
@@ -133,11 +135,15 @@ export function EloVignette() {
         <div className="vignette-layer-b flex flex-col justify-center gap-1">
           <span className="flex items-center justify-between gap-1.5 font-mono text-[11px] tabular-nums">
             <span className="text-player-self">you 1540 → 1552</span>
-            <span className="stamp text-[9px] text-verdict-ok">+12</span>
+            <span className="stamp font-mono text-[9px] text-verdict-ok tabular-nums">
+              +12
+            </span>
           </span>
           <span className="flex items-center justify-between gap-1.5 font-mono text-[11px] tabular-nums">
             <span className="text-player-opponent">maras 1565 → 1553</span>
-            <span className="stamp text-[9px] text-player-opponent">−12</span>
+            <span className="stamp font-mono text-[9px] text-player-opponent tabular-nums">
+              −12
+            </span>
           </span>
           <span className="stamp self-end text-[9px] text-player-self">
             BODIED.

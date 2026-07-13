@@ -1033,6 +1033,6 @@
     }
   }
   .vignette-wave-bar {
-    animation: vignette-wave 0.9s steps(4, jump-ends) infinite;
+    animation: vignette-wave 0.9s steps(4, jump-both) infinite;
   }
 }
