@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/leaderboard",
+  "/tournament",
   "/api/leaderboard",
   "/api/cron(.*)", // authenticated via CRON_SECRET bearer token instead
 ]);
