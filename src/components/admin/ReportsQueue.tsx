@@ -17,7 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatReportReason } from "@/lib/format";
-import { groupEvidenceByPlayer, type EvidenceResponse } from "@/lib/report-evidence";
+import {
+  deriveRaceDuration,
+  groupEvidenceByPlayer,
+  type EvidenceResponse,
+} from "@/lib/report-evidence";
 import type { ReportDTO, ReportStatus } from "@/lib/types";
 
 type StatusFilter = ReportStatus | "all";
@@ -326,6 +330,7 @@ function EvidencePanel({
   }
 
   const groups = groupEvidenceByPlayer(state.data.report, state.data.submissions);
+  const duration = deriveRaceDuration(state.data.race);
 
   return (
     <div className="flex flex-col gap-3">
@@ -333,6 +338,12 @@ function EvidencePanel({
         <p className="text-sm">
           <span className="eyebrow text-muted-foreground">Note </span>
           {report.note}
+        </p>
+      )}
+      {duration && (
+        <p className="text-sm">
+          <span className="eyebrow text-muted-foreground">Duration </span>
+          <span className="font-mono text-xs">{duration.label}</span>
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">

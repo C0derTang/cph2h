@@ -181,7 +181,7 @@ describe("getReportEvidence", () => {
     expect(await getReportEvidence("missing")).toBeNull();
   });
 
-  it("returns the report plus submissions ordered oldest-first", async () => {
+  it("returns the report plus submissions ordered oldest-first, and the race row", async () => {
     const row = makeReport();
     const reporterRow = makeUser({ id: "user-reporter" });
     const reportedRow = makeUser({ id: "user-reported" });
@@ -205,7 +205,14 @@ describe("getReportEvidence", () => {
         submittedAt: new Date("2026-07-01T00:01:00.000Z"),
       },
     ];
-    dbState.selectResults = [[row], [reporterRow, reportedRow], submissions];
+    const raceRow = {
+      id: "race-1",
+      status: "finished",
+      startedAt: new Date("2026-07-01T00:00:00.000Z"),
+      finishedAt: new Date("2026-07-01T00:05:32.000Z"),
+      timeLimitSec: 2400,
+    };
+    dbState.selectResults = [[row], [reporterRow, reportedRow], submissions, [raceRow]];
 
     const result = await getReportEvidence("report-1");
 
@@ -214,6 +221,23 @@ describe("getReportEvidence", () => {
       { userId: "user-reporter", verdict: "WRONG_ANSWER", submittedAt: "2026-07-01T00:01:00.000Z" },
       { userId: "user-reported", verdict: "OK", submittedAt: "2026-07-01T00:05:00.000Z" },
     ]);
+    expect(result?.race).toEqual({
+      status: "finished",
+      startedAt: "2026-07-01T00:00:00.000Z",
+      finishedAt: "2026-07-01T00:05:32.000Z",
+      timeLimitSec: 2400,
+    });
+  });
+
+  it("returns race: null when the race row is missing", async () => {
+    const row = makeReport();
+    const reporterRow = makeUser({ id: "user-reporter" });
+    const reportedRow = makeUser({ id: "user-reported" });
+    dbState.selectResults = [[row], [reporterRow, reportedRow], [], []];
+
+    const result = await getReportEvidence("report-1");
+
+    expect(result?.race).toBeNull();
   });
 });
 
