@@ -15,6 +15,10 @@ import { Button } from "@/components/ui/button";
 import { Stat } from "@/components/ui/stat";
 import type { AdminOverview } from "@/lib/types";
 import { EloHistogramChart, RacesPerDayChart, VerdictDistChart } from "./charts";
+import { OpsPanel } from "./OpsPanel";
+import { GrowthCharts } from "./GrowthCharts";
+import { RegistrantsTable } from "./RegistrantsTable";
+import { UserDirectory } from "./UserDirectory";
 import { ReportsQueue } from "./ReportsQueue";
 
 export function AdminDashboard() {
@@ -59,7 +63,7 @@ export function AdminDashboard() {
         Dashboard
       </h1>
       <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-        Platform health, verdict/Elo distributions, and the reports queue.
+        Platform health, analytics, registrants, operations, and reports.
       </p>
 
       {loading && (
@@ -97,7 +101,17 @@ export function AdminDashboard() {
               valueClassName={overview.openReports > 0 ? "text-destructive" : undefined}
             />
           </div>
+        </div>
+      )}
 
+      {!loading && (
+        <div className="mt-8 flex flex-col gap-6">
+          <OpsPanel />
+        </div>
+      )}
+
+      {!loading && !error && overview && (
+        <div className="mt-8 flex flex-col gap-6">
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="lg:col-span-2">
               <RacesPerDayChart racesPerDay={overview.racesPerDay} />
@@ -105,7 +119,19 @@ export function AdminDashboard() {
             <VerdictDistChart verdictDist={overview.verdictDist} />
             <EloHistogramChart eloHistogram={overview.eloHistogram} />
           </div>
+        </div>
+      )}
 
+      {!loading && (
+        <div className="mt-8 flex flex-col gap-6">
+          <GrowthCharts />
+          <RegistrantsTable />
+          <UserDirectory />
+        </div>
+      )}
+
+      {!loading && !error && overview && (
+        <div className="mt-8 flex flex-col gap-6">
           <ReportsQueue />
         </div>
       )}
