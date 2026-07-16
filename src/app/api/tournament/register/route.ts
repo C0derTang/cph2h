@@ -20,8 +20,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { tournamentRegistrations } from "@/lib/db/schema";
+import { getUserRating } from "@/lib/cf/client";
 import { requireLinkedUser } from "@/lib/race/session";
 import { normalizeGithubUrl, normalizeLinkedinUrl } from "@/lib/tournament/registration";
+
+/** Minimum rated Codeforces contests required to register (issue #217). */
+const MIN_RATED_CONTESTS = 3;
 
 const bodySchema = z.object({
   githubUrl: z.string().max(500).optional(),
@@ -65,6 +69,25 @@ export async function POST(req: Request) {
     if (!linkedinUrl) {
       return NextResponse.json({ error: "invalid_linkedin_url" }, { status: 400 });
     }
+  }
+
+  // Eligibility gate (issue #217): at least MIN_RATED_CONTESTS rated CF
+  // contests. Checked on every POST (edits too) — rated-contest count only
+  // grows, so this never locks out an existing registrant. `cfHandle` is
+  // non-null past `requireLinkedUser`, but guard defensively. Fail closed on
+  // CF errors: registration is retryable.
+  let ratedContests: number;
+  try {
+    const history = await getUserRating(session.user.cfHandle ?? "");
+    ratedContests = history.length;
+  } catch {
+    return NextResponse.json({ error: "cf_unavailable" }, { status: 502 });
+  }
+  if (ratedContests < MIN_RATED_CONTESTS) {
+    return NextResponse.json(
+      { error: "not_enough_rated_contests", ratedContests },
+      { status: 403 },
+    );
   }
 
   const [registration] = await db
