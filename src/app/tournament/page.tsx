@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Mail, MessageCircle, UserPlus } from "lucide-react";
+import { CircleCheck, Mail, MessageCircle, UserPlus } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { HeroWord } from "@/components/hud/hero-word";
 import { SlabButton } from "@/components/menu/slab-button";
@@ -93,6 +93,63 @@ export default async function TournamentPage() {
     registration = row ?? null;
     viewState = registration ? "registered" : "not_registered";
   }
+
+  // Live per-visitor entry checklist for the "How to enter" section — mirrors
+  // the RULES <ol> styling, but each step's done/todo state is derived from
+  // the same user/viewState computed above (server-rendered, no client JS).
+  const entrySteps: Array<{
+    n: string;
+    title: string;
+    done: boolean;
+    todo: React.ReactNode;
+    doneNote?: string;
+  }> = [
+    {
+      n: "01",
+      title: "Create a CPH2H account",
+      done: Boolean(user),
+      todo: (
+        <>
+          <Link href="/sign-up" className="text-player-self hover:underline">
+            Sign up
+          </Link>{" "}
+          for a free account.
+        </>
+      ),
+    },
+    {
+      n: "02",
+      title: "Link your Codeforces account",
+      done: Boolean(user?.cfLinkedAt),
+      todo: user ? (
+        <>
+          <Link
+            href="/settings/cf"
+            className="text-player-self hover:underline"
+          >
+            Link your handle
+          </Link>{" "}
+          in settings.
+        </>
+      ) : (
+        "Link your handle in settings once you've signed up."
+      ),
+    },
+    {
+      n: "03",
+      title: "Register below",
+      done: viewState === "registered",
+      doneNote: "You're in.",
+      todo: (
+        <>
+          <Link href="#register" className="text-player-self hover:underline">
+            Register
+          </Link>{" "}
+          for the bracket.
+        </>
+      ),
+    },
+  ];
 
   return (
     <main className="flex-1">
@@ -207,6 +264,83 @@ export default async function TournamentPage() {
         </div>
       </section>
 
+      {/* How to enter — a live per-visitor checklist plus the eligibility
+          requirements, so the entry path is instantly digestible. */}
+      <section className="shell-narrow border-t border-border py-12 md:py-20">
+        <p className="eyebrow text-muted-foreground">How to enter</p>
+        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
+          Get in the bracket
+        </h2>
+
+        <ol className="mt-8 flex flex-col gap-4">
+          {entrySteps.map((step) => (
+            <li
+              key={step.n}
+              className="flex gap-4 border-l-2 border-player-self/40 pl-4"
+            >
+              {step.done ? (
+                <CircleCheck
+                  className="size-5 shrink-0 text-player-self"
+                  aria-hidden
+                />
+              ) : (
+                <span className="font-display text-sm tracking-[0.2em] text-player-self tabular-nums">
+                  {step.n}
+                </span>
+              )}
+              <span className="text-sm leading-6 text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {step.title}
+                </span>
+                {step.done ? (
+                  step.doneNote ? (
+                    <> — {step.doneNote}</>
+                  ) : null
+                ) : (
+                  <> — {step.todo}</>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        <ul className="mt-8 flex flex-col gap-2.5 text-sm text-muted-foreground">
+          <li className="flex items-start gap-2.5">
+            <span
+              aria-hidden
+              className="mt-2 size-1 shrink-0 rounded-full bg-player-self/70"
+            />
+            <span>
+              At least 3 rated Codeforces contests on your linked handle
+              (verified when you register).
+            </span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <span
+              aria-hidden
+              className="mt-2 size-1 shrink-0 rounded-full bg-player-self/70"
+            />
+            <span>Camera and mic on for every match.</span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <span
+              aria-hidden
+              className="mt-2 size-1 shrink-0 rounded-full bg-player-self/70"
+            />
+            <span>
+              Agree to the{" "}
+              <Link
+                href="/tournament/terms"
+                className="text-player-self hover:underline"
+              >
+                tournament terms
+              </Link>
+              .
+            </span>
+          </li>
+        </ul>
+      </section>
+
       {/* At a glance — the format in six facts. */}
       <section className="shell border-t border-border py-12 md:py-20">
         <p className="eyebrow text-muted-foreground">At a glance</p>
@@ -234,7 +368,7 @@ export default async function TournamentPage() {
           aria-hidden
           className="hud-meta absolute top-5 right-6 md:right-8"
         >
-          sec&nbsp;03&nbsp;/&nbsp;04
+          sec&nbsp;04&nbsp;/&nbsp;05
         </span>
         <p className="eyebrow text-muted-foreground">Rules</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
