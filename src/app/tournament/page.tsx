@@ -21,7 +21,7 @@ const FACTS = [
   },
   {
     label: "Timing",
-    value: "Late Jul / early Aug",
+    value: "Early August",
     hint: "2026 · date TBD · ~1 week",
   },
   {
@@ -155,79 +155,6 @@ export default function TournamentPage() {
         </div>
       </section>
 
-      {/* At a glance — the format in six facts. */}
-      <section className="shell border-t border-border py-12 md:py-20">
-        <p className="eyebrow text-muted-foreground">At a glance</p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
-          The format
-        </h2>
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {FACTS.map((fact) => (
-            <Stat
-              key={fact.label}
-              label={fact.label}
-              value={fact.value}
-              hint={fact.hint}
-              className="p-4"
-              valueClassName="text-xl"
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* Rules — what decides a match. */}
-      <section className="relative shell-narrow border-t border-border py-12 md:py-20">
-        {/* hud-meta scatter point 2/3: section index at the top-right edge. */}
-        <span
-          aria-hidden
-          className="hud-meta absolute top-5 right-6 md:right-8"
-        >
-          sec&nbsp;02&nbsp;/&nbsp;04
-        </span>
-        <p className="eyebrow text-muted-foreground">Rules</p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
-          How matches are decided
-        </h2>
-        <ol className="mt-8 flex flex-col gap-4">
-          {RULES.map((rule) => (
-            <li
-              key={rule.n}
-              className="flex gap-4 border-l-2 border-player-self/40 pl-4"
-            >
-              <span className="font-display text-sm tracking-[0.2em] text-player-self tabular-nums">
-                {rule.n}
-              </span>
-              <span className="text-sm leading-6 text-muted-foreground">
-                {rule.text}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* Process — register through the final. */}
-      <section className="shell border-t border-border py-12 md:py-20">
-        <p className="eyebrow text-muted-foreground">Process</p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
-          How it works
-        </h2>
-        <ol className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {PROCESS.map((step) => (
-            <li key={step.n} className="border-l-2 border-player-self/40 pl-4">
-              <p className="font-display text-sm tracking-[0.2em] text-player-self tabular-nums">
-                {step.n}
-              </p>
-              <p className="mt-1 font-display text-lg tracking-tight uppercase">
-                {step.title}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {step.caption}
-              </p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
       {/* Sponsors — no signed sponsors yet, so placeholder slots + contact. */}
       <section className="relative shell border-t border-border py-12 md:py-20">
         {/* hud-meta scatter point 3/3: sponsor status ornament. */}
@@ -271,6 +198,79 @@ export default function TournamentPage() {
             tangsc@stanford.edu
           </a>
         </div>
+      </section>
+
+      {/* At a glance — the format in six facts. */}
+      <section className="shell border-t border-border py-12 md:py-20">
+        <p className="eyebrow text-muted-foreground">At a glance</p>
+        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
+          The format
+        </h2>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {FACTS.map((fact) => (
+            <Stat
+              key={fact.label}
+              label={fact.label}
+              value={fact.value}
+              hint={fact.hint}
+              className="p-4"
+              valueClassName="text-xl"
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Rules — what decides a match. */}
+      <section className="relative shell-narrow border-t border-border py-12 md:py-20">
+        {/* hud-meta scatter point 2/3: section index at the top-right edge. */}
+        <span
+          aria-hidden
+          className="hud-meta absolute top-5 right-6 md:right-8"
+        >
+          sec&nbsp;03&nbsp;/&nbsp;04
+        </span>
+        <p className="eyebrow text-muted-foreground">Rules</p>
+        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
+          How matches are decided
+        </h2>
+        <ol className="mt-8 flex flex-col gap-4">
+          {RULES.map((rule) => (
+            <li
+              key={rule.n}
+              className="flex gap-4 border-l-2 border-player-self/40 pl-4"
+            >
+              <span className="font-display text-sm tracking-[0.2em] text-player-self tabular-nums">
+                {rule.n}
+              </span>
+              <span className="text-sm leading-6 text-muted-foreground">
+                {rule.text}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* Process — register through the final. */}
+      <section className="shell border-t border-border py-12 md:py-20">
+        <p className="eyebrow text-muted-foreground">Process</p>
+        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
+          How it works
+        </h2>
+        <ol className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {PROCESS.map((step) => (
+            <li key={step.n} className="border-l-2 border-player-self/40 pl-4">
+              <p className="font-display text-sm tracking-[0.2em] text-player-self tabular-nums">
+                {step.n}
+              </p>
+              <p className="mt-1 font-display text-lg tracking-tight uppercase">
+                {step.title}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {step.caption}
+              </p>
+            </li>
+          ))}
+        </ol>
       </section>
     </main>
   );
