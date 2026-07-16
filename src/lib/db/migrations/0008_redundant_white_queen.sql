@@ -1,3 +1,8 @@
+-- An orphaned prototype table named tournament_registrations (user_id, cf_handle,
+-- status, stripe_session_id, paid_at) exists in dev and prod, created outside
+-- drizzle migrations. It blocks this CREATE. Confirmed disposable — drop it first.
+DROP TABLE IF EXISTS "tournament_registrations";
+--> statement-breakpoint
 CREATE TABLE "tournament_registrations" (
 	"user_id" uuid PRIMARY KEY NOT NULL,
 	"github_url" text,
