@@ -14,7 +14,7 @@ import {
 import type { AdminOverview } from "@/lib/types";
 import { BarChart } from "./BarChart";
 
-function ChartPanel({
+export function ChartPanel({
   title,
   caption,
   children,
