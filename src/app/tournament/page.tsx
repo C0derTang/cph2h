@@ -67,40 +67,6 @@ const RULES = [
   { n: "05", text: "Seeding is by Codeforces Elo." },
 ] as const;
 
-// How a competitor actually moves through the bracket, register to final.
-const PROCESS = [
-  {
-    n: "01",
-    title: "Register",
-    caption: "Sign up for CPH2H before the bracket locks.",
-  },
-  {
-    n: "02",
-    title: "Get seeded",
-    caption: "Bracket placement is set by Codeforces Elo.",
-  },
-  {
-    n: "03",
-    title: "Coordinate",
-    caption: "Arrange a time with your opponent on Discord inside the 24h window.",
-  },
-  {
-    n: "04",
-    title: "Race",
-    caption: "Play the round's problem head-to-head on CPH2H.",
-  },
-  {
-    n: "05",
-    title: "Report",
-    caption: "Self-report the result once the match finishes.",
-  },
-  {
-    n: "06",
-    title: "Advance",
-    caption: "Winners move on until the final.",
-  },
-] as const;
-
 const SPONSOR_SLOT_COUNT = 4;
 
 type ViewState = "signed_out" | "cf_not_linked" | "not_registered" | "registered";
@@ -266,7 +232,7 @@ export default async function TournamentPage() {
           aria-hidden
           className="hud-meta absolute top-5 right-6 md:right-8"
         >
-          sec&nbsp;03&nbsp;/&nbsp;05
+          sec&nbsp;03&nbsp;/&nbsp;04
         </span>
         <p className="eyebrow text-muted-foreground">Rules</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
@@ -289,31 +255,8 @@ export default async function TournamentPage() {
         </ol>
       </section>
 
-      {/* Process — register through the final. */}
-      <section className="shell border-t border-border py-12 md:py-20">
-        <p className="eyebrow text-muted-foreground">Process</p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
-          How it works
-        </h2>
-        <ol className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {PROCESS.map((step) => (
-            <li key={step.n} className="border-l-2 border-player-self/40 pl-4">
-              <p className="font-display text-sm tracking-[0.2em] text-player-self tabular-nums">
-                {step.n}
-              </p>
-              <p className="mt-1 font-display text-lg tracking-tight uppercase">
-                {step.title}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {step.caption}
-              </p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
       {/* Register — sign up for the bracket. Placed last so it reads as the
-          final call to action after the format/rules/process context above. */}
+          final call to action after the format/rules context above. */}
       <section id="register" className="shell border-t border-border py-12 md:py-20">
         <p className="eyebrow text-muted-foreground">Register</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
