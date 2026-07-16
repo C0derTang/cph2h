@@ -57,6 +57,13 @@
       "when": 1783729413442,
       "tag": "0007_hot_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784220793629,
+      "tag": "0008_redundant_white_queen",
+      "breakpoints": true
     }
   ]
 }

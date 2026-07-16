@@ -309,6 +309,25 @@ export const reports = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Tournament registration
+// ---------------------------------------------------------------------------
+
+/**
+ * Launch tournament registration (issue #209). One row per user — `userId`
+ * is the PK, so registering twice is an upsert, not a duplicate. No
+ * `cfHandle`/rating snapshot: join `users` for those at read time so seeding
+ * always reflects current Elo.
+ */
+export const tournamentRegistrations = pgTable("tournament_registrations", {
+  userId: uuid("user_id").primaryKey().references(() => users.id),
+  githubUrl: text("github_url"),
+  linkedinUrl: text("linkedin_url"),
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Inferred row types
 // ---------------------------------------------------------------------------
 
@@ -341,3 +360,6 @@ export type NewEloHistoryEntry = typeof eloHistory.$inferInsert;
 
 export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
+
+export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect;
+export type NewTournamentRegistration = typeof tournamentRegistrations.$inferInsert;

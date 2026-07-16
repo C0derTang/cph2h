@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail, MessageCircle, UserPlus } from "lucide-react";
+import { eq } from "drizzle-orm";
 import { HeroWord } from "@/components/hud/hero-word";
 import { SlabButton } from "@/components/menu/slab-button";
 import { Stat } from "@/components/ui/stat";
+import { db } from "@/lib/db";
+import { tournamentRegistrations } from "@/lib/db/schema";
+import { ensureUser } from "@/lib/user";
+import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = {
   title: "tournament — cph2h",
@@ -98,7 +103,29 @@ const PROCESS = [
 
 const SPONSOR_SLOT_COUNT = 4;
 
-export default function TournamentPage() {
+type ViewState = "signed_out" | "cf_not_linked" | "not_registered" | "registered";
+
+export default async function TournamentPage() {
+  // Provisions the `users` row on first authenticated access (issue #48).
+  const user = await ensureUser();
+
+  let viewState: ViewState;
+  let registration: { githubUrl: string | null; linkedinUrl: string | null } | null = null;
+
+  if (!user) {
+    viewState = "signed_out";
+  } else if (!user.cfLinkedAt) {
+    viewState = "cf_not_linked";
+  } else {
+    const [row] = await db
+      .select()
+      .from(tournamentRegistrations)
+      .where(eq(tournamentRegistrations.userId, user.id))
+      .limit(1);
+    registration = row ?? null;
+    viewState = registration ? "registered" : "not_registered";
+  }
+
   return (
     <main className="flex-1">
       {/* Hero — same battle-poster treatment as the landing page's hero. */}
@@ -133,15 +160,27 @@ export default function TournamentPage() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <SlabButton
-              tone="self"
-              size="lg"
-              render={<Link href="/sign-up" />}
-              nativeButton={false}
-            >
-              <UserPlus className="size-5" aria-hidden />
-              Sign up to compete
-            </SlabButton>
+            {viewState === "signed_out" ? (
+              <SlabButton
+                tone="self"
+                size="lg"
+                render={<Link href="/sign-up" />}
+                nativeButton={false}
+              >
+                <UserPlus className="size-5" aria-hidden />
+                Sign up to compete
+              </SlabButton>
+            ) : (
+              <SlabButton
+                tone="self"
+                size="lg"
+                render={<Link href="#register" />}
+                nativeButton={false}
+              >
+                <UserPlus className="size-5" aria-hidden />
+                Register to compete
+              </SlabButton>
+            )}
             <SlabButton
               tone="neutral"
               size="lg"
@@ -227,7 +266,7 @@ export default function TournamentPage() {
           aria-hidden
           className="hud-meta absolute top-5 right-6 md:right-8"
         >
-          sec&nbsp;03&nbsp;/&nbsp;04
+          sec&nbsp;03&nbsp;/&nbsp;05
         </span>
         <p className="eyebrow text-muted-foreground">Rules</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
@@ -271,6 +310,67 @@ export default function TournamentPage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      {/* Register — sign up for the bracket. Placed last so it reads as the
+          final call to action after the format/rules/process context above. */}
+      <section id="register" className="shell border-t border-border py-12 md:py-20">
+        <p className="eyebrow text-muted-foreground">Register</p>
+        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
+          Sign up for the bracket
+        </h2>
+
+        <div className="mt-8">
+          {viewState === "signed_out" && (
+            <div className="flex flex-col gap-4">
+              <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+                Create a CPH2H account to register for the launch tournament.
+              </p>
+              <SlabButton
+                tone="self"
+                className="w-fit"
+                render={<Link href="/sign-up" />}
+                nativeButton={false}
+              >
+                <UserPlus className="size-5" aria-hidden />
+                Sign up to compete
+              </SlabButton>
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link href="/sign-in" className="text-player-self hover:underline">
+                  Sign in
+                </Link>
+                .
+              </p>
+            </div>
+          )}
+
+          {viewState === "cf_not_linked" && (
+            <div className="flex flex-col gap-4">
+              <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+                Bracket seeding is based on Codeforces Elo, so you&apos;ll need to
+                link a Codeforces account before you can register.
+              </p>
+              <SlabButton
+                tone="self"
+                className="w-fit"
+                render={<Link href="/settings/cf" />}
+                nativeButton={false}
+              >
+                Link Codeforces account
+              </SlabButton>
+            </div>
+          )}
+
+          {(viewState === "not_registered" || viewState === "registered") && (
+            <RegisterForm
+              cfHandle={user?.cfHandle ?? null}
+              registered={viewState === "registered"}
+              initialGithubUrl={registration?.githubUrl ?? null}
+              initialLinkedinUrl={registration?.linkedinUrl ?? null}
+            />
+          )}
+        </div>
       </section>
     </main>
   );
