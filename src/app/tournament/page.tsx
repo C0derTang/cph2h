@@ -65,6 +65,8 @@ const RULES = [
   },
   { n: "04", text: "Competitors self-report the winner after the match." },
   { n: "05", text: "Seeding is by Codeforces Elo." },
+  { n: "06", text: "Camera and mic stay on for every match." },
+  { n: "07", text: "Entry requires at least 3 rated Codeforces contests." },
 ] as const;
 
 const SPONSOR_SLOT_COUNT = 4;
@@ -303,6 +305,13 @@ export default async function TournamentPage() {
                 Link Codeforces account
               </SlabButton>
             </div>
+          )}
+
+          {viewState === "not_registered" && (
+            <p className="mb-4 max-w-xl text-sm leading-6 text-muted-foreground">
+              Entry requires at least 3 rated Codeforces contests on your
+              linked handle — we check when you register.
+            </p>
           )}
 
           {(viewState === "not_registered" || viewState === "registered") && (

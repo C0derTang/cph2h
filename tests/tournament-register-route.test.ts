@@ -10,21 +10,31 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionResult } from "../src/lib/race/session";
 
-const { requireLinkedUserMock, insertValuesMock, onConflictDoUpdateMock, dbState } =
-  vi.hoisted(() => {
-    const dbState = {
-      insertReturning: [] as unknown[],
-    };
-    return {
-      requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
-      insertValuesMock: vi.fn(),
-      onConflictDoUpdateMock: vi.fn(),
-      dbState,
-    };
-  });
+const {
+  requireLinkedUserMock,
+  getUserRatingMock,
+  insertValuesMock,
+  onConflictDoUpdateMock,
+  dbState,
+} = vi.hoisted(() => {
+  const dbState = {
+    insertReturning: [] as unknown[],
+  };
+  return {
+    requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
+    getUserRatingMock: vi.fn(),
+    insertValuesMock: vi.fn(),
+    onConflictDoUpdateMock: vi.fn(),
+    dbState,
+  };
+});
 
 vi.mock("@/lib/race/session", () => ({
   requireLinkedUser: requireLinkedUserMock,
+}));
+
+vi.mock("@/lib/cf/client", () => ({
+  getUserRating: getUserRatingMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -63,11 +73,24 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+/** N fake CF `user.rating` entries (one per rated contest). */
+function ratingHistory(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    contestId: 1000 + i,
+    contestName: `Contest ${i + 1}`,
+    newRating: 1400 + i,
+  }));
+}
+
 beforeEach(() => {
   requireLinkedUserMock.mockReset();
+  getUserRatingMock.mockReset();
   insertValuesMock.mockClear();
   onConflictDoUpdateMock.mockClear();
   dbState.insertReturning = [];
+
+  // Eligible by default so tests that don't care about eligibility pass.
+  getUserRatingMock.mockResolvedValue(ratingHistory(3));
 
   requireLinkedUserMock.mockResolvedValue({
     ok: true,
@@ -209,6 +232,54 @@ describe("POST /api/tournament/register", () => {
     expect(config.set).toHaveProperty("updatedAt");
     expect(config.set).not.toHaveProperty("termsAcceptedAt");
     expect(config.set.githubUrl).toBe("https://github.com/torvalds");
+  });
+
+  it("returns 403 not_enough_rated_contests with the count when under 3 rated contests", async () => {
+    getUserRatingMock.mockResolvedValue(ratingHistory(2));
+
+    const res = await POST(makeRequest({ termsAccepted: true }));
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("not_enough_rated_contests");
+    expect(body.ratedContests).toBe(2);
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("proceeds with the upsert at exactly 3 rated contests", async () => {
+    getUserRatingMock.mockResolvedValue(ratingHistory(3));
+
+    const res = await POST(makeRequest({ termsAccepted: true }));
+
+    expect(res.status).toBe(200);
+    expect(getUserRatingMock).toHaveBeenCalledWith("cfhandle");
+    expect(insertValuesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 502 cf_unavailable when the CF API call fails", async () => {
+    getUserRatingMock.mockRejectedValue(new Error("CF down"));
+
+    const res = await POST(makeRequest({ termsAccepted: true }));
+
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe("cf_unavailable");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("does not call CF before body/terms/URL validation", async () => {
+    const invalidBody = await POST(makeRequest({ termsAccepted: "yes" }));
+    expect(invalidBody.status).toBe(400);
+
+    const termsMissing = await POST(makeRequest({}));
+    expect(termsMissing.status).toBe(400);
+
+    const badUrl = await POST(
+      makeRequest({ termsAccepted: true, githubUrl: "https://gitlab.com/me" }),
+    );
+    expect(badUrl.status).toBe(400);
+
+    expect(getUserRatingMock).not.toHaveBeenCalled();
+    expect(insertValuesMock).not.toHaveBeenCalled();
   });
 
   it("returns 200 with the returned row's fields", async () => {

@@ -224,3 +224,17 @@ export function getProblemset(): Promise<CfProblemsetResult> {
 export function getContestList(): Promise<CfContest[]> {
   return cfFetch<CfContest[]>("contest.list", { gym: "false" });
 }
+
+export interface CfRatingChange {
+  contestId: number;
+  contestName: string;
+  newRating: number;
+}
+
+/** CF `user.rating` — one entry per rated contest the handle has participated in. */
+export function getUserRating(
+  handle: string,
+  options: CfFetchOptions = {},
+): Promise<CfRatingChange[]> {
+  return cfFetch<CfRatingChange[]>("user.rating", { handle }, options);
+}

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 const SECTIONS = [
   {
     title: "Eligibility",
-    body: "Open to anyone who can sign up for CPH2H and link a Codeforces account. There is no minimum or maximum rating requirement.",
+    body: "Open to anyone who can sign up for CPH2H and link a Codeforces account. Your linked handle must have participated in at least 3 rated Codeforces contests. There is no minimum or maximum rating requirement.",
   },
   {
     title: "Account requirements",
@@ -20,7 +20,7 @@ const SECTIONS = [
   },
   {
     title: "Fair play",
-    body: "No cheating: no alternate accounts, no assistance from other people, no use of solutions found online for the round's problem. All submitted code must be your own work. Self-reported results are expected to be honest — organizers may audit submissions.",
+    body: "No cheating: no alternate accounts, no assistance from other people, no use of solutions found online for the round's problem. All submitted code must be your own work. Your camera and microphone must be on for the duration of every match. Self-reported results are expected to be honest — organizers may audit submissions.",
   },
   {
     title: "Schedule and format",

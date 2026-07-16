@@ -215,6 +215,10 @@ function registerErrorMessage(error?: string): string {
       return "That doesn't look like a valid GitHub profile URL.";
     case "invalid_linkedin_url":
       return "That doesn't look like a valid LinkedIn profile URL.";
+    case "not_enough_rated_contests":
+      return "You need at least 3 rated Codeforces contests to enter.";
+    case "cf_unavailable":
+      return "Couldn't reach Codeforces to verify eligibility — try again in a minute.";
     case "invalid_body":
       return "Could not read that request. Try again.";
     default:
