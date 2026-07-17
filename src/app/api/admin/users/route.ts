@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { listDirectoryUsers } from "@/lib/admin/directory";
+import { listDirectoryUsers } from "@/lib/admin/directory-db";
 import { requireAdmin } from "@/lib/race/session";
 
 export async function GET() {

@@ -15,7 +15,7 @@ const { requireAdminMock, listDirectoryUsersMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/race/session", () => ({ requireAdmin: requireAdminMock }));
-vi.mock("@/lib/admin/directory", () => ({
+vi.mock("@/lib/admin/directory-db", () => ({
   listDirectoryUsers: listDirectoryUsersMock,
 }));
 
