@@ -10,11 +10,16 @@
  * ~2000 users, move to a server-side `?query=` ILIKE search instead of
  * shipping the whole capped list to the client — that's a follow-up, not in
  * scope here.
+ *
+ * This module is imported by the client component `UserDirectory.tsx`, so it
+ * must stay free of value imports of `@/lib/db` — a module-scope `neon()`
+ * call in the client bundle throws (no DATABASE_URL in the browser) and
+ * takes down the whole dashboard. The db-touching `listDirectoryUsers` lives
+ * in `directory-db.ts` for exactly that reason; only the erased `type User`
+ * import may reference schema here.
  */
 
-import { desc } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { users, type User } from "@/lib/db/schema";
+import type { User } from "@/lib/db/schema";
 
 /** Cap on `GET /api/admin/users` — newest first, no pagination beyond this. */
 export const DIRECTORY_LIST_CAP = 500;
@@ -63,15 +68,4 @@ export function filterDirectory(
     const cfHandle = u.cfHandle?.toLowerCase() ?? "";
     return username.includes(needle) || cfHandle.includes(needle);
   });
-}
-
-/** `GET /api/admin/users` — newest first, capped at {@link DIRECTORY_LIST_CAP}. */
-export async function listDirectoryUsers(): Promise<DirectoryUserDTO[]> {
-  const rows = await db
-    .select()
-    .from(users)
-    .orderBy(desc(users.createdAt))
-    .limit(DIRECTORY_LIST_CAP);
-
-  return rows.map(mapDirectoryUser);
 }

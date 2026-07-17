@@ -40,10 +40,10 @@ vi.mock("@/lib/db", () => ({
 import {
   DIRECTORY_LIST_CAP,
   filterDirectory,
-  listDirectoryUsers,
   mapDirectoryUser,
   type DirectoryUserDTO,
 } from "@/lib/admin/directory";
+import { listDirectoryUsers } from "@/lib/admin/directory-db";
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
