@@ -64,6 +64,13 @@
       "when": 1784220793629,
       "tag": "0008_redundant_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784588690730,
+      "tag": "0009_magical_wendigo",
+      "breakpoints": true
     }
   ]
 }

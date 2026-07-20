@@ -66,6 +66,10 @@ function makeRegistration(
     termsAcceptedAt: new Date("2026-07-01T00:00:00.000Z"),
     createdAt: new Date("2026-07-01T00:05:00.000Z"),
     updatedAt: new Date("2026-07-01T00:05:00.000Z"),
+    firstName: null,
+    lastName: null,
+    email: null,
+    location: null,
     ...overrides,
   };
 }
