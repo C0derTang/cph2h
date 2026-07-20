@@ -26,8 +26,8 @@ const FACTS = [
   },
   {
     label: "Timing",
-    value: "Early August",
-    hint: "2026 · date TBD · ~1 week",
+    value: "Aug 23",
+    hint: "2026 · runs ~1 week",
   },
   {
     label: "Match",
@@ -219,21 +219,34 @@ export default async function TournamentPage() {
         </div>
       </section>
 
-      {/* Sponsors — no signed sponsors yet, so placeholder slots + contact. */}
+      {/* Sponsors — fr8.so is the signed featured sponsor; slot sponsors are
+          still open, so the dashed placeholder grid + contact pitch stay. */}
       <section className="relative shell border-t border-border py-12 md:py-20">
         {/* hud-meta scatter point 3/3: sponsor status ornament. */}
         <span
           aria-hidden
           className="hud-meta absolute top-5 right-6 md:right-8"
         >
-          {"// sponsor :: tbd"}
+          {"// sponsor :: fr8.so"}
         </span>
         <p className="eyebrow text-muted-foreground">Sponsors</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
           Backing the launch
         </h2>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <a
+          href="https://fr8.so"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group panel mt-8 flex flex-col items-center gap-1.5 p-8 text-center transition-colors hover:border-player-self/40"
+        >
+          <p className="eyebrow text-muted-foreground">Presented by</p>
+          <p className="font-display text-4xl tracking-tight text-foreground uppercase transition-colors group-hover:text-player-self md:text-5xl">
+            FR8.SO
+          </p>
+        </a>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: SPONSOR_SLOT_COUNT }).map((_, i) => (
             <div
               key={i}
