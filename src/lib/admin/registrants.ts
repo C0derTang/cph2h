@@ -25,6 +25,10 @@ export interface RegistrantDTO {
   username: string;
   cfHandle: string | null;
   cfRating: number | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  location: string | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
   termsAcceptedAt: string; // ISO
@@ -44,6 +48,10 @@ export function mapRegistrantRow(
     username: user ? user.username : UNKNOWN_USERNAME,
     cfHandle: user?.cfHandle ?? null,
     cfRating: user?.cfRating ?? null,
+    firstName: reg.firstName,
+    lastName: reg.lastName,
+    email: reg.email,
+    location: reg.location,
     githubUrl: reg.githubUrl,
     linkedinUrl: reg.linkedinUrl,
     termsAcceptedAt: reg.termsAcceptedAt.toISOString(),

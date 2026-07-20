@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * Tournament registration form (issue #209). Calls `POST
- * /api/tournament/register` with optional GitHub/LinkedIn profile URLs and
- * `termsAccepted`. Modeled on
+ * Tournament registration form (issue #239, supersedes the embedded form
+ * from issue #209 — `src/app/tournament/register-form.tsx`, now deleted).
+ * Calls `POST /api/tournament/register` with the required identity fields
+ * (firstName, lastName, email), optional location and GitHub/LinkedIn
+ * profile URLs, and `termsAccepted`. Modeled on
  * `src/app/challenge/[token]/join-challenge-form.tsx` for the error-code ->
  * message mapping and CTA pattern.
  *
@@ -26,6 +28,10 @@ const inputClassName =
 interface RegisterFormProps {
   cfHandle: string | null;
   registered: boolean;
+  initialFirstName: string;
+  initialLastName: string;
+  initialEmail: string;
+  initialLocation: string;
   initialGithubUrl: string | null;
   initialLinkedinUrl: string | null;
 }
@@ -33,10 +39,18 @@ interface RegisterFormProps {
 export function RegisterForm({
   cfHandle,
   registered,
+  initialFirstName,
+  initialLastName,
+  initialEmail,
+  initialLocation,
   initialGithubUrl,
   initialLinkedinUrl,
 }: RegisterFormProps) {
   const router = useRouter();
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
+  const [email, setEmail] = useState(initialEmail);
+  const [location, setLocation] = useState(initialLocation);
   const [githubUrl, setGithubUrl] = useState(initialGithubUrl ?? "");
   const [linkedinUrl, setLinkedinUrl] = useState(initialLinkedinUrl ?? "");
   const [termsChecked, setTermsChecked] = useState(registered);
@@ -53,6 +67,10 @@ export function RegisterForm({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          location,
           githubUrl,
           linkedinUrl,
           termsAccepted: true,
@@ -66,7 +84,7 @@ export function RegisterForm({
         toast.error(message);
         return;
       }
-      toast.success(registered ? "Links updated." : "You're registered.");
+      toast.success(registered ? "Registration updated." : "You're registered.");
       router.refresh();
     } catch {
       setError("Network error — please try again.");
@@ -93,6 +111,68 @@ export function RegisterForm({
       </div>
 
       <div className="mt-4 flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="first-name" className="eyebrow text-muted-foreground">
+              First name
+            </label>
+            <input
+              id="first-name"
+              type="text"
+              className={inputClassName}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              disabled={submitting}
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="last-name" className="eyebrow text-muted-foreground">
+              Last name
+            </label>
+            <input
+              id="last-name"
+              type="text"
+              className={inputClassName}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              disabled={submitting}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="email" className="eyebrow text-muted-foreground">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            className={inputClassName}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
+            required
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="location" className="eyebrow text-muted-foreground">
+            Location (optional)
+          </label>
+          <input
+            id="location"
+            type="text"
+            className={inputClassName}
+            placeholder="City, Country"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            disabled={submitting}
+          />
+        </div>
+
         <div className="flex flex-col gap-1.5">
           <label htmlFor="github-url" className="eyebrow text-muted-foreground">
             GitHub (optional)
@@ -124,7 +204,9 @@ export function RegisterForm({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Links you provide are shared with tournament sponsors only.
+          Your name and email are used for bracket seeding and organizer
+          contact. Links you provide are shared with tournament sponsors
+          only.
         </p>
 
         {!registered && (
@@ -193,7 +275,7 @@ export function RegisterForm({
               {registered ? "Updating…" : "Registering…"}
             </>
           ) : registered ? (
-            "Update links"
+            "Update registration"
           ) : (
             "Register"
           )}
@@ -211,6 +293,14 @@ function registerErrorMessage(error?: string): string {
       return "Link your Codeforces account first.";
     case "terms_not_accepted":
       return "You must agree to the tournament terms.";
+    case "invalid_first_name":
+      return "Enter a valid first name.";
+    case "invalid_last_name":
+      return "Enter a valid last name.";
+    case "invalid_email":
+      return "Enter a valid email address.";
+    case "invalid_location":
+      return "That location doesn't look valid.";
     case "invalid_github_url":
       return "That doesn't look like a valid GitHub profile URL.";
     case "invalid_linkedin_url":

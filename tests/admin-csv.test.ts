@@ -68,6 +68,10 @@ describe("registrantsToCsv", () => {
       username: "tourist",
       cfHandle: "tourist_cf",
       cfRating: 3500,
+      firstName: "Grace",
+      lastName: "Hopper",
+      email: "grace@example.com",
+      location: "New York, NY",
       githubUrl: "https://github.com/tourist",
       linkedinUrl: "https://linkedin.com/in/tourist",
       termsAcceptedAt: "2026-07-01T00:00:00.000Z",
@@ -79,17 +83,34 @@ describe("registrantsToCsv", () => {
   it("emits the header row in the specified column order", () => {
     const csv = registrantsToCsv([]);
     expect(csv).toBe(
-      "username,cfHandle,cfRating,githubUrl,linkedinUrl,termsAcceptedAt,registeredAt",
+      "username,cfHandle,cfRating,firstName,lastName,email,location,githubUrl,linkedinUrl,termsAcceptedAt,registeredAt",
     );
   });
 
   it("stringifies numbers via String() and nulls as empty cells", () => {
     const csv = registrantsToCsv([
-      makeRegistrant({ cfHandle: null, cfRating: null, githubUrl: null, linkedinUrl: null }),
+      makeRegistrant({
+        cfHandle: null,
+        cfRating: null,
+        firstName: null,
+        lastName: null,
+        email: null,
+        location: null,
+        githubUrl: null,
+        linkedinUrl: null,
+      }),
     ]);
     const [, dataLine] = csv.split("\r\n");
     expect(dataLine).toBe(
-      "tourist,,,,,2026-07-01T00:00:00.000Z,2026-07-01T00:05:00.000Z",
+      "tourist,,,,,,,,,2026-07-01T00:00:00.000Z,2026-07-01T00:05:00.000Z",
+    );
+  });
+
+  it("includes firstName/lastName/email/location as plain cells", () => {
+    const csv = registrantsToCsv([makeRegistrant()]);
+    const [, dataLine] = csv.split("\r\n");
+    expect(dataLine).toBe(
+      "tourist,tourist_cf,3500,Grace,Hopper,grace@example.com,\"New York, NY\",https://github.com/tourist,https://linkedin.com/in/tourist,2026-07-01T00:00:00.000Z,2026-07-01T00:05:00.000Z",
     );
   });
 

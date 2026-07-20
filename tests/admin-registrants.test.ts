@@ -89,6 +89,10 @@ describe("mapRegistrantRow", () => {
       username: "tourist",
       cfHandle: "tourist_cf",
       cfRating: 3500,
+      firstName: null,
+      lastName: null,
+      email: null,
+      location: null,
       githubUrl: "https://github.com/tourist",
       linkedinUrl: "https://linkedin.com/in/tourist",
       termsAcceptedAt: "2026-07-01T00:00:00.000Z",
@@ -104,6 +108,10 @@ describe("mapRegistrantRow", () => {
       username: "unknown",
       cfHandle: null,
       cfRating: null,
+      firstName: null,
+      lastName: null,
+      email: null,
+      location: null,
       githubUrl: "https://github.com/tourist",
       linkedinUrl: "https://linkedin.com/in/tourist",
       termsAcceptedAt: "2026-07-01T00:00:00.000Z",
@@ -116,6 +124,20 @@ describe("mapRegistrantRow", () => {
     const dto = mapRegistrantRow(reg, makeUser());
     expect(dto.githubUrl).toBeNull();
     expect(dto.linkedinUrl).toBeNull();
+  });
+
+  it("maps firstName/lastName/email/location through unchanged", () => {
+    const reg = makeRegistration({
+      firstName: "Grace",
+      lastName: "Hopper",
+      email: "grace@example.com",
+      location: "New York, NY",
+    });
+    const dto = mapRegistrantRow(reg, makeUser());
+    expect(dto.firstName).toBe("Grace");
+    expect(dto.lastName).toBe("Hopper");
+    expect(dto.email).toBe("grace@example.com");
+    expect(dto.location).toBe("New York, NY");
   });
 
   it("serializes termsAcceptedAt and registeredAt as ISO strings", () => {

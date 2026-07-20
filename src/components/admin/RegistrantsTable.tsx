@@ -10,6 +10,9 @@
  * columns. They render as a clickable `<a href>` ONLY when the value matches
  * `/^https?:\/\//i` — anything else (including a `javascript:` URL) renders
  * as inert plain text.
+ *
+ * `email` (issue #239) is ALWAYS rendered as plain text — never through
+ * `LinkCell` or a `mailto:` anchor — since it's free-text and unverified.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -136,6 +139,8 @@ export function RegistrantsTable() {
               <thead>
                 <tr className="border-b border-border eyebrow text-muted-foreground">
                   <th className="px-4 py-2.5 text-left font-medium">Player</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Name</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Email</th>
                   <th className="px-4 py-2.5 text-left font-medium">CF handle</th>
                   <th className="px-4 py-2.5 text-right font-medium">Rating</th>
                   <th className="hidden px-4 py-2.5 text-left font-medium sm:table-cell">
@@ -150,40 +155,49 @@ export function RegistrantsTable() {
                 </tr>
               </thead>
               <tbody>
-                {registrants.map((r) => (
-                  <tr
-                    key={r.userId}
-                    className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/50"
-                  >
-                    <td className="px-4 py-3 font-medium">{r.username}</td>
-                    <td className="px-4 py-3 font-mono text-xs">
-                      {r.cfHandle ? (
-                        <a
-                          href={`https://codeforces.com/profile/${r.cfHandle}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          {r.cfHandle}
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">Not linked</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono tabular-nums">
-                      {r.cfRating ?? "—"}
-                    </td>
-                    <td className="hidden px-4 py-3 sm:table-cell">
-                      <LinkCell url={r.githubUrl} />
-                    </td>
-                    <td className="hidden px-4 py-3 sm:table-cell">
-                      <LinkCell url={r.linkedinUrl} />
-                    </td>
-                    <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">
-                      {new Date(r.registeredAt).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                {registrants.map((r) => {
+                  const fullName = [r.firstName, r.lastName].filter(Boolean).join(" ");
+                  return (
+                    <tr
+                      key={r.userId}
+                      className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/50"
+                    >
+                      <td className="px-4 py-3 font-medium">{r.username}</td>
+                      <td className="px-4 py-3">
+                        {fullName ? fullName : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {r.email ? r.email : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {r.cfHandle ? (
+                          <a
+                            href={`https://codeforces.com/profile/${r.cfHandle}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            {r.cfHandle}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">Not linked</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums">
+                        {r.cfRating ?? "—"}
+                      </td>
+                      <td className="hidden px-4 py-3 sm:table-cell">
+                        <LinkCell url={r.githubUrl} />
+                      </td>
+                      <td className="hidden px-4 py-3 sm:table-cell">
+                        <LinkCell url={r.linkedinUrl} />
+                      </td>
+                      <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">
+                        {new Date(r.registeredAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

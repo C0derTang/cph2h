@@ -1,10 +1,17 @@
 /**
- * Tests for src/app/api/tournament/register/route.ts (issue #209).
+ * Tests for src/app/api/tournament/register/route.ts (issues #209, #239).
  *
  * `requireLinkedUser` and `db` are mocked at the call shapes the route uses
  * (`insert().values().onConflictDoUpdate().returning()`), same pattern as
  * tests/reports-route.test.ts. The real (pure) normalizers from
  * `@/lib/tournament/registration` run unmocked.
+ *
+ * `firstName`/`lastName`/`email` are required by the zod body schema (issue
+ * #239) — a body missing any of them fails schema validation and returns
+ * `invalid_body`, distinct from a present-but-invalid value (e.g. an
+ * all-whitespace name), which reaches the normalizer and returns the
+ * field-specific `invalid_*` code. `baseBody` supplies valid defaults for
+ * tests that aren't exercising identity-field validation.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -73,6 +80,18 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+/** Valid defaults for the required identity fields + termsAccepted, so
+ *  tests unrelated to identity-field validation don't have to repeat them. */
+function baseBody(overrides: Record<string, unknown> = {}) {
+  return {
+    firstName: "Grace",
+    lastName: "Hopper",
+    email: "grace@example.com",
+    termsAccepted: true,
+    ...overrides,
+  };
+}
+
 /** N fake CF `user.rating` entries (one per rated contest). */
 function ratingHistory(n: number) {
   return Array.from({ length: n }, (_, i) => ({
@@ -114,6 +133,10 @@ beforeEach(() => {
   dbState.insertReturning = [
     {
       userId: USER_ID,
+      firstName: "Grace",
+      lastName: "Hopper",
+      email: "grace@example.com",
+      location: null,
       githubUrl: null,
       linkedinUrl: null,
       termsAcceptedAt: new Date("2024-01-01T00:00:00Z"),
@@ -131,7 +154,7 @@ describe("POST /api/tournament/register", () => {
       error: "unauthorized",
     });
 
-    const res = await POST(makeRequest({ termsAccepted: true }));
+    const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(401);
     expect(insertValuesMock).not.toHaveBeenCalled();
@@ -144,7 +167,7 @@ describe("POST /api/tournament/register", () => {
       error: "cf_not_linked",
     });
 
-    const res = await POST(makeRequest({ termsAccepted: true }));
+    const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe("cf_not_linked");
@@ -152,7 +175,15 @@ describe("POST /api/tournament/register", () => {
   });
 
   it("returns 400 invalid_body for a malformed request", async () => {
-    const res = await POST(makeRequest({ termsAccepted: "yes" }));
+    const res = await POST(makeRequest(baseBody({ termsAccepted: "yes" })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invalid_body");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 invalid_body when a required identity field is missing", async () => {
+    const res = await POST(makeRequest({ termsAccepted: true }));
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("invalid_body");
@@ -160,7 +191,9 @@ describe("POST /api/tournament/register", () => {
   });
 
   it("returns 400 terms_not_accepted when termsAccepted is missing", async () => {
-    const res = await POST(makeRequest({}));
+    const res = await POST(
+      makeRequest({ firstName: "Grace", lastName: "Hopper", email: "grace@example.com" }),
+    );
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("terms_not_accepted");
@@ -168,16 +201,56 @@ describe("POST /api/tournament/register", () => {
   });
 
   it("returns 400 terms_not_accepted when termsAccepted is false", async () => {
-    const res = await POST(makeRequest({ termsAccepted: false }));
+    const res = await POST(makeRequest(baseBody({ termsAccepted: false })));
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("terms_not_accepted");
     expect(insertValuesMock).not.toHaveBeenCalled();
   });
 
+  it("returns 400 invalid_first_name for a whitespace-only first name", async () => {
+    const res = await POST(makeRequest(baseBody({ firstName: "   " })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invalid_first_name");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 invalid_first_name for an over-length first name", async () => {
+    const res = await POST(makeRequest(baseBody({ firstName: "a".repeat(101) })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invalid_first_name");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 invalid_last_name for a control character", async () => {
+    const res = await POST(makeRequest(baseBody({ lastName: "Hop\nper" })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invalid_last_name");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 invalid_email for a malformed email", async () => {
+    const res = await POST(makeRequest(baseBody({ email: "not-an-email" })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invalid_email");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 invalid_location for an invalid (non-empty, control-char) location", async () => {
+    const res = await POST(makeRequest(baseBody({ location: "SF\nCA" })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invalid_location");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
   it("returns 400 invalid_github_url for a bad GitHub URL", async () => {
     const res = await POST(
-      makeRequest({ termsAccepted: true, githubUrl: "https://gitlab.com/me" }),
+      makeRequest(baseBody({ githubUrl: "https://gitlab.com/me" })),
     );
 
     expect(res.status).toBe(400);
@@ -187,10 +260,9 @@ describe("POST /api/tournament/register", () => {
 
   it("returns 400 invalid_linkedin_url for a bad LinkedIn URL", async () => {
     const res = await POST(
-      makeRequest({
-        termsAccepted: true,
-        linkedinUrl: "https://linkedin.com.evil.com/in/me",
-      }),
+      makeRequest(
+        baseBody({ linkedinUrl: "https://linkedin.com.evil.com/in/me" }),
+      ),
     );
 
     expect(res.status).toBe(400);
@@ -200,11 +272,13 @@ describe("POST /api/tournament/register", () => {
 
   it("upserts normalized values, treats empty string as null, and sets termsAcceptedAt on insert", async () => {
     const res = await POST(
-      makeRequest({
-        termsAccepted: true,
-        githubUrl: "github.com/torvalds",
-        linkedinUrl: "",
-      }),
+      makeRequest(
+        baseBody({
+          location: "  San Francisco  ",
+          githubUrl: "github.com/torvalds",
+          linkedinUrl: "",
+        }),
+      ),
     );
 
     expect(res.status).toBe(200);
@@ -212,6 +286,10 @@ describe("POST /api/tournament/register", () => {
       expect.anything(),
       expect.objectContaining({
         userId: USER_ID,
+        firstName: "Grace",
+        lastName: "Hopper",
+        email: "grace@example.com",
+        location: "San Francisco",
         githubUrl: "https://github.com/torvalds",
         linkedinUrl: null,
         termsAcceptedAt: expect.any(Date),
@@ -219,25 +297,44 @@ describe("POST /api/tournament/register", () => {
     );
   });
 
-  it("upsert set includes updatedAt but not termsAcceptedAt", async () => {
+  it("treats an empty-string location as null", async () => {
+    await POST(makeRequest(baseBody({ location: "" })));
+
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ location: null }),
+    );
+  });
+
+  it("lowercases only the domain part of the email on upsert", async () => {
+    await POST(makeRequest(baseBody({ email: "Grace.Hopper@EXAMPLE.COM" })));
+
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ email: "Grace.Hopper@example.com" }),
+    );
+  });
+
+  it("upsert set includes updatedAt and the four identity/location columns but not termsAcceptedAt", async () => {
     await POST(
-      makeRequest({
-        termsAccepted: true,
-        githubUrl: "github.com/torvalds",
-      }),
+      makeRequest(baseBody({ location: "Remote", githubUrl: "github.com/torvalds" })),
     );
 
     expect(onConflictDoUpdateMock).toHaveBeenCalledTimes(1);
     const config = onConflictDoUpdateMock.mock.calls[0][0];
     expect(config.set).toHaveProperty("updatedAt");
     expect(config.set).not.toHaveProperty("termsAcceptedAt");
+    expect(config.set.firstName).toBe("Grace");
+    expect(config.set.lastName).toBe("Hopper");
+    expect(config.set.email).toBe("grace@example.com");
+    expect(config.set.location).toBe("Remote");
     expect(config.set.githubUrl).toBe("https://github.com/torvalds");
   });
 
   it("returns 403 not_enough_rated_contests with the count when under 3 rated contests", async () => {
     getUserRatingMock.mockResolvedValue(ratingHistory(2));
 
-    const res = await POST(makeRequest({ termsAccepted: true }));
+    const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(403);
     const body = await res.json();
@@ -249,7 +346,7 @@ describe("POST /api/tournament/register", () => {
   it("proceeds with the upsert at exactly 3 rated contests", async () => {
     getUserRatingMock.mockResolvedValue(ratingHistory(3));
 
-    const res = await POST(makeRequest({ termsAccepted: true }));
+    const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(200);
     expect(getUserRatingMock).toHaveBeenCalledWith("cfhandle");
@@ -259,22 +356,27 @@ describe("POST /api/tournament/register", () => {
   it("returns 502 cf_unavailable when the CF API call fails", async () => {
     getUserRatingMock.mockRejectedValue(new Error("CF down"));
 
-    const res = await POST(makeRequest({ termsAccepted: true }));
+    const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(502);
     expect((await res.json()).error).toBe("cf_unavailable");
     expect(insertValuesMock).not.toHaveBeenCalled();
   });
 
-  it("does not call CF before body/terms/URL validation", async () => {
-    const invalidBody = await POST(makeRequest({ termsAccepted: "yes" }));
+  it("does not call CF before body/terms/identity/URL validation", async () => {
+    const invalidBody = await POST(makeRequest(baseBody({ termsAccepted: "yes" })));
     expect(invalidBody.status).toBe(400);
 
-    const termsMissing = await POST(makeRequest({}));
+    const termsMissing = await POST(
+      makeRequest({ firstName: "Grace", lastName: "Hopper", email: "grace@example.com" }),
+    );
     expect(termsMissing.status).toBe(400);
 
+    const invalidName = await POST(makeRequest(baseBody({ firstName: "   " })));
+    expect(invalidName.status).toBe(400);
+
     const badUrl = await POST(
-      makeRequest({ termsAccepted: true, githubUrl: "https://gitlab.com/me" }),
+      makeRequest(baseBody({ githubUrl: "https://gitlab.com/me" })),
     );
     expect(badUrl.status).toBe(400);
 
@@ -286,6 +388,10 @@ describe("POST /api/tournament/register", () => {
     dbState.insertReturning = [
       {
         userId: USER_ID,
+        firstName: "Grace",
+        lastName: "Hopper",
+        email: "grace@example.com",
+        location: "Remote",
         githubUrl: "https://github.com/torvalds",
         linkedinUrl: null,
         termsAcceptedAt: new Date("2024-01-01T00:00:00Z"),
@@ -295,11 +401,15 @@ describe("POST /api/tournament/register", () => {
     ];
 
     const res = await POST(
-      makeRequest({ termsAccepted: true, githubUrl: "github.com/torvalds" }),
+      makeRequest(baseBody({ location: "Remote", githubUrl: "github.com/torvalds" })),
     );
 
     expect(res.status).toBe(200);
     const body = await res.json();
+    expect(body.firstName).toBe("Grace");
+    expect(body.lastName).toBe("Hopper");
+    expect(body.email).toBe("grace@example.com");
+    expect(body.location).toBe("Remote");
     expect(body.githubUrl).toBe("https://github.com/torvalds");
     expect(body.linkedinUrl).toBeNull();
     expect(body.createdAt).toBeTruthy();
