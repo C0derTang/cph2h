@@ -24,6 +24,7 @@ import {
   maybeAbsenceForfeit,
 } from "@/lib/race/poll";
 import { POLL_MIN_INTERVAL_SEC } from "@/lib/types";
+import { SECONDS_PER_ACTIVE_RACE } from "@/lib/race/poll-interval";
 
 export async function POST(
   _req: Request,
@@ -57,8 +58,14 @@ export async function POST(
   await stampHeartbeat(id, callerIsP1);
 
   // DB mutex: claim the poll only if the race is active and not polled within
-  // the last POLL_MIN_INTERVAL_SEC seconds. Zero rows ⇒ someone polled recently
-  // (or the race isn't active) — skip and let the client refetch the snapshot.
+  // the dynamic window. The window scales with the current count of `active`
+  // races — `GREATEST(POLL_MIN_INTERVAL_SEC, count(active) * SECONDS_PER_ACTIVE_RACE)`
+  // seconds — so aggregate CF demand stays within the serialized ~2s/request
+  // budget under tournament load (issue #238). The count is a scalar subquery
+  // inside this single atomic UPDATE (Neon HTTP has no transactions), so the
+  // window is evaluated against a consistent snapshot as the claim runs. Zero
+  // rows ⇒ someone polled recently (or the race isn't active) — skip and let the
+  // client refetch the snapshot.
   const [claimed] = await db
     .update(races)
     .set({ lastPolledAt: sql`now()` })
@@ -70,7 +77,7 @@ export async function POST(
           isNull(races.lastPolledAt),
           lt(
             races.lastPolledAt,
-            sql`now() - (${POLL_MIN_INTERVAL_SEC} * interval '1 second')`,
+            sql`now() - (GREATEST(${POLL_MIN_INTERVAL_SEC}, (SELECT count(*) FROM ${races} WHERE ${races.status} = 'active') * ${SECONDS_PER_ACTIVE_RACE}) * interval '1 second')`,
           ),
         ),
       ),
