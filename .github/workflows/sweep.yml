@@ -1,0 +1,14 @@
+name: sweep
+on:
+  schedule:
+    - cron: "0 * * * *"   # hourly; Vercel daily cron remains as backstop
+  workflow_dispatch: {}
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit sweep endpoint
+        run: |
+          curl -sS --fail --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://cph2h.vercel.app/api/cron/sweep"
