@@ -26,7 +26,7 @@ const FACTS = [
   },
   {
     label: "Timing",
-    value: "Aug 23",
+    value: "Aug 2",
     hint: "2026 · runs ~1 week",
   },
   {
@@ -61,10 +61,10 @@ const RULES = [
   },
   {
     n: "03",
-    text: "Pairings get a 24-hour window to schedule and complete their match.",
+    text: "Pairings get a 24-hour window (UTC) to schedule and complete their match.",
   },
   { n: "04", text: "Competitors self-report the winner after the match." },
-  { n: "05", text: "Seeding is by Codeforces Elo." },
+  { n: "05", text: "Seeding is by Codeforces rating; the top 64 registrants by rating at seeding time make the bracket." },
   { n: "06", text: "Camera and mic stay on for every match." },
   { n: "07", text: "Entry requires at least 3 rated Codeforces contests." },
 ] as const;
