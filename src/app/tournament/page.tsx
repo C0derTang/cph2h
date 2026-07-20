@@ -8,7 +8,6 @@ import { Stat } from "@/components/ui/stat";
 import { db } from "@/lib/db";
 import { tournamentRegistrations } from "@/lib/db/schema";
 import { ensureUser } from "@/lib/user";
-import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = {
   title: "tournament — cph2h",
@@ -78,7 +77,6 @@ export default async function TournamentPage() {
   const user = await ensureUser();
 
   let viewState: ViewState;
-  let registration: { githubUrl: string | null; linkedinUrl: string | null } | null = null;
 
   if (!user) {
     viewState = "signed_out";
@@ -90,8 +88,7 @@ export default async function TournamentPage() {
       .from(tournamentRegistrations)
       .where(eq(tournamentRegistrations.userId, user.id))
       .limit(1);
-    registration = row ?? null;
-    viewState = registration ? "registered" : "not_registered";
+    viewState = row ? "registered" : "not_registered";
   }
 
   // Live per-visitor entry checklist for the "How to enter" section — mirrors
@@ -142,7 +139,7 @@ export default async function TournamentPage() {
       doneNote: "You're in.",
       todo: (
         <>
-          <Link href="#register" className="text-player-self hover:underline">
+          <Link href="/tournament/register" className="text-player-self hover:underline">
             Register
           </Link>{" "}
           for the bracket.
@@ -199,7 +196,7 @@ export default async function TournamentPage() {
               <SlabButton
                 tone="self"
                 size="lg"
-                render={<Link href="#register" />}
+                render={<Link href="/tournament/register" />}
                 nativeButton={false}
               >
                 <UserPlus className="size-5" aria-hidden />
@@ -454,20 +451,23 @@ export default async function TournamentPage() {
             </div>
           )}
 
-          {viewState === "not_registered" && (
-            <p className="mb-4 max-w-xl text-sm leading-6 text-muted-foreground">
-              Entry requires at least 3 rated Codeforces contests on your
-              linked handle — we check when you register.
-            </p>
-          )}
-
           {(viewState === "not_registered" || viewState === "registered") && (
-            <RegisterForm
-              cfHandle={user?.cfHandle ?? null}
-              registered={viewState === "registered"}
-              initialGithubUrl={registration?.githubUrl ?? null}
-              initialLinkedinUrl={registration?.linkedinUrl ?? null}
-            />
+            <div className="flex flex-col gap-4">
+              <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+                {viewState === "registered"
+                  ? "You're registered for the launch tournament. Update your details anytime."
+                  : "Entry requires at least 3 rated Codeforces contests on your linked handle — we check when you register."}
+              </p>
+              <SlabButton
+                tone="self"
+                className="w-fit"
+                render={<Link href="/tournament/register" />}
+                nativeButton={false}
+              >
+                <UserPlus className="size-5" aria-hidden />
+                {viewState === "registered" ? "Manage registration" : "Register to compete"}
+              </SlabButton>
+            </div>
           )}
         </div>
       </section>

@@ -4,7 +4,8 @@
  *
  * Thin shell mirroring `src/app/api/races/join/route.ts`: `requireLinkedUser`
  * gates on signed-in + linked CF account, zod validates the body, the pure
- * normalizers in `src/lib/tournament/registration.ts` validate the optional
+ * normalizers in `src/lib/tournament/registration.ts` validate firstName,
+ * lastName, email (required — issue #239), location, and the optional
  * profile URLs, and a single upsert statement writes the row (Neon HTTP
  * driver has no interactive transactions, so this must be one statement).
  *
@@ -22,12 +23,24 @@ import { db } from "@/lib/db";
 import { tournamentRegistrations } from "@/lib/db/schema";
 import { getUserRating } from "@/lib/cf/client";
 import { requireLinkedUser } from "@/lib/race/session";
-import { normalizeGithubUrl, normalizeLinkedinUrl } from "@/lib/tournament/registration";
+import {
+  normalizeEmail,
+  normalizeGithubUrl,
+  normalizeLinkedinUrl,
+  normalizeLocation,
+  normalizeName,
+} from "@/lib/tournament/registration";
 
 /** Minimum rated Codeforces contests required to register (issue #217). */
 const MIN_RATED_CONTESTS = 3;
 
 const bodySchema = z.object({
+  // Required identity fields (issue #239). Required on every POST, including
+  // edits — existing registrants must fill them in on their next edit.
+  firstName: z.string().max(500),
+  lastName: z.string().max(500),
+  email: z.string().max(500),
+  location: z.string().max(500).optional(),
   githubUrl: z.string().max(500).optional(),
   linkedinUrl: z.string().max(500).optional(),
   // Optional (rather than required) so a missing field falls through to the
@@ -52,6 +65,32 @@ export async function POST(req: Request) {
 
   if (body.termsAccepted !== true) {
     return NextResponse.json({ error: "terms_not_accepted" }, { status: 400 });
+  }
+
+  // Required identity fields (issue #239).
+  const firstName = normalizeName(body.firstName);
+  if (!firstName) {
+    return NextResponse.json({ error: "invalid_first_name" }, { status: 400 });
+  }
+
+  const lastName = normalizeName(body.lastName);
+  if (!lastName) {
+    return NextResponse.json({ error: "invalid_last_name" }, { status: 400 });
+  }
+
+  const email = normalizeEmail(body.email);
+  if (!email) {
+    return NextResponse.json({ error: "invalid_email" }, { status: 400 });
+  }
+
+  // Optional; empty string means "clear this field" -> null, same as the
+  // profile URLs below.
+  let location: string | null = null;
+  if (body.location && body.location.length > 0) {
+    location = normalizeLocation(body.location);
+    if (!location) {
+      return NextResponse.json({ error: "invalid_location" }, { status: 400 });
+    }
   }
 
   // Empty string means "clear this field" -> null; otherwise normalize.
@@ -94,18 +133,34 @@ export async function POST(req: Request) {
     .insert(tournamentRegistrations)
     .values({
       userId: session.user.id,
+      firstName,
+      lastName,
+      email,
+      location,
       githubUrl,
       linkedinUrl,
       termsAcceptedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: tournamentRegistrations.userId,
-      set: { githubUrl, linkedinUrl, updatedAt: new Date() },
+      set: {
+        firstName,
+        lastName,
+        email,
+        location,
+        githubUrl,
+        linkedinUrl,
+        updatedAt: new Date(),
+      },
     })
     .returning();
 
   return NextResponse.json(
     {
+      firstName: registration.firstName,
+      lastName: registration.lastName,
+      email: registration.email,
+      location: registration.location,
       githubUrl: registration.githubUrl,
       linkedinUrl: registration.linkedinUrl,
       createdAt: registration.createdAt,

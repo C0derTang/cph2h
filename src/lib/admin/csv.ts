@@ -40,6 +40,10 @@ const REGISTRANT_HEADERS = [
   "username",
   "cfHandle",
   "cfRating",
+  "firstName",
+  "lastName",
+  "email",
+  "location",
   "githubUrl",
   "linkedinUrl",
   "termsAcceptedAt",
@@ -52,12 +56,18 @@ function cellOf(value: string | number | null): string {
   return String(value);
 }
 
-/** `registrantsToCsv` column order: username, cfHandle, cfRating, githubUrl, linkedinUrl, termsAcceptedAt, registeredAt. */
+/** `registrantsToCsv` column order: username, cfHandle, cfRating, firstName,
+ *  lastName, email, location, githubUrl, linkedinUrl, termsAcceptedAt,
+ *  registeredAt. */
 export function registrantsToCsv(registrants: RegistrantDTO[]): string {
   const rows = registrants.map((r) => [
     cellOf(r.username),
     cellOf(r.cfHandle),
     cellOf(r.cfRating),
+    cellOf(r.firstName),
+    cellOf(r.lastName),
+    cellOf(r.email),
+    cellOf(r.location),
     cellOf(r.githubUrl),
     cellOf(r.linkedinUrl),
     cellOf(r.termsAcceptedAt),
