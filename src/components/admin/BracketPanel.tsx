@@ -124,8 +124,10 @@ export function BracketPanel() {
     } catch {
       toast.error("Couldn't reach the server.");
     } finally {
-      setBusy(null);
-      setArmed(null);
+      if (!cancelledRef.current) {
+        setBusy(null);
+        setArmed(null);
+      }
       await fetchBracket(true);
     }
   }
