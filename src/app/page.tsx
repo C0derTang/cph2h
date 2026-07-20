@@ -62,7 +62,7 @@ export default async function Home() {
           The Launch Tournament
         </span>
         <span className="hidden text-muted-foreground sm:inline">
-          64 players · $500 prize pool · early August
+          64 players · $500 prize pool · Aug 23
         </span>
         <span className="inline-flex shrink-0 items-center gap-1 text-player-self">
           Details
