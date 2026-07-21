@@ -69,6 +69,7 @@ import {
   nextRetryDelay,
   unlockRescheduleDelay,
 } from "@/lib/race/countdown";
+import { jitteredDelayMs } from "@/lib/poll-timing";
 import {
   absenceSecondsRemaining,
   shouldShowAbsenceCountdown,
@@ -264,6 +265,11 @@ export function RaceRoom({
   }, [snapshot, currentUserId]);
 
   // --- Snapshot refetch (source of truth) --------------------------------
+  // A 429 (issue #254 — our own future inbound rate limiter, wave-10) is
+  // already a no-op here: `!res.ok` returns without touching `snapshot`, so
+  // the previous snapshot is kept and no error state is ever surfaced for a
+  // refetch specifically — the caller's own retry path (poll loop / next
+  // event) covers it.
   const refetch = useCallback(async () => {
     try {
       const res = await fetch(`/api/races/${raceId}`, { cache: "no-store" });
@@ -348,8 +354,7 @@ export function RaceRoom({
     };
 
     const schedule = () => {
-      const jitter = Math.floor(Math.random() * 1500);
-      timer = setTimeout(() => void tick(), CLIENT_POLL_INTERVAL_MS + jitter);
+      timer = setTimeout(() => void tick(), jitteredDelayMs(CLIENT_POLL_INTERVAL_MS));
     };
 
     schedule();
@@ -366,8 +371,23 @@ export function RaceRoom({
     let timer: ReturnType<typeof setTimeout>;
 
     const tick = async () => {
+      // Set when our own future rate limiter (wave-10) 429s this tick and
+      // sends a `Retry-After` header — honored as a floor on the next
+      // delay (never shortens it below the normal jittered cadence).
+      let retryAfterMs: number | null = null;
       try {
         const res = await fetch(`/api/races/${raceId}/poll`, { method: "POST" });
+        if (res.status === 429) {
+          // Issue #254: a 429 from our own API is expected load-shedding, not
+          // a failure — it must never increment `pollFailuresRef` (that would
+          // surface the "having trouble" banner for something we caused).
+          const retryAfterHeader = res.headers.get("Retry-After");
+          const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+          if (Number.isFinite(retryAfterSec) && retryAfterSec > 0) {
+            retryAfterMs = retryAfterSec * 1000;
+          }
+          return;
+        }
         if (!res.ok) throw new Error(`poll failed (${res.status})`);
         const data: unknown = await res.json().catch(() => null);
         const classified = classifyPollResponse(data);
@@ -403,13 +423,15 @@ export function RaceRoom({
           setPollDegraded(true);
         }
       } finally {
-        if (!cancelled) schedule();
+        if (!cancelled) schedule(retryAfterMs);
       }
     };
 
-    const schedule = () => {
-      const jitter = Math.floor(Math.random() * 1500);
-      timer = setTimeout(tick, CLIENT_POLL_INTERVAL_MS + jitter);
+    const schedule = (retryAfterMs: number | null = null) => {
+      const normalDelay = jitteredDelayMs(CLIENT_POLL_INTERVAL_MS);
+      const delay =
+        retryAfterMs != null ? Math.max(retryAfterMs, normalDelay) : normalDelay;
+      timer = setTimeout(tick, delay);
     };
 
     schedule();

@@ -23,6 +23,7 @@ import {
   type QueueStatusResponse,
   type PresenceCounts,
 } from "@/lib/types";
+import { jitteredDelayMs } from "@/lib/poll-timing";
 
 type Phase = "idle" | "searching" | "matched" | "error";
 
@@ -106,10 +107,14 @@ export default function QueuePage() {
     setEnqueuedAt(null);
   }, []);
 
-  // Poll for a match while searching.
+  // Poll for a match while searching (self-rescheduling, jittered — issue
+  // #254). A 429 (our own future rate limiter, wave-10) falls into the same
+  // `!res.ok` no-op as any other transient failure: skip this tick's state
+  // update and keep polling at the normal jittered cadence.
   useEffect(() => {
     if (phase !== "searching") return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
       try {
@@ -128,20 +133,30 @@ export default function QueuePage() {
         }
       } catch {
         // Transient — keep polling.
+      } finally {
+        if (!cancelled) schedule();
       }
     };
 
-    const id = setInterval(poll, QUEUE_POLL_INTERVAL_MS);
+    const schedule = () => {
+      timer = setTimeout(() => void poll(), jitteredDelayMs(QUEUE_POLL_INTERVAL_MS));
+    };
+
+    schedule();
     return () => {
       cancelled = true;
-      clearInterval(id);
+      clearTimeout(timer);
     };
   }, [phase, goToRace]);
 
-  // Live queued/playing counters — polled independently of the match search so
-  // they update whether or not you're currently queued.
+  // Live queued/playing counters — polled independently of the match search
+  // so they update whether or not you're currently queued. Self-rescheduling
+  // and jittered (issue #254); a 429 is just another transient `!res.ok`
+  // no-op — keep the last value, keep polling.
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
     const load = async () => {
       try {
         const res = await fetch("/api/presence");
@@ -150,13 +165,19 @@ export default function QueuePage() {
         if (!cancelled) setPresence(data);
       } catch {
         // Transient — keep the last value and retry next tick.
+      } finally {
+        if (!cancelled) schedule();
       }
     };
-    load();
-    const id = setInterval(load, PRESENCE_POLL_INTERVAL_MS);
+
+    const schedule = () => {
+      timer = setTimeout(() => void load(), jitteredDelayMs(PRESENCE_POLL_INTERVAL_MS));
+    };
+
+    void load();
     return () => {
       cancelled = true;
-      clearInterval(id);
+      clearTimeout(timer);
     };
   }, []);
 
