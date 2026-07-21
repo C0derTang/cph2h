@@ -233,6 +233,29 @@ describe("PATCH /api/races/[id]/filters — guard matrix", () => {
     expect(updateSetMock).not.toHaveBeenCalled();
   });
 
+  it("409 not_editable for a matchmade race (non-null deadline) even for the challenger p1 (issue #275)", async () => {
+    // A matchmade lobby's filters are fixed at pairing; a PATCH would reset both
+    // ready flags and could weaponize the deadline. Locked out entirely.
+    queueSelects([[makeRace({ status: "ready", p2Id: P2, readyDeadlineAt: new Date() })]]);
+
+    const res = await PATCH(req({ ratingMin: 1000 }), { params });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("not_editable");
+    expect(updateSetMock).not.toHaveBeenCalled();
+  });
+
+  it("still allows a challenge race (null deadline) to edit — the lock is matchmade-only", async () => {
+    const race = makeRace({ status: "ready", p2Id: P2, readyDeadlineAt: null });
+    queueSelects([[race]]);
+    dbState.updateReturns = [{ ...race, ratingMin: 1000 }];
+
+    const res = await PATCH(req({ ratingMin: 1000 }), { params });
+
+    expect(res.status).toBe(200);
+    expect(updateSetMock).toHaveBeenCalled();
+  });
+
   it("409 when the race has already started (active), no write", async () => {
     queueSelects([[makeRace({ status: "active", p2Id: P2 })]]);
 

@@ -35,6 +35,7 @@ function race(overrides: Partial<MachineRace> = {}): MachineRace {
     timeLimitSec: 2400,
     drawOfferBy: null,
     challengeToken: null,
+    readyDeadlineAt: null,
     ...overrides,
   };
 }

@@ -31,6 +31,7 @@ export type MachineRace = Pick<
   | "timeLimitSec"
   | "drawOfferBy"
   | "challengeToken"
+  | "readyDeadlineAt"
 >;
 
 /** Reasons a guard can reject a transition. */
@@ -173,6 +174,75 @@ export function nextOnBothReady(race: MachineRace, now: Date): StartTransition {
   const startedAt = new Date(now.getTime() + COUNTDOWN_SEC * 1000);
   const endsAt = new Date(startedAt.getTime() + race.timeLimitSec * 1000);
   return { status: "active", startedAt, endsAt };
+}
+
+/**
+ * Result of evaluating the matchmade ready deadline (issue #275). A matchmade
+ * lobby (`readyDeadlineAt !== null`) must resolve once the deadline passes:
+ * - exactly one player ready ⇒ that player wins by walkover (full Elo);
+ * - neither player ready ⇒ the lobby aborts (no Elo);
+ * - both ready past the deadline ⇒ `none` — a start transition is already in
+ *   flight (the ready route's both-ready claim), so the timeout stands down.
+ *
+ * Pure and clock-injected like every other machine function; the resolver in
+ * `src/lib/race/ready-timeout.ts` applies the corresponding atomic mutation.
+ */
+export type ReadyTimeoutAction =
+  | { kind: "none" }
+  | { kind: "abort" }
+  | {
+      kind: "walkover";
+      outcome: "p1_win" | "p2_win";
+      winnerId: string;
+      readySide: "p1" | "p2";
+    };
+
+/**
+ * Decide what a matchmade lobby's expired ready deadline demands. Returns
+ * `{kind:"none"}` for every case that must NOT be resolved by the timeout:
+ * challenge races (`readyDeadlineAt === null`), any non-`ready` status, a
+ * deadline not yet reached, or both players already ready (start in flight).
+ *
+ * The walkover result pins the exact ready side so the resolver's atomic claim
+ * can pin BOTH flags — a concurrent flag churn (e.g. a selection-failure reset)
+ * after this read must invalidate the claim, never award the wrong player.
+ */
+export function readyTimeoutAction(
+  race: Pick<
+    Race,
+    "status" | "readyDeadlineAt" | "p1Ready" | "p2Ready" | "p1Id" | "p2Id"
+  >,
+  now: Date,
+): ReadyTimeoutAction {
+  // Challenge races and non-lobby statuses are never touched by the deadline.
+  if (race.status !== "ready") return { kind: "none" };
+  if (race.readyDeadlineAt === null) return { kind: "none" };
+  if (now.getTime() <= race.readyDeadlineAt.getTime()) return { kind: "none" };
+
+  // Past the deadline. Both ready ⇒ a start is already in flight; stand down.
+  if (race.p1Ready && race.p2Ready) return { kind: "none" };
+
+  // Neither ready ⇒ abort, no Elo.
+  if (!race.p1Ready && !race.p2Ready) return { kind: "abort" };
+
+  // Exactly one ready ⇒ that player wins by walkover.
+  if (race.p1Ready) {
+    return {
+      kind: "walkover",
+      outcome: "p1_win",
+      winnerId: race.p1Id,
+      readySide: "p1",
+    };
+  }
+  // p2 ready. A matchmade ready race always has p2, but stay defensive: a null
+  // p2 has no winner, so there is nothing to award — treat as a no-op.
+  if (race.p2Id === null) return { kind: "none" };
+  return {
+    kind: "walkover",
+    outcome: "p2_win",
+    winnerId: race.p2Id,
+    readySide: "p2",
+  };
 }
 
 /**

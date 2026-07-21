@@ -31,7 +31,7 @@
  * concurrently and share a player can never lose an update.
  */
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { eloHistory, races, users } from "@/lib/db/schema";
 import { applyResult } from "@/lib/elo";
@@ -46,7 +46,18 @@ export interface FinishRaceInput {
   /** CF submission id that won the race, when the finish is a solve. */
   winningSubmissionId?: number | null;
   /** Why the race ended — informational; does not change Elo handling. */
-  reason?: "forfeit" | "solved" | "timeout" | "agreement";
+  reason?: "forfeit" | "solved" | "timeout" | "agreement" | "ready_timeout";
+  /**
+   * Matchmade ready-deadline walkover (issue #275). When present, the atomic
+   * claim flips `ready -> finished` (instead of `active -> finished`), pinning
+   * the EXACT ready-flag combination of the winning side — not a bare XOR: the
+   * selection-failure reset can churn flags, so if they changed after the
+   * caller's read the claim must miss. `ready->finished` and `active->finished`
+   * claims are mutually exclusive (one status at a time), so this never
+   * double-applies Elo. `startedAt` stays NULL — `finished` + `winnerId` +
+   * `startedAt === null` is the client's walkover discriminator.
+   */
+  readyWalkover?: { readySide: "p1" | "p2" };
 }
 
 /**
@@ -55,10 +66,25 @@ export interface FinishRaceInput {
  * to a concurrent finisher, never double-applies Elo.
  */
 export async function finishRace(input: FinishRaceInput): Promise<void> {
-  const { raceId, outcome, winnerId, winningSubmissionId } = input;
+  const { raceId, outcome, winnerId, winningSubmissionId, readyWalkover } = input;
   const now = new Date();
 
-  // --- Atomic claim: active -> finished. The mutex for the whole function. ---
+  // The atomic claim is the mutex for the whole function. A normal finish flips
+  // `active -> finished`; a matchmade ready-deadline walkover flips
+  // `ready -> finished` while pinning the exact winning ready-flag combination
+  // and re-asserting the deadline has passed. The two claims are mutually
+  // exclusive (a race has one status at a time), so no path double-applies Elo.
+  const claim = readyWalkover
+    ? and(
+        eq(races.id, raceId),
+        eq(races.status, "ready"),
+        isNotNull(races.readyDeadlineAt),
+        lt(races.readyDeadlineAt, sql`now()`),
+        eq(races.p1Ready, readyWalkover.readySide === "p1"),
+        eq(races.p2Ready, readyWalkover.readySide === "p2"),
+      )
+    : and(eq(races.id, raceId), eq(races.status, "active"));
+
   const [race] = await db
     .update(races)
     .set({
@@ -71,7 +97,7 @@ export async function finishRace(input: FinishRaceInput): Promise<void> {
       // active, but clear it here so a finished race never shows one.
       drawOfferBy: null,
     })
-    .where(and(eq(races.id, raceId), eq(races.status, "active")))
+    .where(claim)
     .returning();
 
   if (!race) {

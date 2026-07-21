@@ -61,6 +61,19 @@ export async function PATCH(
     );
   }
 
+  // Matchmade races have no editable filters (issue #275): the ratings are the
+  // intersection of both players' queue filters and are fixed at pairing. A
+  // filter PATCH resets both ready flags, which on a matchmade lobby could be
+  // weaponized to keep resetting the deadline race — lock it out entirely. A
+  // non-null `readyDeadlineAt` is the "came from matchmaking" discriminator.
+  // Reuses the existing `not_editable` code (the client map already handles it).
+  if (race.readyDeadlineAt !== null) {
+    return NextResponse.json(
+      { error: "not_editable", race: await buildRaceSnapshot(race) },
+      { status: 409 },
+    );
+  }
+
   // Only editable while still in the lobby.
   if (race.status !== "pending" && race.status !== "ready") {
     return NextResponse.json(

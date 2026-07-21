@@ -25,7 +25,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { races, users, type Race } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
-import { canReady, canStart, nextOnBothReady } from "@/lib/race/machine";
+import { canReady, canStart, nextOnBothReady, readyTimeoutAction } from "@/lib/race/machine";
+import { resolveReadyTimeout } from "@/lib/race/ready-timeout";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { publishRaceEvent, refreshSeenProblems, selectRaceProblem } from "@/lib/race/hooks";
 import { enforcePolicy } from "@/lib/ratelimit/policies";
@@ -53,7 +54,7 @@ export async function POST(
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
 
-  const [race] = await db
+  let [race] = await db
     .select()
     .from(races)
     .where(eq(races.id, id))
@@ -61,6 +62,23 @@ export async function POST(
 
   if (!race) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  // Lazy matchmade ready-deadline enforcement (issue #275), BEFORE canReady: a
+  // ready press that arrives past the deadline must not slip a flag onto an
+  // already-decided lobby. Resolve (walkover / abort) then RE-READ so the guard
+  // below sees the terminal row — a post-deadline press then falls into the
+  // existing `not_ready_phase` 409 carrying the terminal snapshot. Challenge
+  // races (null deadline) return `none` and are untouched.
+  const deadlineNow = new Date();
+  if (readyTimeoutAction(race, deadlineNow).kind !== "none") {
+    await resolveReadyTimeout(race, deadlineNow);
+    const [resolved] = await db
+      .select()
+      .from(races)
+      .where(eq(races.id, id))
+      .limit(1);
+    if (resolved) race = resolved;
   }
 
   const guard = canReady(race, session.user.id);

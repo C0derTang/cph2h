@@ -16,7 +16,7 @@ import type { SessionResult } from "../src/lib/race/session";
 import { _resetMemoryStore } from "../src/lib/ratelimit";
 import { RATE_LIMIT_POLICIES } from "../src/lib/ratelimit/policies";
 
-const { authMock, requireLinkedUserMock, buildRaceSnapshotMock, dbState } = vi.hoisted(() => {
+const { authMock, requireLinkedUserMock, buildRaceSnapshotMock, resolveReadyTimeoutMock, dbState } = vi.hoisted(() => {
   const dbState = {
     selectResults: [] as unknown[][],
     selectIndex: 0,
@@ -28,6 +28,7 @@ const { authMock, requireLinkedUserMock, buildRaceSnapshotMock, dbState } = vi.h
       __snapshotFor: race.id,
       status: race.status,
     })),
+    resolveReadyTimeoutMock: vi.fn().mockResolvedValue(undefined),
     dbState,
   };
 });
@@ -35,6 +36,7 @@ const { authMock, requireLinkedUserMock, buildRaceSnapshotMock, dbState } = vi.h
 vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/race/snapshot", () => ({ buildRaceSnapshot: buildRaceSnapshotMock }));
+vi.mock("@/lib/race/ready-timeout", () => ({ resolveReadyTimeout: resolveReadyTimeoutMock }));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -119,6 +121,8 @@ beforeEach(() => {
   authMock.mockReset().mockResolvedValue({ userId: "clerk-user-p1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
   buildRaceSnapshotMock.mockClear();
+  resolveReadyTimeoutMock.mockClear();
+  resolveReadyTimeoutMock.mockResolvedValue(undefined);
   dbState.selectResults = [];
   dbState.selectIndex = 0;
   mockSessionAs(P1);
@@ -149,6 +153,42 @@ describe("GET /api/races/[id] — snapshot", () => {
     requireLinkedUserMock.mockResolvedValue({ ok: false, status: 401, error: "unauthorized" });
     const res = await GET(req(), { params });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /api/races/[id] — lazy ready-deadline resolution (issue #275)", () => {
+  it("resolves a past-deadline matchmade ready race, then RE-READS the terminal row", async () => {
+    // Matchmade lobby (non-null deadline) with the deadline in the past and one
+    // player ready: readyTimeoutAction fires, resolveReadyTimeout runs, and the
+    // route re-reads so the claim loser observes the winner's terminal state.
+    const pastDeadline = makeRace({
+      status: "ready",
+      startedAt: null,
+      endsAt: null,
+      p1Ready: true,
+      p2Ready: false,
+      readyDeadlineAt: new Date(Date.now() - 60_000),
+    });
+    const terminal = { ...pastDeadline, status: "finished" as const, winnerId: P1 };
+    dbState.selectResults = [[pastDeadline], [terminal]];
+
+    const res = await GET(req(), { params });
+
+    expect(res.status).toBe(200);
+    expect(resolveReadyTimeoutMock).toHaveBeenCalledTimes(1);
+    // The snapshot is built from the RE-READ terminal row, not the stale one.
+    expect(buildRaceSnapshotMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "finished" }),
+    );
+    expect(await res.json()).toMatchObject({ status: "finished" });
+  });
+
+  it("does NOT resolve a challenge race (null deadline): single read, no resolver", async () => {
+    dbState.selectResults = [[makeRace({ status: "ready", readyDeadlineAt: null, p1Ready: true })]];
+    const res = await GET(req(), { params });
+    expect(res.status).toBe(200);
+    expect(resolveReadyTimeoutMock).not.toHaveBeenCalled();
+    expect(dbState.selectIndex).toBe(1); // only one select consumed
   });
 });
 
