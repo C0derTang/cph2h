@@ -18,7 +18,7 @@
  * scope here.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Check,
@@ -45,10 +45,12 @@ import { useCamPermission, useMicPermission } from "@/components/race/useMicPerm
 import { AudioToggleButtons } from "@/components/race/AudioControls";
 import { LiveTickerIndicator } from "@/components/race/LiveTickerIndicator";
 import {
-  CLIENT_POLL_INTERVAL_MS,
-  PROBLEM_RATING_CEIL,
-  PROBLEM_RATING_FLOOR,
-} from "@/lib/types";
+  EMPTY_FILTERS,
+  filterSummary,
+  FilterEditor,
+  type FilterPayload,
+} from "@/components/race/FilterEditor";
+import { CLIENT_POLL_INTERVAL_MS } from "@/lib/types";
 import type {
   ProblemSelectionFailureReason,
   RaceProblemFilters,
@@ -92,6 +94,10 @@ export function Lobby({
   const [tickNow, setTickNow] = useState(() => Date.now());
   const notifiedActiveRef = useRef(false);
   const fetchedOnceRef = useRef(Boolean(initialSnapshot));
+  // Guards the ready-deadline countdown's one-shot post-deadline refresh (see
+  // the effect below) so it fires exactly once per deadline, not once per
+  // render while the clamped countdown sits at zero.
+  const deadlineRefreshedRef = useRef(false);
   // Clock skew (ms) between the local machine and the server, recomputed on
   // every snapshot receipt (see `src/lib/race/countdown.ts`) — the countdown
   // display must never trust a skewed local clock. Kept as state (read
@@ -203,6 +209,40 @@ export function Lobby({
     }, 250);
     return () => clearInterval(tick);
   }, [snapshot?.status, snapshot?.startedAt]);
+
+  // Matchmade ready-deadline countdown (issue #276): while the race is
+  // `ready` and matchmade (`readyDeadlineAt` non-null), ticks once per second
+  // so the M:SS label stays live, self-clearing the instant the deadline
+  // passes. It then triggers exactly one `refresh()` so the resolved terminal
+  // snapshot (walkover win or no-Elo abort — the server, not this timer,
+  // decides the outcome) lands immediately rather than waiting out the normal
+  // poll cadence.
+  useEffect(() => {
+    if (snapshot?.status !== "ready" || !snapshot.readyDeadlineAt) {
+      deadlineRefreshedRef.current = false;
+      return;
+    }
+    const deadlineMs = new Date(snapshot.readyDeadlineAt).getTime();
+    const maybeRefreshOnce = () => {
+      if (!deadlineRefreshedRef.current) {
+        deadlineRefreshedRef.current = true;
+        void refresh();
+      }
+    };
+    if (correctedNow(skewMsRef.current, Date.now()) >= deadlineMs) {
+      maybeRefreshOnce();
+      return;
+    }
+    const tick = setInterval(() => {
+      const localNowMs = Date.now();
+      setTickNow(localNowMs);
+      if (correctedNow(skewMsRef.current, localNowMs) >= deadlineMs) {
+        clearInterval(tick);
+        maybeRefreshOnce();
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [snapshot?.status, snapshot?.readyDeadlineAt, refresh]);
 
   useEffect(() => {
     if (snapshot?.status === "active" && !notifiedActiveRef.current) {
@@ -331,6 +371,10 @@ export function Lobby({
   const opponentReady = isP1 ? snapshot.p2Ready : snapshot.p1Ready;
   const nowMs = correctedNow(skewMs, tickNow);
 
+  // Non-null `readyDeadlineAt` is the contract's discriminator for "this race
+  // came from matchmaking" (challenge races never set it).
+  const isMatchmade = snapshot.readyDeadlineAt !== null;
+
   // Pure display derivation (no new state) for the big broadcast countdown —
   // statusHeading/statusSubheading already compute the equivalent seconds
   // for the sr/status copy; this just surfaces it as the loud scoreboard
@@ -341,6 +385,18 @@ export function Lobby({
   const secondsLeft = counting && startedAtMs != null
     ? Math.max(0, Math.ceil((startedAtMs - nowMs) / 1000))
     : null;
+
+  // Matchmade ready-deadline countdown display: only while still in `ready`
+  // and not yet both-ready (once both are ready the race is about to
+  // transition to `active` on the next poll — no need to keep flashing
+  // stakes copy at a pair who already readied up).
+  const deadlineMs = snapshot.readyDeadlineAt
+    ? new Date(snapshot.readyDeadlineAt).getTime()
+    : null;
+  const deadlineSecondsLeft =
+    snapshot.status === "ready" && isMatchmade && deadlineMs != null && !(youReady && opponentReady)
+      ? Math.max(0, Math.ceil((deadlineMs - nowMs) / 1000))
+      : null;
 
   return (
     <LobbyShell className={className}>
@@ -358,6 +414,22 @@ export function Lobby({
           {statusSubheading(snapshot, nowMs)}
         </p>
       </div>
+
+      {deadlineSecondsLeft != null && (
+        <div className="px-5 pb-4">
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="ready-deadline-banner"
+            className="flex items-start gap-2 border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            <span aria-hidden className="warning-glyph mt-0.5">
+              !
+            </span>
+            <span>{readyDeadlineCopy(youReady, opponentReady, deadlineSecondsLeft)}</span>
+          </div>
+        </div>
+      )}
 
       {counting && secondsLeft != null && (
         <div className="flex flex-col items-center gap-1 border-t border-border py-5">
@@ -411,6 +483,7 @@ export function Lobby({
             filters={snapshot.filters}
             failureReason={snapshot.problemSelectionFailedReason}
             isChallenger={isP1}
+            isMatchmade={isMatchmade}
             editing={editingFilters}
             saving={savingFilters}
             onEdit={() => setEditingFilters(true)}
@@ -745,6 +818,34 @@ function statusSubheading(snapshot: RaceSnapshot, nowMs: number): string {
   }
 }
 
+/** `M:SS` for a non-negative second count (e.g. `1:59`). */
+function formatMinSec(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Stakes-unmistakable copy for the matchmade ready-deadline banner (issue
+ * #276). A walkover is a full Elo loss for whoever fails to ready up, and a
+ * double-timeout aborts with no Elo at all — both outcomes are named
+ * explicitly so nobody discovers them only after the fact.
+ */
+function readyDeadlineCopy(
+  youReady: boolean,
+  opponentReady: boolean,
+  secondsLeft: number,
+): string {
+  const mmss = formatMinSec(secondsLeft);
+  if (!youReady && !opponentReady) {
+    return `Ready up — match cancelled in ${mmss}`;
+  }
+  if (youReady && !opponentReady) {
+    return `Waiting for opponent — they forfeit in ${mmss}`;
+  }
+  return `Opponent is ready — ready up or they win. ${mmss}`;
+}
+
 function fetchErrorMessage(status: number): string {
   if (status === 404) return "This race no longer exists.";
   if (status === 403) return "You are not a participant in this race.";
@@ -811,88 +912,15 @@ function selectionFailureMessage(
 }
 
 // ---------------------------------------------------------------------------
-// In-lobby problem filters (issue #66)
+// In-lobby problem filters (issue #66; FilterEditor extracted to its own
+// module in issue #276 — see src/components/race/FilterEditor.tsx)
 // ---------------------------------------------------------------------------
-
-/** Wire shape for `PATCH /api/races/[id]/filters` (omit = "no constraint"). */
-export interface FilterPayload {
-  ratingMin?: number;
-  ratingMax?: number;
-  dateFrom?: string;
-  dateTo?: string;
-}
-
-const EMPTY_FILTERS: RaceProblemFilters = {
-  ratingMin: null,
-  ratingMax: null,
-  dateFrom: null,
-  dateTo: null,
-};
-
-/** Every multiple of 100 in [PROBLEM_RATING_FLOOR, PROBLEM_RATING_CEIL]. */
-const RATING_OPTIONS = Array.from(
-  { length: (PROBLEM_RATING_CEIL - PROBLEM_RATING_FLOOR) / 100 + 1 },
-  (_, i) => PROBLEM_RATING_FLOOR + i * 100,
-);
-
-type DatePreset = "any" | "1y" | "2y" | "5y" | "custom";
-
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: "any", label: "Any time" },
-  { value: "1y", label: "Last year" },
-  { value: "2y", label: "Last 2 years" },
-  { value: "5y", label: "Last 5 years" },
-  { value: "custom", label: "Custom range" },
-];
-
-/** ISO `dateFrom` for a preset, or `null` for "any"/"custom". */
-function presetDateFrom(preset: DatePreset): string | null {
-  if (preset === "any" || preset === "custom") return null;
-  const years = preset === "1y" ? 1 : preset === "2y" ? 2 : 5;
-  const d = new Date();
-  d.setUTCFullYear(d.getUTCFullYear() - years);
-  return d.toISOString();
-}
-
-/** Start-of-day ISO for a `yyyy-mm-dd` value, or `null` if empty/invalid. */
-function dayStartIso(dateInput: string): string | null {
-  if (!dateInput) return null;
-  const d = new Date(`${dateInput}T00:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-/** End-of-day ISO for a `yyyy-mm-dd` value, or `null` if empty/invalid. */
-function dayEndIso(dateInput: string): string | null {
-  if (!dateInput) return null;
-  const d = new Date(`${dateInput}T23:59:59.999Z`);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-/** ISO -> `yyyy-mm-dd` for a `<input type="date">` value. */
-function isoToDateInput(iso: string | null): string {
-  return iso ? iso.slice(0, 10) : "";
-}
-
-/** One-line summary of the active filters, shown to both players. */
-function filterSummary(filters: RaceProblemFilters): string {
-  const parts: string[] = [];
-  if (filters.ratingMin !== null || filters.ratingMax !== null) {
-    const lo = filters.ratingMin ?? PROBLEM_RATING_FLOOR;
-    const hi = filters.ratingMax ?? PROBLEM_RATING_CEIL;
-    parts.push(`Rating ${lo}–${hi}`);
-  }
-  if (filters.dateFrom || filters.dateTo) {
-    const from = filters.dateFrom ? isoToDateInput(filters.dateFrom) : "any";
-    const to = filters.dateTo ? isoToDateInput(filters.dateTo) : "any";
-    parts.push(`Contest ${from} → ${to}`);
-  }
-  return parts.length > 0 ? parts.join(" · ") : "No filters — any problem";
-}
 
 function FiltersSection({
   filters,
   failureReason,
   isChallenger,
+  isMatchmade,
   editing,
   saving,
   onEdit,
@@ -902,6 +930,7 @@ function FiltersSection({
   filters: RaceProblemFilters | null;
   failureReason: ProblemSelectionFailureReason | null;
   isChallenger: boolean;
+  isMatchmade: boolean;
   editing: boolean;
   saving: boolean;
   onEdit: () => void;
@@ -909,6 +938,10 @@ function FiltersSection({
   onSave: (payload: FilterPayload) => void;
 }) {
   const showSummary = filters !== null || isChallenger;
+  // Matchmade races paired two players on overlapping filters — the stored
+  // intersection is locked for both sides, so neither gets an Edit button and
+  // the summary plate reads as an agreement, not a challenger-owned setting.
+  const canEdit = isChallenger && !isMatchmade;
 
   return (
     <div className="flex flex-col gap-3">
@@ -924,13 +957,15 @@ function FiltersSection({
             <span className="font-medium">Couldn&apos;t start the race</span>
             <span className="text-destructive/90">
               {selectionFailureMessage(failureReason, filters !== null)}{" "}
-              {filters !== null
-                ? isChallenger
-                  ? "Adjust the filters and ready up again."
-                  : "Ask the challenger to adjust the filters."
-                : isChallenger
-                  ? "Set filters below or ready up again."
-                  : "Ready up again to retry."}
+              {isMatchmade
+                ? "The match cancels itself at the ready deadline if nobody readies up."
+                : filters !== null
+                  ? isChallenger
+                    ? "Adjust the filters and ready up again."
+                    : "Ask the challenger to adjust the filters."
+                  : isChallenger
+                    ? "Set filters below or ready up again."
+                    : "Ready up again to retry."}
             </span>
           </div>
         </div>
@@ -948,13 +983,13 @@ function FiltersSection({
           <div className="stat-plate flex items-center justify-between gap-2 p-3">
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="eyebrow text-muted-foreground">
-                Problem filters
+                {isMatchmade ? "Agreed filters — locked for quick match" : "Problem filters"}
               </span>
               <span className="truncate font-mono text-xs">
                 {filterSummary(filters ?? EMPTY_FILTERS)}
               </span>
             </div>
-            {isChallenger && (
+            {canEdit && (
               <Button type="button" variant="outline" size="sm" onClick={onEdit}>
                 <SlidersHorizontal aria-hidden />
                 Edit
@@ -963,159 +998,6 @@ function FiltersSection({
           </div>
         )
       )}
-    </div>
-  );
-}
-
-function FilterEditor({
-  filters,
-  saving,
-  onCancel,
-  onSave,
-}: {
-  filters: RaceProblemFilters | null;
-  saving: boolean;
-  onCancel: () => void;
-  onSave: (payload: FilterPayload) => void;
-}) {
-  const [ratingMin, setRatingMin] = useState<number | null>(filters?.ratingMin ?? null);
-  const [ratingMax, setRatingMax] = useState<number | null>(filters?.ratingMax ?? null);
-  const [datePreset, setDatePreset] = useState<DatePreset>(
-    filters?.dateFrom || filters?.dateTo ? "custom" : "any",
-  );
-  const [customDateFrom, setCustomDateFrom] = useState(
-    isoToDateInput(filters?.dateFrom ?? null),
-  );
-  const [customDateTo, setCustomDateTo] = useState(
-    isoToDateInput(filters?.dateTo ?? null),
-  );
-
-  const dateFrom = useMemo(
-    () => (datePreset === "custom" ? dayStartIso(customDateFrom) : presetDateFrom(datePreset)),
-    [datePreset, customDateFrom],
-  );
-  const dateTo = useMemo(
-    () => (datePreset === "custom" ? dayEndIso(customDateTo) : null),
-    [datePreset, customDateTo],
-  );
-
-  const ratingRangeInvalid =
-    ratingMin !== null && ratingMax !== null && ratingMin > ratingMax;
-  const dateRangeInvalid =
-    dateFrom !== null && dateTo !== null && Date.parse(dateFrom) > Date.parse(dateTo);
-  const invalid = ratingRangeInvalid || dateRangeInvalid;
-
-  function submit() {
-    if (invalid) return;
-    onSave({
-      ...(ratingMin !== null ? { ratingMin } : {}),
-      ...(ratingMax !== null ? { ratingMax } : {}),
-      ...(dateFrom !== null ? { dateFrom } : {}),
-      ...(dateTo !== null ? { dateTo } : {}),
-    });
-  }
-
-  return (
-    <div className="stat-plate flex flex-col gap-4 p-3">
-      <div className="flex flex-col gap-1.5">
-        <span className="eyebrow text-muted-foreground">
-          Problem rating range
-        </span>
-        <div className="flex items-center gap-2">
-          <select
-            className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            value={ratingMin ?? ""}
-            onChange={(e) => setRatingMin(e.target.value ? Number(e.target.value) : null)}
-            aria-label="Minimum problem rating"
-          >
-            <option value="">Any</option>
-            {RATING_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <span className="text-sm text-muted-foreground">to</span>
-          <select
-            className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            value={ratingMax ?? ""}
-            onChange={(e) => setRatingMax(e.target.value ? Number(e.target.value) : null)}
-            aria-label="Maximum problem rating"
-          >
-            <option value="">Any</option>
-            {RATING_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-        {ratingRangeInvalid && (
-          <p role="alert" className="text-xs text-destructive">
-            Minimum rating must be ≤ maximum rating.
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <span className="eyebrow text-muted-foreground">
-          Contest date
-        </span>
-        <div className="flex flex-wrap gap-2">
-          {DATE_PRESETS.map((opt) => (
-            <Button
-              key={opt.value}
-              type="button"
-              size="sm"
-              variant={datePreset === opt.value ? "default" : "outline"}
-              aria-pressed={datePreset === opt.value}
-              onClick={() => setDatePreset(opt.value)}
-            >
-              {opt.label}
-            </Button>
-          ))}
-        </div>
-        {datePreset === "custom" && (
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="date"
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              value={customDateFrom}
-              onChange={(e) => setCustomDateFrom(e.target.value)}
-              aria-label="Contest date from"
-            />
-            <span className="text-sm text-muted-foreground">to</span>
-            <input
-              type="date"
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              value={customDateTo}
-              onChange={(e) => setCustomDateTo(e.target.value)}
-              aria-label="Contest date to"
-            />
-          </div>
-        )}
-        {dateRangeInvalid && (
-          <p role="alert" className="text-xs text-destructive">
-            Start date must be on or before end date.
-          </p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Button type="button" onClick={submit} disabled={saving || invalid}>
-          {saving ? (
-            <>
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-              Saving…
-            </>
-          ) : (
-            "Save filters"
-          )}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
-          Cancel
-        </Button>
-      </div>
     </div>
   );
 }

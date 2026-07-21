@@ -160,6 +160,59 @@ describe("detectOverlayOutcome", () => {
       ),
     ).toBe("defeat");
   });
+
+  // Matchmade walkover slam (issue #276): ready → finished with a winner
+  // fires the overlay even though the race never reached "active" — the
+  // walkover winner never needed to solve anything.
+  it("walkover victory: ready → finished with you as winner", () => {
+    expect(
+      detectOverlayOutcome(
+        "ready",
+        snap({
+          status: "finished",
+          outcome: "p1_win",
+          winnerId: YOU,
+          startedAt: null,
+          readyDeadlineAt: "2026-01-01T00:00:00.000Z",
+        }),
+        YOU,
+      ),
+    ).toBe("victory");
+  });
+
+  it("walkover defeat: ready → finished with opponent as winner", () => {
+    expect(
+      detectOverlayOutcome(
+        "ready",
+        snap({
+          status: "finished",
+          outcome: "p2_win",
+          winnerId: OPP,
+          startedAt: null,
+          readyDeadlineAt: "2026-01-01T00:00:00.000Z",
+        }),
+        YOU,
+      ),
+    ).toBe("defeat");
+  });
+
+  // The double-timeout abort must NOT slam the overlay — there's no winner,
+  // just a quiet cancellation.
+  it("none: ready → aborted (double ready-timeout) does not fire", () => {
+    expect(
+      detectOverlayOutcome(
+        "ready",
+        snap({
+          status: "aborted",
+          outcome: "aborted",
+          winnerId: null,
+          startedAt: null,
+          readyDeadlineAt: "2026-01-01T00:00:00.000Z",
+        }),
+        YOU,
+      ),
+    ).toBe("none");
+  });
 });
 
 describe("winnerHasAcceptedSubmission", () => {
