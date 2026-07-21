@@ -18,6 +18,9 @@ vi.mock("@/lib/race/session", () => ({ requireAdmin: requireAdminMock }));
 vi.mock("@/lib/admin/directory-db", () => ({
   listDirectoryUsers: listDirectoryUsersMock,
 }));
+// `@/lib/ratelimit/policies` transitively imports the real `@/lib/db` (via
+// `./db.ts`'s backend-registration side effect, issue #256) — mock it out.
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 import { GET } from "@/app/api/admin/users/route";
 

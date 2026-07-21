@@ -12,6 +12,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { races } from "@/lib/db/schema";
@@ -25,12 +26,19 @@ import {
 } from "@/lib/race/poll";
 import { POLL_MIN_INTERVAL_SEC } from "@/lib/types";
 import { SECONDS_PER_ACTIVE_RACE } from "@/lib/race/poll-interval";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  // Rate-limit first thing, keyed off the cheap Clerk userId (no DB lookup) —
+  // an over-limit poller never reaches `requireLinkedUser`'s DB call below.
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "racePoll", clerkId);
+  if (limited) return limited;
 
   const session = await requireLinkedUser();
   if (!session.ok) {

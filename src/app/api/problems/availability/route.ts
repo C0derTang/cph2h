@@ -9,11 +9,17 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { countAvailableProblems } from "@/lib/cf/problem-availability";
 import { raceFiltersSchema, toRaceProblemFilters } from "@/lib/race/filters";
 import { requireLinkedUser } from "@/lib/race/session";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 export async function GET(req: NextRequest) {
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "problemsAvailability", clerkId);
+  if (limited) return limited;
+
   const session = await requireLinkedUser();
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });

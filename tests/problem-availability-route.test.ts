@@ -9,16 +9,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { SessionResult } from "../src/lib/race/session";
+import { _resetMemoryStore } from "../src/lib/ratelimit";
 
-const { requireLinkedUserMock, countAvailableProblemsMock } = vi.hoisted(() => ({
+const { authMock, requireLinkedUserMock, countAvailableProblemsMock } = vi.hoisted(() => ({
+  authMock: vi.fn(),
   requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
   countAvailableProblemsMock: vi.fn(),
 }));
 
+vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/cf/problem-availability", () => ({
   countAvailableProblems: countAvailableProblemsMock,
 }));
+// `@/lib/ratelimit/policies` transitively imports the real `@/lib/db` (via
+// `./db.ts`'s backend-registration side effect, issue #256) — mock it out.
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 import { GET } from "../src/app/api/problems/availability/route";
 
@@ -44,6 +50,8 @@ function mockSession() {
 }
 
 beforeEach(() => {
+  _resetMemoryStore();
+  authMock.mockReset().mockResolvedValue({ userId: "clerk-1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
   countAvailableProblemsMock.mockReset();
   mockSession();

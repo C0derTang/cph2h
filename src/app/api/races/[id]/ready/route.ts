@@ -20,6 +20,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { races, users, type Race } from "@/lib/db/schema";
@@ -27,6 +28,7 @@ import { requireLinkedUser } from "@/lib/race/session";
 import { canReady, canStart, nextOnBothReady } from "@/lib/race/machine";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { publishRaceEvent, refreshSeenProblems, selectRaceProblem } from "@/lib/race/hooks";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 /**
  * Soft timeout (ms) for the best-effort solve-history refresh (issue #69)
@@ -37,10 +39,14 @@ import { publishRaceEvent, refreshSeenProblems, selectRaceProblem } from "@/lib/
 const HISTORY_REFRESH_TIMEOUT_MS = 3500;
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "raceReady", clerkId);
+  if (limited) return limited;
 
   const session = await requireLinkedUser();
   if (!session.ok) {

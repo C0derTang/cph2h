@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Race, User } from "../src/lib/db/schema";
+import { _resetMemoryStore } from "../src/lib/ratelimit";
 
 const { authMock, selectMock, addGrantMock, toJwtMock, accessTokenCtor, createRoomMock, roomServiceCtor } =
   vi.hoisted(() => {
@@ -116,6 +117,7 @@ function makeRequest(body: unknown): Request {
 }
 
 beforeEach(() => {
+  _resetMemoryStore();
   process.env.LIVEKIT_API_KEY = "lk-key";
   process.env.LIVEKIT_API_SECRET = "lk-secret";
   process.env.LIVEKIT_URL = "https://example.livekit.cloud";

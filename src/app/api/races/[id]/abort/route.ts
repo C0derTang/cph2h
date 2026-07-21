@@ -19,6 +19,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { races, type Race } from "@/lib/db/schema";
@@ -27,12 +28,17 @@ import { canAbort, canDecline, isParticipant } from "@/lib/race/machine";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { finishRace, publishRaceEvent } from "@/lib/race/hooks";
 import type { RaceOutcome } from "@/lib/types";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "raceAbort", clerkId);
+  if (limited) return limited;
 
   const session = await requireLinkedUser();
   if (!session.ok) {

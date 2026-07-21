@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { getReportEvidence } from "@/lib/admin/reports";
 import { requireAdmin } from "@/lib/race/session";
+import { enforceAdminPolicy } from "@/lib/ratelimit/policies";
 
 export async function GET(
   _req: Request,
@@ -18,6 +19,9 @@ export async function GET(
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
+
+  const limited = await enforceAdminPolicy(session.user.id);
+  if (limited) return limited;
 
   const { id } = await params;
 

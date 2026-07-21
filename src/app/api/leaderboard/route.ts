@@ -3,9 +3,14 @@ import {
   parsePositiveInt,
   LEADERBOARD_DEFAULT_LIMIT,
 } from "@/lib/leaderboard";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 export async function GET(request: Request) {
   try {
+    // Public route — no auth, so this is always per-IP.
+    const limited = await enforcePolicy(request, "leaderboard", null);
+    if (limited) return limited;
+
     const { searchParams } = new URL(request.url);
     const page = parsePositiveInt(searchParams.get("page"), 1);
     const limit = parsePositiveInt(
