@@ -120,8 +120,8 @@ export default async function TournamentRegisterPage() {
           <>
             {!registered && (
               <p className="mb-4 max-w-xl text-sm leading-6 text-muted-foreground">
-                Entry requires at least 3 rated Codeforces contests on your
-                linked handle — we check when you register.
+                Entry requires a peak rating of 1900+ (Candidate Master) on
+                your linked handle. We check when you register.
               </p>
             )}
             <RegisterForm

@@ -32,8 +32,9 @@ import {
   normalizeName,
 } from "@/lib/tournament/registration";
 
-/** Minimum rated Codeforces contests required to register (issue #217). */
-const MIN_RATED_CONTESTS = 3;
+/** Minimum peak Codeforces rating required to register — Candidate Master
+ *  threshold (issue #280). */
+const MIN_PEAK_RATING = 1900;
 
 const bodySchema = z.object({
   // Required identity fields (issue #239). Required on every POST, including
@@ -119,21 +120,21 @@ export async function POST(req: Request) {
     }
   }
 
-  // Eligibility gate (issue #217): at least MIN_RATED_CONTESTS rated CF
-  // contests. Checked on every POST (edits too) — rated-contest count only
-  // grows, so this never locks out an existing registrant. `cfHandle` is
-  // non-null past `requireLinkedUser`, but guard defensively. Fail closed on
-  // CF errors: registration is retryable.
-  let ratedContests: number;
+  // Eligibility gate (issue #280): peak rating must be at least
+  // MIN_PEAK_RATING (Candidate Master). Checked on every POST (edits too) —
+  // peak rating only grows, so this never locks out an existing registrant.
+  // `cfHandle` is non-null past `requireLinkedUser`, but guard defensively.
+  // Fail closed on CF errors: registration is retryable.
+  let peakRating: number | null;
   try {
     const history = await getUserRating(session.user.cfHandle ?? "");
-    ratedContests = history.length;
+    peakRating = history.length ? Math.max(...history.map((h) => h.newRating)) : null;
   } catch {
     return NextResponse.json({ error: "cf_unavailable" }, { status: 502 });
   }
-  if (ratedContests < MIN_RATED_CONTESTS) {
+  if (peakRating === null || peakRating < MIN_PEAK_RATING) {
     return NextResponse.json(
-      { error: "not_enough_rated_contests", ratedContests },
+      { error: "rating_too_low", peakRating },
       { status: 403 },
     );
   }

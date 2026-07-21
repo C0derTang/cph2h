@@ -104,12 +104,12 @@ function baseBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** N fake CF `user.rating` entries (one per rated contest). */
-function ratingHistory(n: number) {
-  return Array.from({ length: n }, (_, i) => ({
+/** Fake CF `user.rating` entries, one per given `newRating` value. */
+function ratingHistory(ratings: number[]) {
+  return ratings.map((newRating, i) => ({
     contestId: 1000 + i,
     contestName: `Contest ${i + 1}`,
-    newRating: 1400 + i,
+    newRating,
   }));
 }
 
@@ -122,7 +122,7 @@ beforeEach(() => {
   dbState.insertReturning = [];
 
   // Eligible by default so tests that don't care about eligibility pass.
-  getUserRatingMock.mockResolvedValue(ratingHistory(3));
+  getUserRatingMock.mockResolvedValue(ratingHistory([1850, 1920]));
 
   requireLinkedUserMock.mockResolvedValue({
     ok: true,
@@ -344,26 +344,38 @@ describe("POST /api/tournament/register", () => {
     expect(config.set.githubUrl).toBe("https://github.com/torvalds");
   });
 
-  it("returns 403 not_enough_rated_contests with the count when under 3 rated contests", async () => {
-    getUserRatingMock.mockResolvedValue(ratingHistory(2));
+  it("returns 403 rating_too_low with the peak rating when peak is 1899", async () => {
+    getUserRatingMock.mockResolvedValue(ratingHistory([1850, 1899]));
 
     const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toBe("not_enough_rated_contests");
-    expect(body.ratedContests).toBe(2);
+    expect(body.error).toBe("rating_too_low");
+    expect(body.peakRating).toBe(1899);
     expect(insertValuesMock).not.toHaveBeenCalled();
   });
 
-  it("proceeds with the upsert at exactly 3 rated contests", async () => {
-    getUserRatingMock.mockResolvedValue(ratingHistory(3));
+  it("proceeds with the upsert at exactly peak rating 1900", async () => {
+    getUserRatingMock.mockResolvedValue(ratingHistory([1850, 1900]));
 
     const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(200);
     expect(getUserRatingMock).toHaveBeenCalledWith("cfhandle");
     expect(insertValuesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 403 rating_too_low for an unrated handle (empty history)", async () => {
+    getUserRatingMock.mockResolvedValue(ratingHistory([]));
+
+    const res = await POST(makeRequest(baseBody()));
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("rating_too_low");
+    expect(body.peakRating).toBeNull();
+    expect(insertValuesMock).not.toHaveBeenCalled();
   });
 
   it("returns 502 cf_unavailable when the CF API call fails", async () => {
