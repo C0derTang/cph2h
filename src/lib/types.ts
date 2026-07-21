@@ -373,65 +373,6 @@ export interface AdminOverview {
 }
 
 // ---------------------------------------------------------------------------
-// Launch Tournament bracket (issue #235 — schema/contract only, no engine yet)
-//
-// Single-tournament assumption: exactly one bracket exists at a time. Re-seed
-// wipes and regenerates `tournament_matches` rather than versioning brackets.
-// ---------------------------------------------------------------------------
-
-export const TOURNAMENT_BRACKET_SIZE = 64;
-export const TOURNAMENT_TOTAL_ROUNDS = 6;
-export const TOURNAMENT_MATCH_WINDOW_HOURS = 24;
-
-export type TournamentMatchStatus = "pending" | "done";
-export type TournamentMatchResolution = "race" | "walkover" | "bye";
-
-export interface TournamentMatchPlayer {
-  userId: string;
-  username: string;
-  cfHandle: string | null;
-  cfRating: number | null;
-  seed: number;
-}
-
-export interface TournamentMatchDTO {
-  id: string;
-  round: number;
-  slot: number;
-  p1: TournamentMatchPlayer | null;
-  p2: TournamentMatchPlayer | null;
-  raceId: string | null;
-  raceStatus: RaceStatus | null; // joined; null when no race
-  raceOutcome: RaceOutcome | null; // joined; null when no race
-  winnerId: string | null;
-  status: TournamentMatchStatus;
-  resolution: TournamentMatchResolution | null;
-  deadlineAt: string | null; // ISO
-}
-
-export interface TournamentBracketDTO {
-  seeded: boolean;
-  matches: TournamentMatchDTO[];
-}
-
-export interface SeedBracketResponse {
-  created: number;
-  byes: number;
-}
-
-export interface CreateRoundRacesResponse {
-  created: number;
-  skipped: number;
-}
-
-export interface ResolveRoundResponse {
-  resolved: number;
-  advanced: number;
-  pendingRaces: number;
-  needsAttention: string[]; // match ids whose race ended draw/aborted
-}
-
-// ---------------------------------------------------------------------------
 // Codeforces API shapes (subset we consume)
 // ---------------------------------------------------------------------------
 

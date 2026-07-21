@@ -1,0 +1,1 @@
+DROP TABLE "tournament_matches" CASCADE;
