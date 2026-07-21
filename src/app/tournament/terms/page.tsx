@@ -16,7 +16,7 @@ const SECTIONS = [
   },
   {
     title: "Account requirements",
-    body: "You must have a CPH2H account with a linked Codeforces handle at the time the bracket is seeded. Seeding uses your linked Codeforces Elo.",
+    body: "You must have a CPH2H account with a linked Codeforces handle to register.",
   },
   {
     title: "Fair play",

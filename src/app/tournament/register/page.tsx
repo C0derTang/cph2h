@@ -102,8 +102,8 @@ export default async function TournamentRegisterPage() {
         {viewState === "cf_not_linked" && (
           <div className="flex flex-col gap-4">
             <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-              Bracket seeding is based on Codeforces Elo, so you&apos;ll need to
-              link a Codeforces account before you can register.
+              You&apos;ll need to link a Codeforces account before you can
+              register.
             </p>
             <SlabButton
               tone="self"
