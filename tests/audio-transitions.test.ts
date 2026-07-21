@@ -46,6 +46,7 @@ function baseSnapshot(overrides: Partial<RaceSnapshot> = {}): RaceSnapshot {
     livekitRoom: "room-1",
     challengeToken: null,
     drawOfferBy: null,
+    readyDeadlineAt: null,
     p1LastSeenAt: null,
     p2LastSeenAt: null,
     filters: null,

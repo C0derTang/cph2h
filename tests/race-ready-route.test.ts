@@ -133,6 +133,7 @@ function makeRace(overrides: Partial<Race> = {}): Race {
     problemSelectionFailedReason: null,
     livekitRoom: "room-1",
     drawOfferBy: null,
+    readyDeadlineAt: null,
     createdAt: null,
     ...overrides,
   };

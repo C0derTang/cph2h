@@ -26,11 +26,16 @@ export interface CreateRaceInput {
   timeLimitSec?: number;
   challengeToken?: string;
   /**
-   * Challenger-chosen problem filters (direct-challenge flow only, issue
-   * #64). Omitted entirely by matchmaking callers (`src/app/api/queue/route.ts`),
-   * which persist all four columns as null — unchanged from before this issue.
+   * Problem filters. Challenge flow: the challenger's picks (issue #64).
+   * Matchmaking (`src/app/api/queue/route.ts`): the intersection of both
+   * players' queue filters. Omitted = all four columns null.
    */
   filters?: RaceProblemFilters;
+  /**
+   * Matchmade races only: ready deadline (pairing time + READY_DEADLINE_SEC).
+   * Omitted for challenge races — non-null marks the race as matchmade.
+   */
+  readyDeadlineAt?: Date;
 }
 
 /** URL-safe challenge token. */
@@ -59,6 +64,7 @@ export async function createRace(input: CreateRaceInput): Promise<Race> {
       ratingMax: filters?.ratingMax ?? null,
       problemDateFrom: filters?.dateFrom ? new Date(filters.dateFrom) : null,
       problemDateTo: filters?.dateTo ? new Date(filters.dateTo) : null,
+      readyDeadlineAt: input.readyDeadlineAt ?? null,
     })
     .returning();
   return race;

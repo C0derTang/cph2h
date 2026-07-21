@@ -47,6 +47,15 @@ export const UNLOCK_REFETCH_BACKOFF_MS = [500, 1000, 2000] as const;
  */
 export const ABSENCE_FORFEIT_SEC = 60;
 
+/**
+ * Matchmade (quick-match) races only: both players must mark ready within this
+ * window of pairing. Past the deadline, one-ready resolves as a walkover win
+ * for the ready player (full Elo); zero-ready aborts with no Elo. Challenge
+ * races have no deadline (`races.ready_deadline_at` stays null there — a
+ * non-null value is also the "this race came from matchmaking" discriminator).
+ */
+export const READY_DEADLINE_SEC = 120;
+
 export const DEFAULT_CPP_TEMPLATE = `#include <bits/stdc++.h>
 using namespace std;
 
@@ -84,8 +93,10 @@ export interface SampleTest {
 }
 
 /**
- * Challenger-chosen constraints on problem selection (direct-challenge flow
- * only). All fields nullable — null means "no constraint". Rating bounds are
+ * Player-chosen constraints on problem selection. Set by the challenger in the
+ * direct-challenge flow, or picked before enqueueing in quick match (where a
+ * pairing requires overlapping filters and the race stores the intersection).
+ * All fields nullable — null means "no constraint". Rating bounds are
  * multiples of 100 within [PROBLEM_RATING_FLOOR, PROBLEM_RATING_CEIL]; dates
  * are ISO strings filtering on the problem's contest start date.
  */
@@ -193,8 +204,14 @@ export interface RaceSnapshot {
    */
   p1LastSeenAt: string | null;
   p2LastSeenAt: string | null;
-  /** Challenger-chosen problem filters; null when the race has none. */
+  /** Problem filters constraining selection; null when the race has none. */
   filters: RaceProblemFilters | null;
+  /**
+   * Matchmade races only: ISO instant by which both players must ready or the
+   * lobby resolves (walkover / abort). Null for challenge races — non-null is
+   * the client's "this race came from matchmaking" discriminator.
+   */
+  readyDeadlineAt: string | null;
   /**
    * Set when the last both-ready attempt could not select a problem (race
    * stays in the lobby with ready flags reset). Null otherwise.
@@ -253,6 +270,12 @@ export interface QueueStatusResponse {
   raceId: string | null;
   waitedSec: number | null;
   currentBand: number | null;
+  /**
+   * The caller's own queued problem filters, echoed so a remounting client can
+   * rehydrate its filter UI. Null when idle/matched, or when queued with no
+   * filters set.
+   */
+  filters: RaceProblemFilters | null;
 }
 
 /** Live activity counters for the queue page (GET /api/presence). `queued` =

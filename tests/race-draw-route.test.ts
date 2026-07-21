@@ -115,6 +115,7 @@ function makeRace(overrides: Partial<Race> = {}): Race {
     problemSelectionFailedReason: null,
     livekitRoom: "room-1",
     drawOfferBy: null,
+    readyDeadlineAt: null,
     createdAt: null,
     ...overrides,
   };
@@ -240,6 +241,7 @@ describe("POST /api/races/[id]/draw — accept", () => {
     const offered = makeRace({ drawOfferBy: P1 });
     const finished = makeRace({
       drawOfferBy: null,
+      readyDeadlineAt: null,
       status: "finished",
       outcome: "draw",
     });

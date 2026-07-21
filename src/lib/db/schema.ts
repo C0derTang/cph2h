@@ -174,9 +174,9 @@ export const races = pgTable(
     problemId: text("problem_id").references(() => problems.id),
     timeLimitSec: integer("time_limit_sec").notNull().default(2400),
     /**
-     * Challenger-chosen problem filters (direct-challenge flow only; null =
-     * no filter, matchmaking races leave all four null). Hard constraints on
-     * problem selection at ready time.
+     * Problem filters (null = no constraint). Challenge races: chosen by the
+     * challenger. Matchmade races: the intersection of both players' queue
+     * filters. Hard constraints on problem selection at ready time.
      */
     ratingMin: integer("rating_min"),
     ratingMax: integer("rating_max"),
@@ -208,6 +208,13 @@ export const races = pgTable(
     livekitRoom: text("livekit_room").notNull(),
     /** Player with an outstanding draw offer (mutual-consent draw); null when none. */
     drawOfferBy: uuid("draw_offer_by").references(() => users.id),
+    /**
+     * Matchmade races only: instant by which both players must ready or the
+     * lobby resolves (one ready → walkover win, zero ready → abort). Set to
+     * pairing time + READY_DEADLINE_SEC; null for challenge races, so a
+     * non-null value doubles as the "came from matchmaking" discriminator.
+     */
+    readyDeadlineAt: timestamp("ready_deadline_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [
@@ -249,6 +256,23 @@ export const queueEntries = pgTable(
       .references(() => users.id),
     elo: integer("elo").notNull(),
     enqueuedAt: timestamp("enqueued_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /**
+     * The player's chosen problem filters, snapshotted at enqueue (null = no
+     * constraint). Pairing requires both players' filter ranges to overlap;
+     * the created race stores the intersection.
+     */
+    ratingMin: integer("rating_min"),
+    ratingMax: integer("rating_max"),
+    dateFrom: timestamp("date_from", { withTimezone: true }),
+    dateTo: timestamp("date_to", { withTimezone: true }),
+    /**
+     * Heartbeat stamped on every queue-status poll. The sweep purges rows by
+     * staleness of THIS (client stopped polling), never `enqueuedAt` — a user
+     * legitimately waits longer than the purge window while actively polling.
+     */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },

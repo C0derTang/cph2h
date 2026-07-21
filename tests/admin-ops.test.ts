@@ -109,6 +109,7 @@ function makeRace(overrides: Partial<Race> = {}): Race {
     p2LastSeenAt: null,
     livekitRoom: "room-1",
     drawOfferBy: null,
+    readyDeadlineAt: null,
     createdAt: new Date("2026-06-30T23:55:00.000Z"),
     ...overrides,
   };

@@ -123,8 +123,8 @@ export async function GET(req: Request) {
   if (!entry) {
     const raceId = await findActiveRaceId(me.id);
     const body: QueueStatusResponse = raceId
-      ? { state: "matched", raceId, waitedSec: null, currentBand: null }
-      : { state: "idle", raceId: null, waitedSec: null, currentBand: null };
+      ? { state: "matched", raceId, waitedSec: null, currentBand: null, filters: null }
+      : { state: "idle", raceId: null, waitedSec: null, currentBand: null, filters: null };
     return NextResponse.json(body, { status: 200 });
   }
 
@@ -142,6 +142,7 @@ export async function GET(req: Request) {
       raceId,
       waitedSec,
       currentBand,
+      filters: null,
     };
     return NextResponse.json(body, { status: 200 });
   }
@@ -151,6 +152,8 @@ export async function GET(req: Request) {
     raceId: null,
     waitedSec,
     currentBand,
+    // Filter echo lands with the queue-filters issue; null until then.
+    filters: null,
   };
   return NextResponse.json(body, { status: 200 });
 }

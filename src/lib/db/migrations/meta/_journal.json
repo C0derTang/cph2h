@@ -85,6 +85,13 @@
       "when": 1784658664391,
       "tag": "0011_broken_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784672789742,
+      "tag": "0012_opposite_luminals",
+      "breakpoints": true
     }
   ]
 }
