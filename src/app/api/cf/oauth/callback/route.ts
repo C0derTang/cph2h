@@ -51,6 +51,9 @@ import {
   type OAuthErrorCode,
 } from "@/lib/cf/oauth";
 
+/** Explicit function timeout: 300 seconds. */
+export const maxDuration = 300;
+
 /** Postgres unique-violation code + the constraint on `users.cf_handle`. */
 const PG_UNIQUE_VIOLATION = "23505";
 const CF_HANDLE_UNIQUE_CONSTRAINT = "users_cf_handle_unique";
@@ -215,8 +218,26 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // 7. Import solve history (best-effort; failure does not fail the link).
+  //    Wrap in a 120s timeout so the import budget does not starve the overall
+  //    function timeout; abort is non-fatal (already swallowed below).
   try {
-    await importSolveHistory(user.id, handle);
+    const controller = new AbortController();
+    const importPromise = importSolveHistory(user.id, handle, { signal: controller.signal });
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<void>((resolve) => {
+      timeoutId = setTimeout(() => {
+        const error = new Error("oauth callback history-import budget expired");
+        error.name = "AbortError";
+        controller.abort(error);
+        resolve();
+      }, 120_000);
+    });
+    try {
+      await Promise.race([importPromise, timeout]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
   } catch {
     // Swallow — the account is linked; history can be re-synced later.
   }
