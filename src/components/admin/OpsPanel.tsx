@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge, type badgeVariants } from "@/components/ui/badge";
 import { Stat } from "@/components/ui/stat";
 import { formatEloDelta } from "@/lib/format";
+import { jitteredDelayMs } from "@/lib/poll-timing";
 import type { AdminOps, RecentRaceDTO, RecentRacePlayer } from "@/lib/admin/ops";
 import type { VariantProps } from "class-variance-authority";
 
@@ -53,21 +54,31 @@ export function OpsPanel() {
     }
   }, []);
 
+  // Self-rescheduling, jittered (issue #254) — desyncs admins' tabs instead
+  // of every open panel polling on the same fixed 30s wall-clock beat.
   useEffect(() => {
     cancelledRef.current = false;
+    let timer: ReturnType<typeof setTimeout>;
 
     async function load(background: boolean) {
       await fetchOps(background);
     }
 
+    const tick = async () => {
+      await load(true);
+      if (!cancelledRef.current) schedule();
+    };
+
+    const schedule = () => {
+      timer = setTimeout(() => void tick(), jitteredDelayMs(POLL_INTERVAL_MS));
+    };
+
     load(false);
-    const interval = setInterval(() => {
-      load(true);
-    }, POLL_INTERVAL_MS);
+    schedule();
 
     return () => {
       cancelledRef.current = true;
-      clearInterval(interval);
+      clearTimeout(timer);
     };
   }, [fetchOps]);
 

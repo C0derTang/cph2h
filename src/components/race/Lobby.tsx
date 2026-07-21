@@ -39,6 +39,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { buildJoinUrl } from "@/lib/race/join-url";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
+import { jitteredDelayMs } from "@/lib/poll-timing";
 import { canCompete } from "@/lib/race/av-requirements";
 import { useCamPermission, useMicPermission } from "@/components/race/useMicPermission";
 import { AudioToggleButtons } from "@/components/race/AudioControls";
@@ -134,6 +135,12 @@ export function Lobby({
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(`/api/races/${raceId}`, { cache: "no-store" });
+      if (res.status === 429) {
+        // Issue #254: our own future rate limiter (wave-10) — a soft skip,
+        // not an error. Keep the previous snapshot/error state and let the
+        // next poll tick retry.
+        return;
+      }
       if (!res.ok) {
         setError(fetchErrorMessage(res.status));
         return;
@@ -149,8 +156,9 @@ export function Lobby({
     }
   }, [raceId, applySnapshot]);
 
-  // Initial fetch (if not seeded by the server) + poll while the race is
-  // still in the lobby (pending/ready).
+  // Initial fetch (if not seeded by the server) + poll (self-rescheduling,
+  // jittered — issue #254) while the race is still in the lobby
+  // (pending/ready).
   useEffect(() => {
     if (!fetchedOnceRef.current) {
       refresh();
@@ -158,8 +166,23 @@ export function Lobby({
     if (snapshot?.status && TERMINAL_STATUSES.has(snapshot.status)) {
       return;
     }
-    const interval = setInterval(refresh, CLIENT_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async () => {
+      await refresh();
+      if (!cancelled) schedule();
+    };
+
+    const schedule = () => {
+      timer = setTimeout(() => void tick(), jitteredDelayMs(CLIENT_POLL_INTERVAL_MS));
+    };
+
+    schedule();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [refresh, snapshot?.status]);
 
   // Local re-render tick while counting down so the "starts in Ns" label
