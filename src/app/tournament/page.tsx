@@ -13,7 +13,7 @@ import { ensureUser } from "@/lib/user";
 export const metadata: Metadata = {
   title: "tournament — cph2h",
   description:
-    "The CPH2H Launch Tournament: a 64-player single-elimination Codeforces bracket. Format, rules, and how to sponsor.",
+    "The CPH2H Launch Tournament: a single-elimination Codeforces bracket — limited spots available. Format, rules, and how to sponsor.",
 };
 
 // "At a glance" facts — the format in five numbers. Kept as plain data so the
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 const FACTS = [
   {
     label: "Format",
-    value: "64-player",
+    value: "Limited spots",
     hint: "single-elimination bracket",
   },
   {
@@ -44,23 +44,6 @@ const FACTS = [
     value: "$500",
     hint: "$400 first · $100 second",
   },
-] as const;
-
-// The binding rules — a real, ordered list (reuses the landing page's
-// STEPS-style numbered-array-to-<ol> pattern, without the vignettes).
-const RULES = [
-  { n: "01", text: "All matches are played on CPH2H." },
-  {
-    n: "02",
-    text: "One 40-minute problem per match; difficulty scales by round.",
-  },
-  {
-    n: "03",
-    text: "Pairings get a 24-hour window (UTC) to schedule and complete their match.",
-  },
-  { n: "04", text: "Competitors self-report the winner after the match." },
-  { n: "05", text: "Camera and mic stay on for every match." },
-  { n: "06", text: "Entry requires at least 3 rated Codeforces contests." },
 ] as const;
 
 type ViewState = "signed_out" | "cf_not_linked" | "not_registered" | "registered";
@@ -176,7 +159,7 @@ export default async function TournamentPage() {
           />
 
           <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
-            64 competitors, one single-elimination bracket. Cameras on, one
+            Limited spots available — one single-elimination bracket. Cameras on, one
             Codeforces problem per round, first correct verdict advances.
           </p>
 
@@ -367,36 +350,6 @@ export default async function TournamentPage() {
             />
           ))}
         </div>
-      </section>
-
-      {/* Rules — what decides a match. */}
-      <section className="relative shell-narrow border-t border-border py-12 md:py-20">
-        {/* hud-meta scatter point 2/3: section index at the top-right edge. */}
-        <span
-          aria-hidden
-          className="hud-meta absolute top-5 right-6 md:right-8"
-        >
-          sec&nbsp;04&nbsp;/&nbsp;05
-        </span>
-        <p className="eyebrow text-muted-foreground">Rules</p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
-          How matches are decided
-        </h2>
-        <ol className="mt-8 flex flex-col gap-4">
-          {RULES.map((rule) => (
-            <li
-              key={rule.n}
-              className="flex gap-4 border-l-2 border-player-self/40 pl-4"
-            >
-              <span className="font-display text-sm tracking-[0.2em] text-player-self tabular-nums">
-                {rule.n}
-              </span>
-              <span className="text-sm leading-6 text-muted-foreground">
-                {rule.text}
-              </span>
-            </li>
-          ))}
-        </ol>
       </section>
 
       {/* Register — sign up for the bracket. Placed last so it reads as the
