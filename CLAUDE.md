@@ -57,7 +57,8 @@ Every change reaches `main` through: **issue → builder PR → reviewer → mas
 - **`src/lib/types.ts` is the shared contract** — race lifecycle, `RaceEvent` union, DTOs. Everything codes against it.
 - **Events are hints; `GET /api/races/[id]` is the source of truth.** Clients refetch the snapshot on mount/reconnect/any unapplyable LiveKit event.
 - **Race lifecycle**: `pending → ready → active → finished|aborted`; countdown is derived (`active && now < startedAt`), not stored. All transitions are atomic: `UPDATE ... WHERE id=$1 AND status='<expected>' RETURNING *`; zero rows = lost the race, re-read.
-- **`finishRace` is idempotent** via its own `WHERE status='active'` claim — it is the sole Elo-application mutex.
+- **`finishRace` is idempotent** via its own atomic claim — it is the sole Elo-application mutex. Default claim is `WHERE status='active'`; the matchmade ready-deadline walkover (`readyWalkover` input) claims `WHERE status='ready' AND ready_deadline_at < now AND exact ready flags` instead. The two claims are mutually exclusive (one status at a time).
+- **Matchmade races** (quick match) are discriminated by non-null `races.ready_deadline_at` (pairing time + `READY_DEADLINE_SEC`). Past the deadline: one player ready → walkover win via `finishRace` (full Elo, `startedAt` stays null — that's the client's walkover marker); zero ready → abort, no Elo. Enforcement is lazy (snapshot GET / ready POST resolve-then-re-read; daily sweep backstop). Matchmade filters = intersection of both players' queue filters, locked (`PATCH filters` → 409). Queue rows carry filters + a `last_seen_at` poll heartbeat — the sweep purges on heartbeat staleness, never `enqueued_at`.
 - **Never leak the problem before `startedAt`** (server-side gate in the snapshot builder).
 
 ## Stack gotchas
