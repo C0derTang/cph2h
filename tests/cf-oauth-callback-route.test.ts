@@ -168,7 +168,11 @@ describe("GET /api/cf/oauth/callback", () => {
     expect(setArg.cfRating).toBe(3800);
     expect(setArg.username).toBe("tourist");
     expect(setArg.cfLinkedAt).toBeInstanceOf(Date);
-    expect(importSolveHistoryMock).toHaveBeenCalledWith(USER.id, "tourist");
+    expect(importSolveHistoryMock).toHaveBeenCalledWith(
+      USER.id,
+      "tourist",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     // Single-use state cookie is cleared.
     expect(response.headers.get("set-cookie")).toContain("cf_oauth_state=");
   });
