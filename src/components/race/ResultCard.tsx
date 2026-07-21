@@ -48,6 +48,50 @@ const SUBHEADING: Record<Result, string> = {
   aborted: "This race ended before a winner was decided.",
 };
 
+/**
+ * A walkover is the only finish where `startedAt` never got set (the race
+ * never reached `active` — problem selection never even ran), so a winner
+ * with a null `startedAt` is unambiguous: `status==='finished'` can't happen
+ * any other way. Not persisted as its own status/outcome, so it's derived
+ * here rather than read off the snapshot.
+ */
+function isWalkoverFinish(snapshot: RaceSnapshot): boolean {
+  return snapshot.status === "finished" && snapshot.winnerId != null && snapshot.startedAt === null;
+}
+
+/**
+ * The other half of the matchmade ready-deadline invariant: nobody readied up
+ * in time, so the race aborts instead of resolving a winner. Only possible on
+ * a matchmade race (`readyDeadlineAt` non-null) that never started.
+ */
+function isMatchmadeTimeoutAbort(snapshot: RaceSnapshot): boolean {
+  return (
+    snapshot.status === "aborted" &&
+    snapshot.readyDeadlineAt !== null &&
+    snapshot.startedAt === null
+  );
+}
+
+function headingFor(result: Result, walkover: boolean): string {
+  if (walkover && result === "win") return "Walkover.";
+  return HEADING[result];
+}
+
+function subheadingFor(
+  result: Result,
+  walkover: boolean,
+  matchmadeTimeoutAbort: boolean,
+): string {
+  if (walkover && result === "win") return "Your opponent never readied up.";
+  if (walkover && result === "loss") {
+    return "You didn't ready up in time — opponent wins by walkover.";
+  }
+  if (matchmadeTimeoutAbort) {
+    return "Nobody readied up in time, so the match was cancelled. No Elo changed.";
+  }
+  return SUBHEADING[result];
+}
+
 export function ResultCard({
   snapshot,
   currentUserId,
@@ -55,6 +99,10 @@ export function ResultCard({
 }: ResultCardProps) {
   const result = resultFor(snapshot, currentUserId);
   const isP1 = snapshot.p1.id === currentUserId;
+  const walkover = isWalkoverFinish(snapshot);
+  const matchmadeTimeoutAbort = isMatchmadeTimeoutAbort(snapshot);
+  const heading = headingFor(result, walkover);
+  const subheading = subheadingFor(result, walkover, matchmadeTimeoutAbort);
 
   // Both sides' data is already on the snapshot — surfacing the opponent's
   // half too (winner glow / delta) is a display-only addition, no new
@@ -110,17 +158,17 @@ export function ResultCard({
               result === "win" ? "text-player-self" : "text-foreground",
             )}
           >
-            {HEADING[result]}
+            {heading}
           </h2>
         ) : (
           <h2
             data-testid="result-heading"
             className="font-display text-2xl tracking-tight uppercase"
           >
-            {HEADING[result]}
+            {heading}
           </h2>
         )}
-        <p className="text-sm text-muted-foreground">{SUBHEADING[result]}</p>
+        <p className="text-sm text-muted-foreground">{subheading}</p>
       </div>
 
       <div className="grid grid-cols-2 divide-x divide-border border-t border-border">
