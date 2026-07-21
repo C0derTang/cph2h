@@ -36,6 +36,8 @@ import { eq } from "drizzle-orm";
 
 import type { ProblemId, ProblemStatement, SampleTest } from "@/lib/types";
 import { problemUrl } from "@/lib/types";
+import { computeRetryDelayMs, parseRetryAfterMs } from "@/lib/cf/client";
+import { claimCfSlot } from "@/lib/cf/limiter";
 
 // ---------------------------------------------------------------------------
 // HTML-entity decoding (for LaTeX pulled back out of the HTML source)
@@ -273,23 +275,55 @@ function urlForProblem(problemId: ProblemId): string {
   return problemUrl({ contestId: Number(match[1]), index: match[2] });
 }
 
+/** Total statement-fetch attempts: 1 initial + 2 retries on 429/503. */
+const MAX_STATEMENT_ATTEMPTS = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Fetch and parse a problem's statement from codeforces.com. One HTTP request;
- * callers should prefer `getOrScrapeStatement` to avoid re-scraping.
+ * Fetch and parse a problem's statement from codeforces.com.
+ *
+ * Statement pages share the same CF/Cloudflare goodwill as the API, so each
+ * attempt claims a global slot via {@link claimCfSlot} before hitting the
+ * network (a `CfBackpressureError` from the claimer propagates as a fetch
+ * failure — statement pre-cache is best-effort at its call sites). A 429/503 is
+ * retried up to two extra times honouring `Retry-After` (reusing the client's
+ * `computeRetryDelayMs`); any other non-OK status keeps the previous
+ * fail-loud behaviour. Callers should prefer `getOrScrapeStatement` to avoid
+ * re-scraping.
  */
 export async function fetchStatement(problemId: ProblemId): Promise<ProblemStatement> {
-  const response = await fetch(urlForProblem(problemId), { headers: SCRAPE_HEADERS });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch statement for ${problemId}: HTTP ${response.status}`);
+  for (let attempt = 0; ; attempt++) {
+    await claimCfSlot();
+    const response = await fetch(urlForProblem(problemId), { headers: SCRAPE_HEADERS });
+
+    if (response.status === 429 || response.status === 503) {
+      const isLastAttempt = attempt >= MAX_STATEMENT_ATTEMPTS - 1;
+      if (isLastAttempt) {
+        throw new Error(
+          `Failed to fetch statement for ${problemId}: HTTP ${response.status}`,
+        );
+      }
+      const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+      await sleep(computeRetryDelayMs(attempt, retryAfterMs));
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch statement for ${problemId}: HTTP ${response.status}`);
+    }
+
+    const html = await response.text();
+    const parsed = parseStatementHtml(html);
+    // Fail loud on a half-scraped page: either an empty body or missing samples
+    // means the fetch is unusable, so never persist/return a partial statement.
+    if (parsed.samples.length === 0 || parsed.html.trim() === "") {
+      throw new Error(`No problem statement found for ${problemId}`);
+    }
+    return { problemId, ...parsed };
   }
-  const html = await response.text();
-  const parsed = parseStatementHtml(html);
-  // Fail loud on a half-scraped page: either an empty body or missing samples
-  // means the fetch is unusable, so never persist/return a partial statement.
-  if (parsed.samples.length === 0 || parsed.html.trim() === "") {
-    throw new Error(`No problem statement found for ${problemId}`);
-  }
-  return { problemId, ...parsed };
 }
 
 /**

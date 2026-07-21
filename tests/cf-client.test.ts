@@ -337,10 +337,23 @@ describe("computeRetryDelayMs", () => {
     expect(computeRetryDelayMs(3, undefined, () => 0)).toBe(30000);
     expect(computeRetryDelayMs(10, undefined, () => 0.5)).toBe(30500);
 
-    // Retry-After dominates when larger than the backoff term
-    expect(computeRetryDelayMs(0, 50000, () => 0)).toBe(50000);
+    // Retry-After dominates when larger than the backoff term (still clamped
+    // to MAX_RETRY_AFTER_MS = 30000, so 25000 wins over the 5000 backoff).
+    expect(computeRetryDelayMs(0, 25000, () => 0)).toBe(25000);
     // ...but not when smaller
     expect(computeRetryDelayMs(0, 3000, () => 0)).toBe(5000);
+  });
+
+  it("clamps a huge Retry-After to MAX_RETRY_AFTER_MS so it cannot park the queue", async () => {
+    const { computeRetryDelayMs, MAX_RETRY_AFTER_MS } = await importClient();
+
+    expect(MAX_RETRY_AFTER_MS).toBe(30000);
+    // A hostile Retry-After: 3600 (3_600_000ms) must not sleep ~1h; clamp to 30s.
+    expect(computeRetryDelayMs(0, 3_600_000, () => 0)).toBe(30000);
+    // Exactly at the cap is preserved.
+    expect(computeRetryDelayMs(0, 30000, () => 0)).toBe(30000);
+    // Clamp still leaves jitter intact.
+    expect(computeRetryDelayMs(0, 3_600_000, () => 0.5)).toBe(30500);
   });
 });
 
@@ -430,6 +443,36 @@ describe("slot-claimer seam", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(claimer).toHaveBeenCalledTimes(2);
+
+    await Promise.all([first, second]);
+  });
+
+  it("stamps the local spacing reference on a claimer-handled request so a later fallback still spaces", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse({ status: "OK", result: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getUserStatus, setSlotClaimer } = await importClient();
+    const claimer = vi
+      .fn()
+      .mockResolvedValueOnce(undefined) // handles pacing => must stamp local ref
+      .mockResolvedValueOnce({ fallback: true }); // declines => local spacing
+    setSlotClaimer(claimer);
+
+    const first = getUserStatus("alice");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const second = getUserStatus("bob");
+    // The fallback attempt must honour the 2s window measured from the first
+    // (claimer-handled) request — not fire immediately against a stale/absent
+    // reference. Without stamping on the handled path it would fire at t=0.
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     await Promise.all([first, second]);
   });
