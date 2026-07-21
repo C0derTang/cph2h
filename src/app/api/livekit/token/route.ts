@@ -12,6 +12,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { races, users } from "@/lib/db/schema";
 import { ensureRoom, mintToken } from "@/lib/livekit";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 const bodySchema = z.object({
   raceId: z.uuid(),
@@ -19,6 +20,10 @@ const bodySchema = z.object({
 
 export async function POST(req: Request) {
   const { isAuthenticated, userId: clerkId } = await auth();
+
+  const limited = await enforcePolicy(req, "livekitToken", clerkId ?? null);
+  if (limited) return limited;
+
   if (!isAuthenticated || !clerkId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

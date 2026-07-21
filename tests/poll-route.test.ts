@@ -22,8 +22,11 @@ import type { Race, User } from "../src/lib/db/schema";
 import type { SessionResult } from "../src/lib/race/session";
 import { POLL_MIN_INTERVAL_SEC } from "../src/lib/types";
 import { SECONDS_PER_ACTIVE_RACE } from "../src/lib/race/poll-interval";
+import { _resetMemoryStore } from "../src/lib/ratelimit";
+import { RATE_LIMIT_POLICIES } from "../src/lib/ratelimit/policies";
 
 const {
+  authMock,
   requireLinkedUserMock,
   stampHeartbeatMock,
   pollActiveRaceMock,
@@ -41,6 +44,7 @@ const {
   };
   const events: string[] = [];
   return {
+    authMock: vi.fn(),
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
     stampHeartbeatMock: vi.fn(async () => {
       events.push("heartbeat");
@@ -56,6 +60,7 @@ const {
   };
 });
 
+vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/race/poll", () => ({
   stampHeartbeat: stampHeartbeatMock,
@@ -156,6 +161,8 @@ function req(): Request {
 }
 
 beforeEach(() => {
+  _resetMemoryStore();
+  authMock.mockReset().mockResolvedValue({ userId: "clerk-user-p1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
   stampHeartbeatMock.mockClear();
   pollActiveRaceMock.mockClear();
@@ -258,5 +265,41 @@ describe("POST /api/races/[id]/poll — dynamic claim window (issue #238)", () =
     expect(res.status).toBe(403);
     expect(stampHeartbeatMock).not.toHaveBeenCalled();
     expect(events).toEqual([]);
+  });
+});
+
+describe("POST /api/races/[id]/poll — rate limiting (issue #257)", () => {
+  it("allows requests within the policy limit unchanged", async () => {
+    const race = makeRace();
+    dbState.selectResults = [[race], [race]];
+    dbState.claimReturns = [[race]];
+
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(200);
+    expect(requireLinkedUserMock).toHaveBeenCalled();
+  });
+
+  it("returns 429 with a Retry-After header once the per-minute limit is exceeded, without touching the DB", async () => {
+    const { limit } = RATE_LIMIT_POLICIES.racePoll.policy;
+    const race = makeRace();
+
+    for (let i = 0; i < limit; i++) {
+      dbState.selectResults = [[race], [race]];
+      dbState.selectIndex = 0;
+      dbState.claimReturns = [[race]];
+      dbState.claimIndex = 0;
+      const ok = await POST(req(), { params });
+      expect(ok.status).toBe(200);
+    }
+
+    requireLinkedUserMock.mockClear();
+    const res = await POST(req(), { params });
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).not.toBeNull();
+    expect(await res.json()).toEqual({ error: "rate_limited" });
+    // Rate-limited before the session/DB path ever runs.
+    expect(requireLinkedUserMock).not.toHaveBeenCalled();
   });
 });

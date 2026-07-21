@@ -21,6 +21,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { queueEntries, races } from "@/lib/db/schema";
@@ -29,6 +30,7 @@ import { createRace } from "@/lib/race/create";
 import { bandForWait, tryPair, BAND_BASE } from "@/lib/matchmaking";
 import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import type { QueueStatusResponse } from "@/lib/types";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 /** Create a `ready` quick-match race with the caller as p1. */
 async function createReadyRace(meId: string, opponentId: string): Promise<string> {
@@ -56,7 +58,11 @@ async function findActiveRaceId(meId: string): Promise<string | null> {
 // POST — enqueue
 // ---------------------------------------------------------------------------
 
-export async function POST() {
+export async function POST(req: Request) {
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "queueWrite", clerkId);
+  if (limited) return limited;
+
   const session = await requireLinkedUser();
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
@@ -95,7 +101,11 @@ export async function POST() {
 // GET — status (poll)
 // ---------------------------------------------------------------------------
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "queueGet", clerkId);
+  if (limited) return limited;
+
   const session = await requireLinkedUser();
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
@@ -149,7 +159,11 @@ export async function GET() {
 // DELETE — leave the queue
 // ---------------------------------------------------------------------------
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "queueWrite", clerkId);
+  if (limited) return limited;
+
   const session = await requireLinkedUser();
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });

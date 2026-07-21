@@ -7,10 +7,16 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { getPresenceCounts } from "@/lib/presence-counts";
 import type { PresenceCounts } from "@/lib/types";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "presence", clerkId);
+  if (limited) return limited;
+
   const counts: PresenceCounts = await getPresenceCounts();
   return NextResponse.json(counts, { status: 200 });
 }

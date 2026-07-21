@@ -9,9 +9,18 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionResult } from "../src/lib/race/session";
+import { _resetMemoryStore } from "../src/lib/ratelimit";
 
-const { requireLinkedUserMock, tryPairMock, getCheaterSetMock, isKnownCheaterMock, dbInsertMock } =
+const {
+  authMock,
+  requireLinkedUserMock,
+  tryPairMock,
+  getCheaterSetMock,
+  isKnownCheaterMock,
+  dbInsertMock,
+} =
   vi.hoisted(() => ({
+    authMock: vi.fn(),
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
     tryPairMock: vi.fn(),
     getCheaterSetMock: vi.fn(),
@@ -19,6 +28,7 @@ const { requireLinkedUserMock, tryPairMock, getCheaterSetMock, isKnownCheaterMoc
     dbInsertMock: vi.fn(),
   }));
 
+vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/race/create", () => ({ createRace: vi.fn() }));
 vi.mock("@/lib/matchmaking", () => ({
@@ -63,7 +73,13 @@ function mockSession(cfHandle: string | null = "mecf") {
   });
 }
 
+function req(): Request {
+  return new Request("http://localhost/api/queue", { method: "POST" });
+}
+
 beforeEach(() => {
+  _resetMemoryStore();
+  authMock.mockReset().mockResolvedValue({ userId: "clerk-1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
   tryPairMock.mockReset().mockResolvedValue(null);
   getCheaterSetMock.mockReset().mockResolvedValue(new Set());
@@ -77,7 +93,7 @@ describe("POST /api/queue — cheater blocklist (issue #184)", () => {
     getCheaterSetMock.mockResolvedValue(new Set(["mecf"]));
     isKnownCheaterMock.mockReturnValue(true);
 
-    const res = await POST();
+    const res = await POST(req());
 
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe("cheater_blocked");
@@ -88,7 +104,7 @@ describe("POST /api/queue — cheater blocklist (issue #184)", () => {
   it("fails open and enqueues normally when the cheater list is unavailable", async () => {
     getCheaterSetMock.mockResolvedValue(null);
 
-    const res = await POST();
+    const res = await POST(req());
 
     expect(res.status).toBe(200);
     expect(isKnownCheaterMock).not.toHaveBeenCalled();
@@ -99,7 +115,7 @@ describe("POST /api/queue — cheater blocklist (issue #184)", () => {
     getCheaterSetMock.mockResolvedValue(new Set(["someoneelse"]));
     isKnownCheaterMock.mockReturnValue(false);
 
-    const res = await POST();
+    const res = await POST(req());
 
     expect(res.status).toBe(200);
     expect(tryPairMock).toHaveBeenCalled();
@@ -108,9 +124,28 @@ describe("POST /api/queue — cheater blocklist (issue #184)", () => {
   it("does not check the cheater list when unauthenticated", async () => {
     requireLinkedUserMock.mockResolvedValue({ ok: false, status: 401, error: "unauthorized" });
 
-    const res = await POST();
+    const res = await POST(req());
 
     expect(res.status).toBe(401);
     expect(getCheaterSetMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/queue — rate limiting (issue #257)", () => {
+  it("returns 429 once the per-minute write limit is exceeded, without calling requireLinkedUser", async () => {
+    const { RATE_LIMIT_POLICIES } = await import("../src/lib/ratelimit/policies");
+    const { limit } = RATE_LIMIT_POLICIES.queueWrite.policy;
+
+    for (let i = 0; i < limit; i++) {
+      const ok = await POST(req());
+      expect(ok.status).toBe(200);
+    }
+
+    requireLinkedUserMock.mockClear();
+    const res = await POST(req());
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).not.toBeNull();
+    expect(requireLinkedUserMock).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -31,6 +32,7 @@ import {
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { finishRace } from "@/lib/race/hooks";
 import { publishRaceEvent } from "@/lib/livekit";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 const bodySchema = z.object({
   action: z.enum(["offer", "accept", "decline"]),
@@ -51,6 +53,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "raceDraw", clerkId);
+  if (limited) return limited;
 
   const session = await requireLinkedUser();
   if (!session.ok) {

@@ -11,18 +11,26 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { races } from "@/lib/db/schema";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { requireLinkedUser } from "@/lib/race/session";
 import { isParticipant } from "@/lib/race/machine";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  // Rate-limit first thing, keyed off the cheap Clerk userId (no DB lookup) —
+  // an over-limit refetch never reaches `requireLinkedUser`'s DB call below.
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "raceSnapshot", clerkId);
+  if (limited) return limited;
 
   const session = await requireLinkedUser();
   if (!session.ok) {

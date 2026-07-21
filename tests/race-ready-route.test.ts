@@ -14,8 +14,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Race } from "../src/lib/db/schema";
 import type { SessionResult } from "../src/lib/race/session";
 import type { SelectProblemResult } from "../src/lib/types";
+import { _resetMemoryStore } from "../src/lib/ratelimit";
 
 const {
+  authMock,
   requireLinkedUserMock,
   selectRaceProblemMock,
   publishRaceEventMock,
@@ -34,6 +36,7 @@ const {
     playerRows: [] as unknown[],
   };
   return {
+    authMock: vi.fn(),
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
     selectRaceProblemMock: vi.fn<() => Promise<SelectProblemResult>>(),
     publishRaceEventMock: vi.fn().mockResolvedValue(undefined),
@@ -49,6 +52,7 @@ const {
   };
 });
 
+vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/race/hooks", () => ({
   selectRaceProblem: selectRaceProblemMock,
@@ -172,6 +176,8 @@ function mockSessionAs(userId: string) {
 
 beforeEach(() => {
   vi.useRealTimers();
+  _resetMemoryStore();
+  authMock.mockReset().mockResolvedValue({ userId: "clerk-user-p1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
   selectRaceProblemMock.mockReset();
   publishRaceEventMock.mockClear();

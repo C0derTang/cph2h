@@ -16,8 +16,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Race } from "../src/lib/db/schema";
 import type { SessionResult } from "../src/lib/race/session";
 import type { RaceEvent } from "../src/lib/types";
+import { _resetMemoryStore } from "../src/lib/ratelimit";
 
 const {
+  authMock,
   requireLinkedUserMock,
   updateSetMock,
   finishRaceMock,
@@ -31,6 +33,7 @@ const {
     updateReturning: [] as unknown[],
   };
   return {
+    authMock: vi.fn(),
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
     updateSetMock: vi.fn(),
     finishRaceMock: vi.fn().mockResolvedValue(undefined),
@@ -44,6 +47,7 @@ const {
   };
 });
 
+vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({
   requireLinkedUser: requireLinkedUserMock,
 }));
@@ -131,6 +135,8 @@ function makeRequest(body: unknown): Request {
 const params = Promise.resolve({ id: RACE_ID });
 
 beforeEach(() => {
+  _resetMemoryStore();
+  authMock.mockReset().mockResolvedValue({ userId: "clerk-p1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
   updateSetMock.mockClear();
   finishRaceMock.mockClear();

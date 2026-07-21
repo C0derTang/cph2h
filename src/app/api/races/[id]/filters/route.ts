@@ -16,6 +16,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { races, type Race } from "@/lib/db/schema";
@@ -23,6 +24,7 @@ import { requireLinkedUser } from "@/lib/race/session";
 import { raceFiltersSchema, toRaceProblemFilters } from "@/lib/race/filters";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { publishRaceEvent } from "@/lib/race/hooks";
+import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 const EDITABLE_STATUSES = ["pending", "ready"] as const;
 
@@ -31,6 +33,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  const { userId: clerkId } = await auth();
+  const limited = await enforcePolicy(req, "raceFilters", clerkId);
+  if (limited) return limited;
 
   const session = await requireLinkedUser();
   if (!session.ok) {

@@ -11,8 +11,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Race } from "../src/lib/db/schema";
 import type { SessionResult } from "../src/lib/race/session";
+import { _resetMemoryStore } from "../src/lib/ratelimit";
 
-const { requireLinkedUserMock, publishRaceEventMock, buildRaceSnapshotMock, updateSetMock, dbState } =
+const {
+  authMock,
+  requireLinkedUserMock,
+  publishRaceEventMock,
+  buildRaceSnapshotMock,
+  updateSetMock,
+  dbState,
+} =
   vi.hoisted(() => {
     const dbState = {
       selectResults: [] as unknown[][],
@@ -20,6 +28,7 @@ const { requireLinkedUserMock, publishRaceEventMock, buildRaceSnapshotMock, upda
       updateReturns: [] as unknown[],
     };
     return {
+      authMock: vi.fn(),
       requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
       publishRaceEventMock: vi.fn().mockResolvedValue(undefined),
       buildRaceSnapshotMock: vi.fn(async (race: Race) => ({
@@ -31,6 +40,7 @@ const { requireLinkedUserMock, publishRaceEventMock, buildRaceSnapshotMock, upda
     };
   });
 
+vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/race/snapshot", () => ({ buildRaceSnapshot: buildRaceSnapshotMock }));
 vi.mock("@/lib/race/hooks", () => ({ publishRaceEvent: publishRaceEventMock }));
@@ -131,6 +141,8 @@ function mockSessionAs(userId: string) {
 }
 
 beforeEach(() => {
+  _resetMemoryStore();
+  authMock.mockReset().mockResolvedValue({ userId: "clerk-user-p1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
   publishRaceEventMock.mockClear();
   buildRaceSnapshotMock.mockClear();

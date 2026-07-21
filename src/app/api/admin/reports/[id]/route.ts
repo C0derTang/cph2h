@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveReport } from "@/lib/admin/reports";
 import { requireAdmin } from "@/lib/race/session";
+import { enforceAdminPolicy } from "@/lib/ratelimit/policies";
 
 const resolveBodySchema = z.object({ status: z.literal("resolved") });
 
@@ -22,6 +23,9 @@ export async function PATCH(
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
+
+  const limited = await enforceAdminPolicy(session.user.id);
+  if (limited) return limited;
 
   const { id } = await params;
 
