@@ -334,42 +334,6 @@ export const tournamentRegistrations = pgTable("tournament_registrations", {
 });
 
 // ---------------------------------------------------------------------------
-// Tournament bracket
-//
-// Single-tournament assumption (issue #235): exactly one bracket is live at a
-// time. There is no tournament/version id on this table — re-seeding wipes
-// all `tournament_matches` rows and regenerates the full bracket from
-// scratch rather than versioning multiple brackets side by side.
-// ---------------------------------------------------------------------------
-
-export const tournamentMatches = pgTable(
-  "tournament_matches",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    round: integer("round").notNull(), // 1..6; 1 = round of 64
-    slot: integer("slot").notNull(), // 0-based within round
-    p1Id: uuid("p1_id").references(() => users.id), // null = bye / TBD
-    p2Id: uuid("p2_id").references(() => users.id),
-    p1Seed: integer("p1_seed"), // 1-based seed snapshot, display-only
-    p2Seed: integer("p2_seed"),
-    raceId: uuid("race_id").references(() => races.id), // re-assignable; null until race created
-    winnerId: uuid("winner_id").references(() => users.id),
-    /** `'pending' | 'done'` — TournamentMatchStatus in types.ts; text not PG enum (cheaper future migrations, matches reports.status pattern). */
-    status: text("status").notNull().default("pending"),
-    /** `'race' | 'walkover' | 'bye' | null` — how a done match was decided. */
-    resolution: text("resolution"),
-    /** Informational 24h window end, stamped at race creation. No cron enforces it — admin resolves. */
-    deadlineAt: timestamp("deadline_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    uniqueIndex("tournament_matches_round_slot_idx").on(t.round, t.slot),
-    index("tournament_matches_race_id_idx").on(t.raceId),
-  ],
-);
-
-// ---------------------------------------------------------------------------
 // Inferred row types
 // ---------------------------------------------------------------------------
 
@@ -405,6 +369,3 @@ export type NewReport = typeof reports.$inferInsert;
 
 export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect;
 export type NewTournamentRegistration = typeof tournamentRegistrations.$inferInsert;
-
-export type TournamentMatch = typeof tournamentMatches.$inferSelect;
-export type NewTournamentMatch = typeof tournamentMatches.$inferInsert;

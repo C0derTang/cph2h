@@ -204,9 +204,8 @@ export function RegisterForm({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Your name and email are used for bracket seeding and organizer
-          contact. Links you provide are shared with tournament sponsors
-          only.
+          Your name and email are used for organizer contact. Links you
+          provide are shared with tournament sponsors only.
         </p>
 
         {!registered && (

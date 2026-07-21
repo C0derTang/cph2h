@@ -17,7 +17,6 @@ import type { AdminOverview } from "@/lib/types";
 import { EloHistogramChart, RacesPerDayChart, VerdictDistChart } from "./charts";
 import { OpsPanel } from "./OpsPanel";
 import { GrowthCharts } from "./GrowthCharts";
-import { BracketPanel } from "./BracketPanel";
 import { RegistrantsTable } from "./RegistrantsTable";
 import { UserDirectory } from "./UserDirectory";
 import { ReportsQueue } from "./ReportsQueue";
@@ -126,7 +125,6 @@ export function AdminDashboard() {
       {!loading && (
         <div className="mt-8 flex flex-col gap-6">
           <GrowthCharts />
-          <BracketPanel />
           <RegistrantsTable />
           <UserDirectory />
         </div>

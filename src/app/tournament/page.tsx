@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     "The CPH2H Launch Tournament: a 64-player single-elimination Codeforces bracket. Format, rules, and how to sponsor.",
 };
 
-// "At a glance" facts — the format in six numbers. Kept as plain data so the
+// "At a glance" facts — the format in five numbers. Kept as plain data so the
 // grid below stays a pure render, matching the landing page's STEPS pattern.
 const FACTS = [
   {
@@ -39,11 +39,6 @@ const FACTS = [
     hint: "per pairing, to coordinate + play",
   },
   {
-    label: "Seeding",
-    value: "CF Elo",
-    hint: "bracket placement by rating",
-  },
-  {
     label: "Prize pool",
     value: "$500",
     hint: "$400 first · $100 second",
@@ -63,9 +58,8 @@ const RULES = [
     text: "Pairings get a 24-hour window (UTC) to schedule and complete their match.",
   },
   { n: "04", text: "Competitors self-report the winner after the match." },
-  { n: "05", text: "Seeding is by Codeforces rating; the top 64 registrants by rating at seeding time make the bracket." },
-  { n: "06", text: "Camera and mic stay on for every match." },
-  { n: "07", text: "Entry requires at least 3 rated Codeforces contests." },
+  { n: "05", text: "Camera and mic stay on for every match." },
+  { n: "06", text: "Entry requires at least 3 rated Codeforces contests." },
 ] as const;
 
 const SPONSOR_SLOT_COUNT = 4;
@@ -351,7 +345,7 @@ export default async function TournamentPage() {
         </ul>
       </section>
 
-      {/* At a glance — the format in six facts. */}
+      {/* At a glance — the format in five facts. */}
       <section className="shell border-t border-border py-12 md:py-20">
         <p className="eyebrow text-muted-foreground">At a glance</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
@@ -437,8 +431,8 @@ export default async function TournamentPage() {
           {viewState === "cf_not_linked" && (
             <div className="flex flex-col gap-4">
               <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-                Bracket seeding is based on Codeforces Elo, so you&apos;ll need to
-                link a Codeforces account before you can register.
+                You&apos;ll need to link a Codeforces account before you can
+                register.
               </p>
               <SlabButton
                 tone="self"
