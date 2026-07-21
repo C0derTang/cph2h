@@ -10,7 +10,7 @@ import { ensureUser } from "@/lib/user";
 import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = {
-  title: "register — cph2h tournament",
+  title: "register · cph2h tournament",
   description: "Register for the CPH2H Launch Tournament.",
 };
 

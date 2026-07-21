@@ -37,7 +37,7 @@ const STEPS = [
   {
     n: "04",
     title: "Climb or cope",
-    caption: "First AC takes the round — and the Elo.",
+    caption: "First AC takes the round, and the Elo.",
     Vignette: EloVignette,
   },
 ];
@@ -106,7 +106,7 @@ export default async function Home() {
               below the word's 0.9 line box at hero scale. */}
           <p className="mt-24 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
             cph2h drops you and one opponent into a live Codeforces problem
-            with your cameras on. First correct verdict takes the race — and
+            with your cameras on. First correct verdict takes the race, and
             the Elo. Shittalk your way to a higher rating.
           </p>
 

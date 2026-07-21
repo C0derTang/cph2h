@@ -205,7 +205,7 @@ export function ReportsQueue() {
         {!loading && !error && reports && reports.length === 0 && (
           <p className="py-6 text-sm text-muted-foreground">
             {filter === "open"
-              ? "Queue's clean — no open reports."
+              ? "Queue's clean. No open reports."
               : "No reports match this filter."}
           </p>
         )}

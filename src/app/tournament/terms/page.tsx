@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "tournament terms — cph2h",
+  title: "tournament terms · cph2h",
   description: "Terms and eligibility for the CPH2H Launch Tournament.",
 };
 
@@ -20,7 +20,7 @@ const SECTIONS = [
   },
   {
     title: "Fair play",
-    body: "No cheating: no alternate accounts, no assistance from other people, no use of solutions found online for the round's problem. All submitted code must be your own work. Your camera and microphone must be on for the duration of every match. Self-reported results are expected to be honest — organizers may audit submissions.",
+    body: "No cheating: no alternate accounts, no assistance from other people, no use of solutions found online for the round's problem. All submitted code must be your own work. Your camera and microphone must be on for the duration of every match. Self-reported results are expected to be honest. Organizers may audit submissions.",
   },
   {
     title: "Schedule and format",
@@ -28,7 +28,7 @@ const SECTIONS = [
   },
   {
     title: "Sponsor visibility",
-    body: "If you provide a GitHub and/or LinkedIn URL during registration, it is shared only with tournament sponsors — never published publicly. Leaving these fields blank has no effect on eligibility.",
+    body: "If you provide a GitHub and/or LinkedIn URL during registration, it is shared only with tournament sponsors, never published publicly. Leaving these fields blank has no effect on eligibility.",
   },
   {
     title: "Prizes",

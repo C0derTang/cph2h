@@ -23,7 +23,7 @@ export default function NotFound() {
           Nothing here
         </h1>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground md:text-base">
-          This page doesn&apos;t exist — or isn&apos;t yours to see. Head back
+          This page doesn&apos;t exist, or isn&apos;t yours to see. Head back
           and pick a fight from the menu.
         </p>
       </div>

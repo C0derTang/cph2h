@@ -91,7 +91,7 @@ export function filterSummary(filters: RaceProblemFilters): string {
     const to = filters.dateTo ? isoToDateInput(filters.dateTo) : "any";
     parts.push(`Contest ${from} → ${to}`);
   }
-  return parts.length > 0 ? parts.join(" · ") : "No filters — any problem";
+  return parts.length > 0 ? parts.join(" · ") : "No filters, any problem";
 }
 
 export function FilterEditor({

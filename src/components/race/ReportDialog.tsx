@@ -119,7 +119,7 @@ export function ReportDialog({ open, onOpenChange, raceId }: ReportDialogProps) 
                   Report filed
                 </Dialog.Title>
                 <Dialog.Description className="text-sm text-muted-foreground">
-                  Thanks — a moderator will take a look.
+                  Thanks. A moderator will take a look.
                 </Dialog.Description>
               </div>
               <SlabButton

@@ -47,7 +47,7 @@ export default async function CfSettingsPage({
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
             Link your Codeforces handle so we can pull your race verdicts
-            automatically. No password needed — you authorize the connection on
+            automatically. No password needed, you authorize the connection on
             Codeforces with one click.
           </p>
         </div>

@@ -57,8 +57,8 @@ export function JoinChallengeForm({
       toast.success("You’re in. Go.");
       router.push(`/race/${snapshot.id}`);
     } catch {
-      setError("Network error — please try again.");
-      toast.error("Network error — please try again.");
+      setError("Network error. Please try again.");
+      toast.error("Network error. Please try again.");
     } finally {
       setJoining(false);
     }
@@ -85,8 +85,8 @@ export function JoinChallengeForm({
       toast.success("Challenge declined.");
       router.refresh();
     } catch {
-      setError("Network error — please try again.");
-      toast.error("Network error — please try again.");
+      setError("Network error. Please try again.");
+      toast.error("Network error. Please try again.");
     } finally {
       setDeclining(false);
     }

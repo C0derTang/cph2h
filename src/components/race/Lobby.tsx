@@ -268,7 +268,7 @@ export function Lobby({
       }
       applySnapshot(data as RaceSnapshot);
     } catch {
-      const message = "Couldn’t mark ready — check your connection and try again.";
+      const message = "Couldn’t mark ready. Check your connection and try again.";
       setError(message);
       toast.error(message);
     } finally {
@@ -293,7 +293,7 @@ export function Lobby({
       }
       applySnapshot(data as RaceSnapshot);
     } catch {
-      const message = "Couldn’t cancel the race — check your connection and try again.";
+      const message = "Couldn’t cancel the race. Check your connection and try again.";
       setError(message);
       toast.error(message);
     } finally {
@@ -320,9 +320,9 @@ export function Lobby({
       }
       applySnapshot(data as RaceSnapshot);
       setEditingFilters(false);
-      toast.success("Filters updated — ready up again to start.");
+      toast.success("Filters updated. Ready up again to start.");
     } catch {
-      const message = "Couldn't update filters — check your connection and try again.";
+      const message = "Couldn't update filters. Check your connection and try again.";
       setError(message);
       toast.error(message);
     } finally {
@@ -339,7 +339,7 @@ export function Lobby({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Couldn’t copy — your browser may be blocking clipboard access.");
+      toast.error("Couldn’t copy. Your browser may be blocking clipboard access.");
     }
   }
 
@@ -618,14 +618,14 @@ function CompeteGate({
   const micLabel = !mic.supported
     ? "Mic unsupported in this browser"
     : mic.permissionState === "denied"
-      ? "Mic blocked — allow it in your browser's site settings"
+      ? "Mic blocked. Allow it in your browser's site settings"
       : "Grant mic";
 
   const camOk = cam.camGranted && cam.camLive;
   const camLabel = !cam.supported
     ? "Camera unsupported in this browser"
     : cam.permissionState === "denied"
-      ? "Camera blocked — allow it in your browser's site settings"
+      ? "Camera blocked. Allow it in your browser's site settings"
       : "Grant camera";
 
   return (
@@ -802,12 +802,12 @@ function statusHeading(snapshot: RaceSnapshot, nowMs: number): string {
 function statusSubheading(snapshot: RaceSnapshot, nowMs: number): string {
   switch (snapshot.status) {
     case "pending":
-      return "Share the link below — the race begins once your opponent joins.";
+      return "Share the link below. The race begins once your opponent joins.";
     case "ready":
       return "Both players must mark ready to start the countdown.";
     case "active":
       return snapshot.startedAt && nowMs < new Date(snapshot.startedAt).getTime()
-        ? "Get ready — the problem unlocks when the countdown ends."
+        ? "Get ready. The problem unlocks when the countdown ends."
         : "Don’t choke.";
     case "finished":
       return "This race has already ended.";
@@ -838,12 +838,12 @@ function readyDeadlineCopy(
 ): string {
   const mmss = formatMinSec(secondsLeft);
   if (!youReady && !opponentReady) {
-    return `Ready up — match cancelled in ${mmss}`;
+    return `Ready up. Match cancelled in ${mmss}`;
   }
   if (youReady && !opponentReady) {
-    return `Waiting for opponent — they forfeit in ${mmss}`;
+    return `Waiting for opponent. They forfeit in ${mmss}`;
   }
-  return `Opponent is ready — ready up or they win. ${mmss}`;
+  return `Opponent is ready. Ready up or they win. ${mmss}`;
 }
 
 function fetchErrorMessage(status: number): string {
@@ -882,7 +882,7 @@ function filtersErrorMessage(error?: string): string {
     case "not_editable":
       return "Filters can only be changed before the race starts.";
     case "invalid_body":
-      return "Those filters aren't valid — check the rating and date ranges.";
+      return "Those filters aren't valid. Check the rating and date ranges.";
     default:
       return "Couldn't update filters. Try again.";
   }
@@ -901,7 +901,7 @@ function selectionFailureMessage(
     case "no_problems_in_filters":
       return hasFilters
         ? "No problems match. Widen the filters or keep hiding."
-        : "Couldn't find a suitable problem — try again.";
+        : "Couldn't find a suitable problem. Try again.";
     case "all_problems_seen":
       return hasFilters
         ? "You or your opponent has already attempted every matching problem."
@@ -983,7 +983,7 @@ function FiltersSection({
           <div className="stat-plate flex items-center justify-between gap-2 p-3">
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="eyebrow text-muted-foreground">
-                {isMatchmade ? "Agreed filters — locked for quick match" : "Problem filters"}
+                {isMatchmade ? "Agreed filters, locked for quick match" : "Problem filters"}
               </span>
               <span className="truncate font-mono text-xs">
                 {filterSummary(filters ?? EMPTY_FILTERS)}

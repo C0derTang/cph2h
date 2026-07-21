@@ -83,7 +83,7 @@ export function RaceEndOverlay({
     <div
       data-testid="race-end-overlay"
       role="alertdialog"
-      aria-label={`${HEADLINE[outcome]} — race over`}
+      aria-label={`${HEADLINE[outcome]}, race over`}
       onClick={onDismiss}
       className="fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center bg-background/95 p-6 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300"
     >

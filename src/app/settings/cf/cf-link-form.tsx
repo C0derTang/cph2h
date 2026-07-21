@@ -76,8 +76,8 @@ export function CfLinkForm({
       <div className="panel bracket-frame flex flex-col gap-4 p-5">
         <p className="text-sm leading-6 text-muted-foreground">
           {isLinked
-            ? "Re-link to switch handles or refresh your rating. You’ll approve the connection on Codeforces — no password is ever shared with us."
-            : "Sign in with Codeforces to prove you own your handle. You’ll approve the connection on Codeforces and come right back — no password is ever shared with us."}
+            ? "Re-link to switch handles or refresh your rating. You’ll approve the connection on Codeforces. No password is ever shared with us."
+            : "Sign in with Codeforces to prove you own your handle. You’ll approve the connection on Codeforces and come right back. No password is ever shared with us."}
         </p>
 
         {message && (
