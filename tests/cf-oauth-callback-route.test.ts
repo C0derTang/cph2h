@@ -28,6 +28,7 @@ const {
   importSolveHistoryMock,
   getOAuthConfigMock,
   getCheaterSetMock,
+  enforceDbRateLimitMock,
 } = vi.hoisted(() => ({
   ensureUserMock: vi.fn(),
   selectMock: vi.fn(),
@@ -37,6 +38,16 @@ const {
   importSolveHistoryMock: vi.fn(),
   getOAuthConfigMock: vi.fn(),
   getCheaterSetMock: vi.fn(),
+  enforceDbRateLimitMock: vi.fn(),
+}));
+
+// `src/lib/ratelimit/policies.ts` transitively imports the real `@/lib/db`
+// (via `./db.ts`'s registration side effect); mocked here at the call shape
+// the route uses so this suite's own `@/lib/db` mock stays the source of
+// truth. Rate-limit behavior itself is covered by tests/ratelimit-db.test.ts.
+vi.mock("@/lib/ratelimit/policies", () => ({
+  enforceDbRateLimit: enforceDbRateLimitMock,
+  OAUTH_CALLBACK_POLICY: { limit: 3, windowMs: 60_000 },
 }));
 
 vi.mock("@/lib/user", () => ({ ensureUser: ensureUserMock }));
@@ -131,6 +142,7 @@ beforeEach(() => {
     .mockReset()
     .mockReturnValue({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
   getCheaterSetMock.mockReset().mockResolvedValue(new Set());
+  enforceDbRateLimitMock.mockReset().mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -278,5 +290,52 @@ describe("GET /api/cf/oauth/callback", () => {
     const response = await GET(makeRequest());
 
     expect(locationOf(response).searchParams.get("error")).toBe("oauth_misconfigured");
+  });
+});
+
+describe("GET /api/cf/oauth/callback — rate limiting (issue #256)", () => {
+  it("returns a 429 response verbatim and never exchanges the code when the limiter blocks", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    enforceDbRateLimitMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "rate_limited" }), {
+        status: 429,
+        headers: { "Retry-After": "12" },
+      }),
+    );
+
+    const response = await GET(makeRequest());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("12");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(updateSetMock).not.toHaveBeenCalled();
+  });
+
+  it("is keyed by the authenticated user id", async () => {
+    stubTokenFetch(await signIdToken(CLIENT_SECRET, { rating: 3800 }));
+
+    await GET(makeRequest());
+
+    expect(enforceDbRateLimitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "oauth_callback",
+      USER.id,
+      expect.anything(),
+    );
+  });
+
+  it("checks the rate limit (keyed by null, falling back to IP) before the 401 for an unauthenticated caller", async () => {
+    ensureUserMock.mockResolvedValue(null);
+
+    const response = await GET(makeRequest());
+
+    expect(response.status).toBe(401);
+    expect(enforceDbRateLimitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "oauth_callback",
+      null,
+      expect.anything(),
+    );
   });
 });

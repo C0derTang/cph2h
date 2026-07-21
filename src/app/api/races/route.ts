@@ -24,6 +24,7 @@ import { countAvailableProblems } from "@/lib/cf/problem-availability";
 import { createRace, generateChallengeToken } from "@/lib/race/create";
 import { hasAnyFilter, raceFiltersSchema, toRaceProblemFilters } from "@/lib/race/filters";
 import { requireLinkedUser } from "@/lib/race/session";
+import { enforceDbRateLimit, RACES_CREATE_POLICY } from "@/lib/ratelimit/policies";
 import {
   DEFAULT_TIME_LIMIT_SEC,
   type CreateRaceResponse,
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
+
+  const limited = await enforceDbRateLimit(req, "races_create", session.user.id, RACES_CREATE_POLICY);
+  if (limited) return limited;
 
   // Block known cheaters from creating a challenge (issue #184). Fail-open: a
   // null set (list unavailable) always allows.

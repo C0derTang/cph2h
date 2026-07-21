@@ -18,7 +18,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { queueEntries, races } from "@/lib/db/schema";
+import { apiRateLimits, queueEntries, races } from "@/lib/db/schema";
 import { pollActiveRace } from "@/lib/race/poll";
 import { refreshCfRatings } from "@/lib/cf/rating-refresh";
 
@@ -105,6 +105,20 @@ export async function GET(request: Request) {
     console.error("[sweep] cf rating refresh failed", err);
   }
 
+  // 5. Purge stale api_rate_limits rows (issue #256). Best-effort — a purge
+  //    failure must not fail the safety-net sweep above; a stale row just
+  //    keeps its window until the next sweep or its next natural rollover.
+  let purgedRateLimits = 0;
+  try {
+    const purgedRateLimitRows = await db
+      .delete(apiRateLimits)
+      .where(lt(apiRateLimits.windowStart, sql`now() - interval '1 day'`))
+      .returning({ key: apiRateLimits.key });
+    purgedRateLimits = purgedRateLimitRows.length;
+  } catch (err) {
+    console.error("[sweep] api_rate_limits purge failed", err);
+  }
+
   return NextResponse.json({
     ok: true,
     polled: resolved,
@@ -114,5 +128,6 @@ export async function GET(request: Request) {
     ratingsChecked: ratings.checked,
     ratingsUpdated: ratings.updated,
     ratingsFailed: ratings.failed,
+    purgedRateLimits,
   });
 }

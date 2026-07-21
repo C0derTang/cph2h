@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { ensureUser } from "@/lib/user";
 import { getOAuthConfig, getRequestOrigin } from "@/lib/cf/oauth-server";
+import { enforceDbRateLimit, OAUTH_START_POLICY } from "@/lib/ratelimit/policies";
 import {
   buildAuthorizeUrl,
   callbackRedirectUri,
@@ -24,7 +25,14 @@ import {
 } from "@/lib/cf/oauth";
 
 export async function GET(request: Request): Promise<Response> {
+  // Resolve auth before rate-limiting so an authenticated caller is keyed by
+  // userId; an unauthenticated one (still checked here, before the 401
+  // below) falls back to IP (issue #256).
   const user = await ensureUser();
+
+  const limited = await enforceDbRateLimit(request, "oauth_start", user?.id ?? null, OAUTH_START_POLICY);
+  if (limited) return limited;
+
   if (!user) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }

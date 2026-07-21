@@ -20,6 +20,7 @@ import { db } from "@/lib/db";
 import { races, reports } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { statusForReportGuard, validateReportRequest } from "@/lib/race/report";
+import { enforceDbRateLimit, REPORTS_CREATE_POLICY } from "@/lib/ratelimit/policies";
 
 const bodySchema = z.object({
   raceId: z.string().min(1),
@@ -44,6 +45,9 @@ export async function POST(req: Request) {
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
+
+  const limited = await enforceDbRateLimit(req, "reports_create", session.user.id, REPORTS_CREATE_POLICY);
+  if (limited) return limited;
 
   let body: z.infer<typeof bodySchema>;
   try {

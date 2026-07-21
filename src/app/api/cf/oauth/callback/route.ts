@@ -34,6 +34,7 @@ import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import { importSolveHistory } from "@/lib/cf/history";
 import { ensureUser } from "@/lib/user";
 import { getOAuthConfig, getRequestOrigin } from "@/lib/cf/oauth-server";
+import { enforceDbRateLimit, OAUTH_CALLBACK_POLICY } from "@/lib/ratelimit/policies";
 import {
   buildTokenRequestBody,
   callbackRedirectUri,
@@ -77,7 +78,19 @@ export async function GET(request: NextRequest): Promise<Response> {
     return response;
   }
 
+  // Resolve auth before rate-limiting so an authenticated caller is keyed by
+  // userId; an unauthenticated one (still checked here, before the 401
+  // below) falls back to IP (issue #256).
   const user = await ensureUser();
+
+  const limited = await enforceDbRateLimit(
+    request,
+    "oauth_callback",
+    user?.id ?? null,
+    OAUTH_CALLBACK_POLICY,
+  );
+  if (limited) return limited;
+
   if (!user) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
