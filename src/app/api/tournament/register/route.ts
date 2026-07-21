@@ -23,6 +23,7 @@ import { db } from "@/lib/db";
 import { tournamentRegistrations } from "@/lib/db/schema";
 import { getUserRating } from "@/lib/cf/client";
 import { requireLinkedUser } from "@/lib/race/session";
+import { enforceDbRateLimit, TOURNAMENT_REGISTER_POLICY } from "@/lib/ratelimit/policies";
 import {
   normalizeEmail,
   normalizeGithubUrl,
@@ -54,6 +55,14 @@ export async function POST(req: Request) {
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
+
+  const limited = await enforceDbRateLimit(
+    req,
+    "tournament_register",
+    session.user.id,
+    TOURNAMENT_REGISTER_POLICY,
+  );
+  if (limited) return limited;
 
   let body: z.infer<typeof bodySchema>;
   try {

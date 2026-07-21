@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextResponse } from "next/server";
 import type { SessionResult } from "../src/lib/race/session";
 
 const {
@@ -22,6 +23,7 @@ const {
   getUserRatingMock,
   insertValuesMock,
   onConflictDoUpdateMock,
+  enforceDbRateLimitMock,
   dbState,
 } = vi.hoisted(() => {
   const dbState = {
@@ -32,6 +34,7 @@ const {
     getUserRatingMock: vi.fn(),
     insertValuesMock: vi.fn(),
     onConflictDoUpdateMock: vi.fn(),
+    enforceDbRateLimitMock: vi.fn(),
     dbState,
   };
 });
@@ -42,6 +45,15 @@ vi.mock("@/lib/race/session", () => ({
 
 vi.mock("@/lib/cf/client", () => ({
   getUserRating: getUserRatingMock,
+}));
+
+// `src/lib/ratelimit/policies.ts` transitively imports the real `@/lib/db`
+// (via `./db.ts`'s registration side effect); mocked here at the call shape
+// the route uses so this suite's own `@/lib/db` mock stays the source of
+// truth. Rate-limit behavior itself is covered by tests/ratelimit-db.test.ts.
+vi.mock("@/lib/ratelimit/policies", () => ({
+  enforceDbRateLimit: enforceDbRateLimitMock,
+  TOURNAMENT_REGISTER_POLICY: { limit: 3, windowMs: 60_000 },
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -106,6 +118,7 @@ beforeEach(() => {
   getUserRatingMock.mockReset();
   insertValuesMock.mockClear();
   onConflictDoUpdateMock.mockClear();
+  enforceDbRateLimitMock.mockReset().mockResolvedValue(null);
   dbState.insertReturning = [];
 
   // Eligible by default so tests that don't care about eligibility pass.
@@ -414,5 +427,40 @@ describe("POST /api/tournament/register", () => {
     expect(body.linkedinUrl).toBeNull();
     expect(body.createdAt).toBeTruthy();
     expect(body.updatedAt).toBeTruthy();
+  });
+});
+
+describe("POST /api/tournament/register — rate limiting (issue #256)", () => {
+  it("returns 429 and does not insert when the limiter blocks", async () => {
+    enforceDbRateLimitMock.mockResolvedValue(
+      NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "20" } }),
+    );
+
+    const res = await POST(makeRequest(baseBody()));
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("20");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+    expect(getUserRatingMock).not.toHaveBeenCalled();
+  });
+
+  it("is keyed by the authenticated user id", async () => {
+    await POST(makeRequest(baseBody()));
+
+    expect(enforceDbRateLimitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "tournament_register",
+      USER_ID,
+      expect.anything(),
+    );
+  });
+
+  it("does not enforce the rate limit when unauthenticated", async () => {
+    requireLinkedUserMock.mockResolvedValue({ ok: false, status: 401, error: "unauthorized" });
+
+    const res = await POST(makeRequest(baseBody()));
+
+    expect(res.status).toBe(401);
+    expect(enforceDbRateLimitMock).not.toHaveBeenCalled();
   });
 });

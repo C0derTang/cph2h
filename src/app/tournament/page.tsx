@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { CircleCheck, Mail, MessageCircle, UserPlus } from "lucide-react";
 import { eq } from "drizzle-orm";
@@ -61,8 +62,6 @@ const RULES = [
   { n: "05", text: "Camera and mic stay on for every match." },
   { n: "06", text: "Entry requires at least 3 rated Codeforces contests." },
 ] as const;
-
-const SPONSOR_SLOT_COUNT = 4;
 
 type ViewState = "signed_out" | "cf_not_linked" | "not_registered" | "registered";
 
@@ -159,18 +158,24 @@ export default async function TournamentPage() {
           {"// route :: /tournament"}
         </span>
 
-        <div className="shell flex flex-col items-center py-16 text-center md:py-20">
+        <div className="shell flex flex-col items-center pt-24 pb-16 text-center md:pt-32 md:pb-20">
           <p className="inline-flex items-center gap-2 eyebrow text-muted-foreground">
             <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
             The first cph2h bracket
           </p>
 
-          {/* The ONE hero word for this screen. Decorative + aria-hidden; the
+          {/* The ONE hero word for this screen, pushed to a background
+              watermark (sign-in card pattern) so it sits behind the copy
+              instead of competing with it. Decorative + aria-hidden; the
               sr-only h1 carries the real heading for assistive tech. */}
           <h1 className="sr-only">CPH2H Launch Tournament</h1>
-          <HeroWord word="tournament" className="mt-2 block" />
+          <HeroWord
+            word="tournament"
+            tone="muted"
+            className="pointer-events-none absolute top-8 left-1/2 -z-10 -translate-x-1/2 whitespace-nowrap"
+          />
 
-          <p className="mt-24 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
+          <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
             64 competitors, one single-elimination bracket. Cameras on, one
             Codeforces problem per round, first correct verdict advances.
           </p>
@@ -210,8 +215,8 @@ export default async function TournamentPage() {
         </div>
       </section>
 
-      {/* Sponsors — fr8.so is the signed featured sponsor; slot sponsors are
-          still open, so the dashed placeholder grid + contact pitch stay. */}
+      {/* Sponsors — fr8.so is the sole, signed launch sponsor (no open slots
+          to fill), so this is one featured card plus the contact pitch. */}
       <section className="relative shell border-t border-border py-12 md:py-20">
         {/* hud-meta scatter point 3/3: sponsor status ornament. */}
         <span
@@ -229,26 +234,25 @@ export default async function TournamentPage() {
           href="https://fr8.so"
           target="_blank"
           rel="noopener noreferrer"
-          className="group panel mt-8 flex flex-col items-center gap-1.5 p-8 text-center transition-colors hover:border-player-self/40"
+          className="group panel mt-8 flex flex-col items-center gap-3 p-8 text-center transition-colors hover:border-player-self/40"
         >
+          <Image
+            src="/fr8-logo.jpg"
+            alt="FR8 logo"
+            width={200}
+            height={200}
+            className="size-20 rounded-lg"
+          />
           <p className="eyebrow text-muted-foreground">Presented by</p>
           <p className="font-display text-4xl tracking-tight text-foreground uppercase transition-colors group-hover:text-player-self md:text-5xl">
             FR8.SO
           </p>
+          <p className="max-w-md text-sm leading-6 text-muted-foreground">
+            FR8 is a Helsinki-based three-month residency where young
+            mavericks build the future — housing, funding, mentorship, and a
+            global network for founders working on frontier tech.
+          </p>
         </a>
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: SPONSOR_SLOT_COUNT }).map((_, i) => (
-            <div
-              key={i}
-              className="panel flex h-24 items-center justify-center border-dashed"
-            >
-              <p className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                sponsor slot — coming soon
-              </p>
-            </div>
-          ))}
-        </div>
 
         <div className="mt-8 max-w-2xl">
           <p className="text-sm leading-6 text-muted-foreground">

@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { SessionResult } from "../src/lib/race/session";
 
 const {
@@ -20,6 +20,7 @@ const {
   countAvailableProblemsMock,
   getCheaterSetMock,
   isKnownCheaterMock,
+  enforceDbRateLimitMock,
 } = vi.hoisted(() => ({
   requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
   createRaceMock: vi.fn(),
@@ -27,6 +28,7 @@ const {
   countAvailableProblemsMock: vi.fn(),
   getCheaterSetMock: vi.fn(),
   isKnownCheaterMock: vi.fn(),
+  enforceDbRateLimitMock: vi.fn(),
 }));
 
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
@@ -40,6 +42,16 @@ vi.mock("@/lib/cf/problem-availability", () => ({
 vi.mock("@/lib/cf/cheaters", () => ({
   getCheaterSet: getCheaterSetMock,
   isKnownCheater: isKnownCheaterMock,
+}));
+// `src/lib/ratelimit/policies.ts` transitively imports the real `@/lib/db`
+// (via `./db.ts`'s registration side effect), which this suite otherwise
+// never loads — mock it at the call shape the route uses so no real db
+// module import is attempted. Rate-limit *behavior* (429 vs allowed, key
+// derivation) is covered separately in tests/ratelimit-db.test.ts and
+// tests/race-ratelimit-route.test.ts; here it's just stubbed to "allowed".
+vi.mock("@/lib/ratelimit/policies", () => ({
+  enforceDbRateLimit: enforceDbRateLimitMock,
+  RACES_CREATE_POLICY: { limit: 10, windowMs: 60_000 },
 }));
 
 import { POST } from "../src/app/api/races/route";
@@ -82,6 +94,7 @@ beforeEach(() => {
   countAvailableProblemsMock.mockReset();
   getCheaterSetMock.mockReset().mockResolvedValue(new Set());
   isKnownCheaterMock.mockReset().mockReturnValue(false);
+  enforceDbRateLimitMock.mockReset().mockResolvedValue(null);
   mockSession();
   createRaceMock.mockResolvedValue({ id: "race-1", livekitRoom: "race-race-1" });
 });
@@ -215,5 +228,41 @@ describe("POST /api/races — cheater blocklist (issue #184)", () => {
 
     expect(res.status).toBe(201);
     expect(createRaceMock).toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/races — rate limiting (issue #256)", () => {
+  it("returns 429 and does not create a race when the limiter blocks", async () => {
+    enforceDbRateLimitMock.mockResolvedValue(
+      NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "7" } }),
+    );
+
+    const res = await POST(makeRequest({ timeLimitSec: 1200 }));
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("7");
+    expect(await res.json()).toEqual({ error: "rate_limited" });
+    expect(createRaceMock).not.toHaveBeenCalled();
+  });
+
+  it("is keyed by the authenticated user id, checked after auth but before the cheater lookup", async () => {
+    await POST(makeRequest({ timeLimitSec: 1200 }));
+
+    expect(enforceDbRateLimitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "races_create",
+      ME,
+      expect.anything(),
+    );
+    expect(getCheaterSetMock).toHaveBeenCalled();
+  });
+
+  it("does not enforce the rate limit when unauthenticated", async () => {
+    requireLinkedUserMock.mockResolvedValue({ ok: false, status: 401, error: "unauthorized" });
+
+    const res = await POST(makeRequest({ timeLimitSec: 1200 }));
+
+    expect(res.status).toBe(401);
+    expect(enforceDbRateLimitMock).not.toHaveBeenCalled();
   });
 });

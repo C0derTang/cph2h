@@ -21,6 +21,9 @@ vi.mock("@/lib/admin/reports", () => ({
   parseReportStatusFilter: (value: string | null) =>
     value === "open" || value === "resolved" || value === "all" ? value : "open",
 }));
+// `@/lib/ratelimit/policies` transitively imports the real `@/lib/db` (via
+// `./db.ts`'s backend-registration side effect, issue #256) — mock it out.
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 import { GET } from "@/app/api/admin/reports/route";
 

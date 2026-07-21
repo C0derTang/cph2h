@@ -34,6 +34,15 @@ export const MAX_CF_ATTEMPTS = 3;
 /** Ceiling for the exponential-backoff term, before jitter. */
 const MAX_BACKOFF_MS = 30000;
 
+/**
+ * Ceiling (ms) for a server-sent `Retry-After`'s contribution to the retry
+ * delay. All CF retries run inside the serialized request queue, so an
+ * unclamped `Retry-After: 3600` would park that slot for ~1h and starve every
+ * other CF call on the instance (verdict-poll callers pass no abort signal).
+ * Clamp CF's hint to at most this before letting it dominate the backoff.
+ */
+export const MAX_RETRY_AFTER_MS = 30000;
+
 export class CfApiError extends Error {
   constructor(message: string) {
     super(message);
@@ -200,6 +209,10 @@ async function claimSlot(options: CfFetchOptions): Promise<void> {
   if (customSlotClaimer) {
     const result = await customSlotClaimer({ signal: options.signal });
     if (!result?.fallback) {
+      // The custom claimer handled pacing. Stamp the local reference too, so a
+      // later attempt that falls back to local spacing (claimer declines / is
+      // reset) spaces against this request rather than a stale one.
+      lastRequestStartMs = Date.now();
       return;
     }
     // The custom claimer declined; fall through to local spacing.
@@ -298,10 +311,12 @@ function isRetryable(error: unknown): boolean {
  * Pure backoff computation for retry index `attempt` (0-based: the first retry
  * uses `attempt = 0`).
  *
- * `max(retryAfterMs ?? 0, min(5000 * 2**attempt, 30000)) + random() * 1000`
+ * `max(min(retryAfterMs ?? 0, 30000), min(5000 * 2**attempt, 30000)) + random() * 1000`
  *
  * i.e. exponential backoff capped at 30s, but never shorter than a server-sent
- * `Retry-After`, plus up to 1s of jitter. `random` is injectable for tests.
+ * `Retry-After` — itself clamped to `MAX_RETRY_AFTER_MS` so a hostile/huge hint
+ * cannot park the serialized queue — plus up to 1s of jitter. `random` is
+ * injectable for tests.
  */
 export function computeRetryDelayMs(
   attempt: number,
@@ -309,7 +324,8 @@ export function computeRetryDelayMs(
   random: () => number = Math.random,
 ): number {
   const backoff = Math.min(RETRY_BACKOFF_MS * 2 ** attempt, MAX_BACKOFF_MS);
-  return Math.max(retryAfterMs ?? 0, backoff) + random() * 1000;
+  const retryAfter = retryAfterMs === undefined ? 0 : Math.min(retryAfterMs, MAX_RETRY_AFTER_MS);
+  return Math.max(retryAfter, backoff) + random() * 1000;
 }
 
 /**
@@ -412,4 +428,22 @@ export function getUserRating(
   options: CfFetchOptions = {},
 ): Promise<CfRatingChange[]> {
   return cfFetch<CfRatingChange[]>("user.rating", { handle }, options);
+}
+
+// ---------------------------------------------------------------------------
+// Production wiring
+//
+// Every server path that talks to codeforces.com imports this module, so it is
+// the single chokepoint where the cross-instance DB-backed slot claimer must be
+// installed. Importing `src/lib/cf/limiter` runs its self-install side effect
+// (`setSlotClaimer(claimCfSlot)`); the dynamic import breaks the client<->limiter
+// static cycle and defers `@/lib/db` loading. Guarded out of unit tests (Vitest
+// sets `NODE_ENV=test`), which rely on the default local-spacing claimer and run
+// without a `DATABASE_URL`. Before the async install lands, the first request or
+// two simply use local spacing — a safe fallback, never a hard dependency.
+// ---------------------------------------------------------------------------
+if (process.env.NODE_ENV !== "test") {
+  void import("@/lib/cf/limiter").catch((err) => {
+    console.warn("[cf-client] failed to install DB-backed slot claimer", err);
+  });
 }

@@ -18,6 +18,9 @@ const { requireAdminMock, resolveReportMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/race/session", () => ({ requireAdmin: requireAdminMock }));
 vi.mock("@/lib/admin/reports", () => ({ resolveReport: resolveReportMock }));
+// `@/lib/ratelimit/policies` transitively imports the real `@/lib/db` (via
+// `./db.ts`'s backend-registration side effect, issue #256) — mock it out.
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 import { PATCH } from "@/app/api/admin/reports/[id]/route";
 

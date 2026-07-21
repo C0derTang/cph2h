@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { parseStatementHtml } from "@/lib/cf/statements";
+import { fetchStatement, parseStatementHtml } from "@/lib/cf/statements";
+import { resetLimiterDeps, setLimiterDeps } from "@/lib/cf/limiter";
 
 const fixture = readFileSync(
   path.resolve(__dirname, "fixtures/cf-problem.html"),
@@ -68,5 +69,91 @@ describe("parseStatementHtml", () => {
     expect(html.toLowerCase()).not.toContain("<script");
     expect(html.toLowerCase()).not.toContain("onerror");
     expect(html.toLowerCase()).not.toContain("alert(2)");
+  });
+});
+
+describe("fetchStatement slot claiming + retry", () => {
+  afterEach(() => {
+    resetLimiterDeps();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("claims a global slot before each attempt and retries a 429 honoring Retry-After", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0); // pin jitter to 0 => backoff exactly 5000
+    const claim = vi.fn().mockResolvedValue({ slotAtMs: 0, dbNowMs: 0 }); // due now, no sleep
+    setLimiterDeps({ claim });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("<html>rate limited</html>", {
+          status: 429,
+          headers: { "retry-after": "3" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(fixture, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = fetchStatement("1A");
+    const settled = expect(pending).resolves.toMatchObject({ problemId: "1A" });
+
+    // First attempt (claim + fetch) happens on the first tick.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(claim).toHaveBeenCalledTimes(1);
+
+    // delay = max(min(3000, 30000), 5000) + 0 = 5000. Not before it elapses.
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // A slot was claimed for the retry attempt too.
+    expect(claim).toHaveBeenCalledTimes(2);
+
+    await settled;
+  });
+
+  it("gives up after 3 attempts (1 + 2 retries) on persistent 503", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const claim = vi.fn().mockResolvedValue({ slotAtMs: 0, dbNowMs: 0 });
+    setLimiterDeps({ claim });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("<html>busy</html>", { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = fetchStatement("1A");
+    const settled = expect(pending).rejects.toThrow("HTTP 503");
+
+    await vi.advanceTimersByTimeAsync(0); // attempt 1
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(5000); // backoff -> attempt 2
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10000); // backoff -> attempt 3 (last)
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(claim).toHaveBeenCalledTimes(3);
+
+    await settled;
+  });
+
+  it("propagates a CfBackpressureError from the claimer as a fetch failure", async () => {
+    const { CfBackpressureError } = await import("@/lib/cf/limiter");
+    const claim = vi
+      .fn()
+      .mockResolvedValue({ slotAtMs: 60_000, dbNowMs: 0 }); // > 15s cap => backpressure
+    const giveBack = vi.fn().mockResolvedValue(undefined);
+    setLimiterDeps({ claim, giveBack });
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchStatement("1A")).rejects.toBeInstanceOf(CfBackpressureError);
+    // Never hit the network — the slot was refused first.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -8,8 +8,14 @@
  *    end-to-end against the real memory backend (allow under, 429 over).
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetMemoryStore } from "../src/lib/ratelimit";
+
+// `@/lib/ratelimit/policies` transitively imports the real `@/lib/db` (via
+// `./db.ts`'s backend-registration side effect, issue #256) — mock it out;
+// the tests here only ever exercise the in-memory backend.
+vi.mock("@/lib/db", () => ({ db: {} }));
+
 import { RATE_LIMIT_POLICIES, enforceAdminPolicy, enforcePolicy } from "../src/lib/ratelimit/policies";
 
 /** Legit client call rates per minute, from the issue's rationale table. */

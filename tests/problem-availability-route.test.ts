@@ -22,6 +22,9 @@ vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock 
 vi.mock("@/lib/cf/problem-availability", () => ({
   countAvailableProblems: countAvailableProblemsMock,
 }));
+// `@/lib/ratelimit/policies` transitively imports the real `@/lib/db` (via
+// `./db.ts`'s backend-registration side effect, issue #256) — mock it out.
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 import { GET } from "../src/app/api/problems/availability/route";
 

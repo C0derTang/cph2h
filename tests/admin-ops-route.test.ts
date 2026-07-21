@@ -16,6 +16,11 @@ const { requireAdminMock, getAdminOpsMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/race/session", () => ({ requireAdmin: requireAdminMock }));
 vi.mock("@/lib/admin/ops", () => ({ getAdminOps: getAdminOpsMock }));
+// `@/lib/ratelimit/policies` transitively imports the real `@/lib/db` (via
+// `./db.ts`'s backend-registration side effect, issue #256) — mock it so no
+// real db client construction is attempted in this suite (issue #257's
+// `enforceAdminPolicy` only ever hits the in-memory backend here).
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 import { GET } from "@/app/api/admin/ops/route";
 

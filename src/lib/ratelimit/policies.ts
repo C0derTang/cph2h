@@ -1,20 +1,74 @@
 /**
- * Named rate-limit policies for hot/polling routes (issue #257).
+ * Route-facing rate-limit policies for every enforced route (issues #256 +
+ * #257).
  *
- * Single source of truth for every route's limit — routes reference an entry
- * here by key instead of hardcoding `{ limit, windowMs }` inline. All windows
- * are one minute; see the issue for the legit-client-rate rationale (each
- * limit is a 2-4x-headroom multiple of an authentic client's call rate).
+ * Two policy families share this one module so there is a single source of
+ * truth for every route's limit:
  *
- * `enforcePolicy` is the route-facing helper: it derives the key (Clerk
- * userId when authed, else per-IP) and enforces the named policy against the
- * in-memory backend in one call, so routes stay a one-liner.
+ *  - **Sensitive routes (#256)**: persistent "db"-backed policies
+ *    (`RACES_CREATE_POLICY` etc.) enforced via {@link enforceDbRateLimit}.
+ *    Importing this module (directly or transitively) is what registers the
+ *    db backend: the `import "./db"` below runs `./db.ts`'s module-scope
+ *    `registerDbBackend(checkDb)` as a side effect. Every #256 route imports
+ *    {@link enforceDbRateLimit} from this file rather than reaching for
+ *    `enforceRateLimit`/`backend: "db"` directly, so registration always
+ *    happens before the check runs — no route needs to remember a second
+ *    import for wiring.
+ *  - **Hot/polling routes (#257)**: in-memory "memory"-backed policies
+ *    (`RATE_LIMIT_POLICIES`) enforced via {@link enforcePolicy} /
+ *    {@link enforceAdminPolicy}. All windows are one minute; see issue #257
+ *    for the legit-client-rate rationale (each limit is a 2-4x-headroom
+ *    multiple of an authentic client's call rate).
+ *
+ * Keeps routes thin per CLAUDE.md: a route just calls the relevant
+ * one-liner and returns the result if non-null. No policy numbers or
+ * backend selection live in route files.
  */
 
+import "./db";
 import { NextResponse } from "next/server";
 import { enforceRateLimit, rateLimitKey, type RateLimitPolicy } from "./index";
 
-const perMinute = (limit: number): RateLimitPolicy => ({ limit, windowMs: 60_000 });
+const ONE_MINUTE_MS = 60_000;
+
+// ---------------------------------------------------------------------------
+// #256 — sensitive routes, db-backed
+// ---------------------------------------------------------------------------
+
+/** `POST /api/races` — 10/min. */
+export const RACES_CREATE_POLICY: RateLimitPolicy = { limit: 10, windowMs: ONE_MINUTE_MS };
+/** `POST /api/races/join` — 15/min. */
+export const RACES_JOIN_POLICY: RateLimitPolicy = { limit: 15, windowMs: ONE_MINUTE_MS };
+/** `POST /api/reports` — 5/min. */
+export const REPORTS_CREATE_POLICY: RateLimitPolicy = { limit: 5, windowMs: ONE_MINUTE_MS };
+/** `POST /api/tournament/register` — 3/min. */
+export const TOURNAMENT_REGISTER_POLICY: RateLimitPolicy = { limit: 3, windowMs: ONE_MINUTE_MS };
+/** `GET /api/cf/oauth/start` — 5/min. */
+export const OAUTH_START_POLICY: RateLimitPolicy = { limit: 5, windowMs: ONE_MINUTE_MS };
+/** `GET /api/cf/oauth/callback` — 3/min. */
+export const OAUTH_CALLBACK_POLICY: RateLimitPolicy = { limit: 3, windowMs: ONE_MINUTE_MS };
+
+/**
+ * Enforce `policy` for `name` against the persistent db backend, keyed by
+ * `userId` when the caller is signed in, else derived from the request's IP
+ * headers (see `rateLimitKey`). Returns a ready 429 response to return
+ * as-is, or `null` when the request may proceed.
+ */
+export async function enforceDbRateLimit(
+  req: Request,
+  name: string,
+  userId: string | null,
+  policy: RateLimitPolicy,
+): Promise<Response | null> {
+  const key = rateLimitKey(name, userId, req);
+  return enforceRateLimit(req, key, { name, policy, backend: "db" });
+}
+
+// ---------------------------------------------------------------------------
+// #257 — hot/polling routes, memory-backed
+// ---------------------------------------------------------------------------
+
+const perMinute = (limit: number): RateLimitPolicy => ({ limit, windowMs: ONE_MINUTE_MS });
 
 export const RATE_LIMIT_POLICIES = {
   /** POST /api/races/[id]/poll */

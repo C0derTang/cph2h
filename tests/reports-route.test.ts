@@ -8,10 +8,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextResponse } from "next/server";
 import type { Race } from "../src/lib/db/schema";
 import type { SessionResult } from "../src/lib/race/session";
 
-const { requireLinkedUserMock, insertValuesMock, dbState } = vi.hoisted(() => {
+const { requireLinkedUserMock, insertValuesMock, enforceDbRateLimitMock, dbState } = vi.hoisted(() => {
   const dbState = {
     selectResults: [] as unknown[][],
     selectIndex: 0,
@@ -21,12 +22,22 @@ const { requireLinkedUserMock, insertValuesMock, dbState } = vi.hoisted(() => {
   return {
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
     insertValuesMock: vi.fn(),
+    enforceDbRateLimitMock: vi.fn(),
     dbState,
   };
 });
 
 vi.mock("@/lib/race/session", () => ({
   requireLinkedUser: requireLinkedUserMock,
+}));
+
+// `src/lib/ratelimit/policies.ts` transitively imports the real `@/lib/db`
+// (via `./db.ts`'s registration side effect); mocked here at the call shape
+// the route uses so this suite's own `@/lib/db` mock stays the source of
+// truth. Rate-limit behavior itself is covered by tests/ratelimit-db.test.ts.
+vi.mock("@/lib/ratelimit/policies", () => ({
+  enforceDbRateLimit: enforceDbRateLimitMock,
+  REPORTS_CREATE_POLICY: { limit: 5, windowMs: 60_000 },
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -110,6 +121,7 @@ function makeRequest(body: unknown): Request {
 beforeEach(() => {
   requireLinkedUserMock.mockReset();
   insertValuesMock.mockClear();
+  enforceDbRateLimitMock.mockReset().mockResolvedValue(null);
   dbState.selectResults = [];
   dbState.selectIndex = 0;
   dbState.insertReturning = [];
@@ -307,5 +319,42 @@ describe("POST /api/reports", () => {
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("invalid_body");
     expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/reports — rate limiting (issue #256)", () => {
+  it("returns 429 and does not insert when the limiter blocks", async () => {
+    enforceDbRateLimitMock.mockResolvedValue(
+      NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "9" } }),
+    );
+
+    const res = await POST(makeRequest({ raceId: RACE_ID, reason: "cheating" }));
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("9");
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("is keyed by the authenticated user id", async () => {
+    queueSelects([[makeRace()]]);
+    dbState.insertReturning = [{ id: REPORT_ID }];
+
+    await POST(makeRequest({ raceId: RACE_ID, reason: "cheating" }));
+
+    expect(enforceDbRateLimitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "reports_create",
+      P1,
+      expect.anything(),
+    );
+  });
+
+  it("does not enforce the rate limit when unauthenticated", async () => {
+    requireLinkedUserMock.mockResolvedValue({ ok: false, status: 401, error: "unauthorized" });
+
+    const res = await POST(makeRequest({ raceId: RACE_ID, reason: "cheating" }));
+
+    expect(res.status).toBe(401);
+    expect(enforceDbRateLimitMock).not.toHaveBeenCalled();
   });
 });
