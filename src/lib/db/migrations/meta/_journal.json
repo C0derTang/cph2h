@@ -78,6 +78,13 @@
       "when": 1784656957625,
       "tag": "0010_greedy_tempest",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784658664391,
+      "tag": "0011_broken_wendigo",
+      "breakpoints": true
     }
   ]
 }

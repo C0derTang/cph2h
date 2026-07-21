@@ -334,6 +334,32 @@ export const tournamentRegistrations = pgTable("tournament_registrations", {
 });
 
 // ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+/**
+ * Single-row cross-instance pacing claim for outbound Codeforces calls
+ * (wave-10 issue wires it up). `id` is always 1 — there is exactly one row,
+ * seeded by the migration for this table.
+ */
+export const cfRateLimiter = pgTable("cf_rate_limiter", {
+  id: integer("id").primaryKey(),
+  nextSlotAt: timestamp("next_slot_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Fixed-window counters for inbound per-user/IP limiting on sensitive routes
+ * (wave-10 issue wires it up). `key` is e.g. "register:user:<uuid>".
+ */
+export const apiRateLimits = pgTable("api_rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  count: integer("count").notNull(),
+});
+
+// ---------------------------------------------------------------------------
 // Inferred row types
 // ---------------------------------------------------------------------------
 
@@ -369,3 +395,9 @@ export type NewReport = typeof reports.$inferInsert;
 
 export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect;
 export type NewTournamentRegistration = typeof tournamentRegistrations.$inferInsert;
+
+export type CfRateLimiter = typeof cfRateLimiter.$inferSelect;
+export type NewCfRateLimiter = typeof cfRateLimiter.$inferInsert;
+
+export type ApiRateLimit = typeof apiRateLimits.$inferSelect;
+export type NewApiRateLimit = typeof apiRateLimits.$inferInsert;
