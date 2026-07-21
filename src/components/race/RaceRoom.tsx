@@ -528,7 +528,7 @@ export function RaceRoom({
       } else {
         // Poll may have been skipped (mutex/cooldown) — fall back to a snapshot.
         await refetch();
-        toast.info("Checked — no new verdict yet.");
+        toast.info("Checked. No new verdict yet.");
       }
     } catch {
       toast.error("Couldn’t reach the server. Try again.");
@@ -554,7 +554,7 @@ export function RaceRoom({
         applySnapshot(data);
         toast.info("You threw in the towel.");
       } else {
-        toast.error("Couldn’t forfeit — try again.");
+        toast.error("Couldn’t forfeit. Try again.");
       }
     } catch {
       toast.error("Couldn't reach the server. Try again.");
@@ -591,7 +591,7 @@ export function RaceRoom({
           // The offer state moved under us (e.g. the opponent withdrew before
           // our accept landed → 409). Refetch so the UI reflects the truth
           // instead of leaving a stale banner/button.
-          toast.error("Couldn't update the draw offer — it may have changed.");
+          toast.error("Couldn't update the draw offer. It may have changed.");
           void refetch();
         }
       } catch {
@@ -830,7 +830,7 @@ export function RaceRoom({
           ) : (
             <Check aria-hidden />
           )}
-          {checking ? "Checking…" : "I submitted — check now"}
+          {checking ? "Checking…" : "I submitted, check now"}
         </SlabButton>
       </div>
 
@@ -849,7 +849,7 @@ export function RaceRoom({
         )}
         {iOfferedDraw && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Draw offered — they&rsquo;re stalling.</span>
+            <span>Draw offered, they&rsquo;re stalling.</span>
             <Button
               type="button"
               variant="outline"
@@ -882,9 +882,9 @@ export function RaceRoom({
       </div>
 
       <p className="text-xs leading-5 text-muted-foreground">
-        Submit your solution on Codeforces — your browser passes their
-        Cloudflare check — then hit{" "}
-        <span className="font-medium">&ldquo;I submitted — check now&rdquo;</span>{" "}
+        Submit your solution on Codeforces. Your browser passes their
+        Cloudflare check, then hit{" "}
+        <span className="font-medium">&ldquo;I submitted, check now&rdquo;</span>{" "}
         and we detect the verdict automatically.
       </p>
     </div>
@@ -1057,7 +1057,7 @@ export function RaceRoom({
           className="flex items-center gap-2 rounded-[var(--radius)] border border-border bg-card p-3 text-xs text-muted-foreground"
         >
           <WifiOff className="size-4 shrink-0" aria-hidden />
-          Voice disconnected — reconnecting…
+          Voice disconnected, reconnecting…
         </div>
       )}
       {micRevokedMidRace && (
@@ -1067,7 +1067,7 @@ export function RaceRoom({
           className="flex items-center gap-2 rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
         >
           <MicOff className="size-4 shrink-0" aria-hidden />
-          Your mic permission was revoked. Trash talk paused — you&apos;re
+          Your mic permission was revoked. Trash talk paused, you&apos;re
           still in the race, re-grant it from your browser&apos;s site
           settings whenever you want back in.
         </div>
@@ -1139,7 +1139,7 @@ export function RaceRoom({
             </div>
             <p className="text-muted-foreground">
               They may reconnect at any time. If they don&apos;t come back,
-              you can forfeit to end the race — your opponent would be awarded
+              you can forfeit to end the race. Your opponent would be awarded
               the win.
             </p>
           </div>
@@ -1289,7 +1289,7 @@ export function RaceRoom({
           className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-border bg-card p-2.5 text-xs text-muted-foreground lg:hidden"
         >
           <MonitorSmartphone className="size-4 shrink-0" aria-hidden />
-          The race room is designed for larger screens — some panes may be
+          The race room is designed for larger screens. Some panes may be
           cramped here. Rotate or switch to a laptop/desktop for the best
           experience.
         </div>

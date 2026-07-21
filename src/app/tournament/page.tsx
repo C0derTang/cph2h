@@ -11,9 +11,9 @@ import { tournamentRegistrations } from "@/lib/db/schema";
 import { ensureUser } from "@/lib/user";
 
 export const metadata: Metadata = {
-  title: "tournament — cph2h",
+  title: "tournament · cph2h",
   description:
-    "The CPH2H Launch Tournament: a single-elimination Codeforces bracket — limited spots available. Format, rules, and how to sponsor.",
+    "The CPH2H Launch Tournament: a single-elimination Codeforces bracket, limited spots available. Format, rules, and how to sponsor.",
 };
 
 // "At a glance" facts — the format in five numbers. Kept as plain data so the
@@ -159,7 +159,7 @@ export default async function TournamentPage() {
           />
 
           <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
-            Limited spots available — one single-elimination bracket. Cameras on, one
+            Limited spots available, one single-elimination bracket. Cameras on, one
             Codeforces problem per round, first correct verdict advances.
           </p>
 
@@ -232,7 +232,7 @@ export default async function TournamentPage() {
           </p>
           <p className="max-w-md text-sm leading-6 text-muted-foreground">
             FR8 is a Helsinki-based three-month residency where young
-            mavericks build the future — housing, funding, mentorship, and a
+            mavericks build the future: housing, funding, mentorship, and a
             global network for founders working on frontier tech.
           </p>
         </a>
@@ -285,10 +285,10 @@ export default async function TournamentPage() {
                 </span>
                 {step.done ? (
                   step.doneNote ? (
-                    <> — {step.doneNote}</>
+                    <> · {step.doneNote}</>
                   ) : null
                 ) : (
-                  <> — {step.todo}</>
+                  <> · {step.todo}</>
                 )}
               </span>
             </li>

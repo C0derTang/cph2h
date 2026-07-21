@@ -189,10 +189,10 @@ export function NewChallengeForm() {
         return;
       }
       setResult(data as CreateRaceResponse);
-      toast.success("Challenge created — share the link with a friend.");
+      toast.success("Challenge created. Share the link with a friend.");
     } catch {
-      setError("Network error — please try again.");
-      toast.error("Network error — please try again.");
+      setError("Network error. Please try again.");
+      toast.error("Network error. Please try again.");
     } finally {
       setCreating(false);
     }
@@ -206,7 +206,7 @@ export function NewChallengeForm() {
       toast.success("Link copied to clipboard.");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Couldn’t copy — your browser may be blocking clipboard access.");
+      toast.error("Couldn’t copy. Your browser may be blocking clipboard access.");
     }
   }
 
@@ -219,7 +219,7 @@ export function NewChallengeForm() {
             Challenge created
           </h2>
           <p className="text-sm text-muted-foreground">
-            Share this link with your opponent — it works until someone joins.
+            Share this link with your opponent. It works until someone joins.
           </p>
         </div>
         <div className="mt-4 flex flex-col gap-4">
@@ -368,7 +368,7 @@ export function NewChallengeForm() {
             ) : displayCount === null ? (
               "Couldn't check problem availability."
             ) : displayCount === 0 ? (
-              "No cached problems match these filters — widen the range."
+              "No cached problems match these filters. Widen the range."
             ) : (
               <>
                 <span className="font-mono tabular-nums">{displayCount}</span>
@@ -416,7 +416,7 @@ function createErrorMessage(error?: string): string {
   if (error === "cf_not_linked") return "Link your Codeforces account first.";
   if (error === "unauthorized") return "Please sign in to create a challenge.";
   if (error === "no_problems_in_range") {
-    return "No cached problems match your filters — widen the range and try again.";
+    return "No cached problems match your filters. Widen the range and try again.";
   }
   if (error === "cheater_blocked") {
     return "This Codeforces account is on a public cheating blocklist and can’t race.";

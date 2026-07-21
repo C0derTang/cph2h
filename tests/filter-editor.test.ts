@@ -75,7 +75,7 @@ describe("isoToDateInput", () => {
 
 describe("filterSummary", () => {
   it("reports 'no filters' for the empty filter set", () => {
-    expect(filterSummary(EMPTY_FILTERS)).toBe("No filters — any problem");
+    expect(filterSummary(EMPTY_FILTERS)).toBe("No filters, any problem");
   });
 
   it("fills in the floor/ceil defaults for a one-sided rating range", () => {

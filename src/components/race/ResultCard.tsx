@@ -84,7 +84,7 @@ function subheadingFor(
 ): string {
   if (walkover && result === "win") return "Your opponent never readied up.";
   if (walkover && result === "loss") {
-    return "You didn't ready up in time — opponent wins by walkover.";
+    return "You didn't ready up in time. Opponent wins by walkover.";
   }
   if (matchmadeTimeoutAbort) {
     return "Nobody readied up in time, so the match was cancelled. No Elo changed.";

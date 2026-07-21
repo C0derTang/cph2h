@@ -106,7 +106,7 @@ export default function QueuePage() {
     }
     if (res.status === 403) return "Link your Codeforces account first.";
     if (res.status === 422 && body.error === "no_problems_in_range") {
-      return "No problems match those filters — widen them.";
+      return "No problems match those filters. Widen them.";
     }
     return "Queue choked. Run it back.";
   }, []);
@@ -354,9 +354,9 @@ export default function QueuePage() {
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {restoring
-            ? "One second — restoring your session…"
+            ? "One second, restoring your session…"
             : searching
-              ? "Keep this tab open — you’ll be dropped into the race automatically."
+              ? "Keep this tab open. You’ll be dropped into the race automatically."
               : "We’ll pair you with someone close to your Elo, then start a countdown."}
         </p>
 

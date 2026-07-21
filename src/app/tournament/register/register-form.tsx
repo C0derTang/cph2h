@@ -87,8 +87,8 @@ export function RegisterForm({
       toast.success(registered ? "Registration updated." : "You're registered.");
       router.refresh();
     } catch {
-      setError("Network error — please try again.");
-      toast.error("Network error — please try again.");
+      setError("Network error. Please try again.");
+      toast.error("Network error. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -307,7 +307,7 @@ function registerErrorMessage(error?: string): string {
     case "rating_too_low":
       return "Entry requires a peak Codeforces rating of 1900+ (Candidate Master).";
     case "cf_unavailable":
-      return "Couldn't reach Codeforces to verify eligibility — try again in a minute.";
+      return "Couldn't reach Codeforces to verify eligibility. Try again in a minute.";
     case "invalid_body":
       return "Could not read that request. Try again.";
     default:

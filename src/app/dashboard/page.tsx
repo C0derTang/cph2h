@@ -297,7 +297,7 @@ function PlayHubContent({
               accent="var(--player-self)"
               icon={Swords}
               label="Quick match"
-              tagline="Matched by rating — usually in seconds"
+              tagline="Matched by rating, usually in seconds"
             />
             <ChallengeMenuRow />
             <MenuRowLink
@@ -317,7 +317,7 @@ function PlayHubContent({
               tagline={
                 cfLinked
                   ? "Codeforces link and race preferences"
-                  : "Link Codeforces to start racing — required"
+                  : "Link Codeforces to start racing (required)"
               }
             />
           </div>
