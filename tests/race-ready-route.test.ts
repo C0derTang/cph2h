@@ -23,6 +23,7 @@ const {
   publishRaceEventMock,
   refreshSeenProblemsMock,
   buildRaceSnapshotMock,
+  resolveReadyTimeoutMock,
   updateSetMock,
   dbState,
 } = vi.hoisted(() => {
@@ -47,6 +48,7 @@ const {
       problemId: race.problemId,
       problemSelectionFailedReason: race.problemSelectionFailedReason,
     })),
+    resolveReadyTimeoutMock: vi.fn().mockResolvedValue(undefined),
     updateSetMock: vi.fn(),
     dbState,
   };
@@ -60,6 +62,7 @@ vi.mock("@/lib/race/hooks", () => ({
   refreshSeenProblems: refreshSeenProblemsMock,
 }));
 vi.mock("@/lib/race/snapshot", () => ({ buildRaceSnapshot: buildRaceSnapshotMock }));
+vi.mock("@/lib/race/ready-timeout", () => ({ resolveReadyTimeout: resolveReadyTimeoutMock }));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -185,6 +188,8 @@ beforeEach(() => {
   refreshSeenProblemsMock.mockClear();
   refreshSeenProblemsMock.mockResolvedValue(undefined);
   buildRaceSnapshotMock.mockClear();
+  resolveReadyTimeoutMock.mockClear();
+  resolveReadyTimeoutMock.mockResolvedValue(undefined);
   updateSetMock.mockClear();
   dbState.selectResults = [];
   dbState.selectIndex = 0;
@@ -421,6 +426,39 @@ describe("POST /api/races/[id]/ready — no-match path (issue #66)", () => {
       RACE_ID,
       expect.objectContaining({ type: "problem_selection_failed" }),
     );
+  });
+});
+
+describe("POST /api/races/[id]/ready — ready-deadline resolution (issue #275)", () => {
+  it("a post-deadline press resolves the lobby first, then 409s with the terminal snapshot", async () => {
+    // Matchmade lobby past its deadline; the opponent (p2) is the sole ready
+    // player. p1 pressing ready now must NOT slip a flag on: the route resolves
+    // the walkover, RE-READS the finished row, and canReady then 409s.
+    const pastDeadline = makeRace({
+      p1Ready: false,
+      p2Ready: true,
+      readyDeadlineAt: new Date(Date.now() - 60_000),
+    });
+    const terminal = { ...pastDeadline, status: "finished" as const, winnerId: P2 };
+    queueSelects([[pastDeadline], [terminal]]);
+
+    const res = await POST(req(), { params });
+
+    expect(resolveReadyTimeoutMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("not_ready_phase");
+    // No ready flag was ever written on the post-deadline press.
+    expect(updateSetMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT resolve a challenge race (null deadline): no resolver, single read", async () => {
+    queueSelects([[makeRace({ p2Ready: false, readyDeadlineAt: null })]]);
+    queueUpdates([[makeRace({ p1Ready: true, readyDeadlineAt: null })]]);
+    selectRaceProblemMock.mockResolvedValue({ ok: true, problemId: "x" });
+
+    await POST(req(), { params });
+
+    expect(resolveReadyTimeoutMock).not.toHaveBeenCalled();
   });
 });
 

@@ -17,7 +17,8 @@ import { db } from "@/lib/db";
 import { races } from "@/lib/db/schema";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
 import { requireLinkedUser } from "@/lib/race/session";
-import { isParticipant } from "@/lib/race/machine";
+import { isParticipant, readyTimeoutAction } from "@/lib/race/machine";
+import { resolveReadyTimeout } from "@/lib/race/ready-timeout";
 import { enforcePolicy } from "@/lib/ratelimit/policies";
 
 export async function GET(
@@ -49,6 +50,25 @@ export async function GET(
 
   if (!isParticipant(race, session.user.id)) {
     return NextResponse.json({ error: "not_participant" }, { status: 403 });
+  }
+
+  // Lazy matchmade ready-deadline enforcement (issue #275). This GET is the
+  // primary polling path, so it doubles as the safety net: a past-deadline
+  // matchmade lobby resolves here (walkover / abort), then we RE-READ so a
+  // claim loser still returns the winner's terminal snapshot. Mutation-on-GET
+  // is pattern-consistent (the verdict poll already mutates on read). Challenge
+  // races (null deadline) return `none` and are untouched.
+  const now = new Date();
+  if (readyTimeoutAction(race, now).kind !== "none") {
+    await resolveReadyTimeout(race, now);
+    const [resolved] = await db
+      .select()
+      .from(races)
+      .where(eq(races.id, id))
+      .limit(1);
+    return NextResponse.json(await buildRaceSnapshot(resolved ?? race), {
+      status: 200,
+    });
   }
 
   return NextResponse.json(await buildRaceSnapshot(race), { status: 200 });

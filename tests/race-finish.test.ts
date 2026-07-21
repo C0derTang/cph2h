@@ -16,6 +16,7 @@ const { dbState, publishMock, deleteRoomMock } = vi.hoisted(() => {
     claimResult: [] as unknown[],
     userRows: [] as unknown[],
     updateCalls: [] as { table: unknown; values: Record<string, unknown> }[],
+    whereClauses: [] as unknown[],
     insertCalls: [] as { table: unknown; values: unknown }[],
     batchCalls: [] as unknown[][],
     selectCount: 0,
@@ -36,7 +37,12 @@ vi.mock("@/lib/db", () => {
       update: (table: unknown) => ({
         set: (values: Record<string, unknown>) => {
           dbState.updateCalls.push({ table, values });
-          return { where: () => makeQuery() };
+          return {
+            where: (clause: unknown) => {
+              dbState.whereClauses.push(clause);
+              return makeQuery();
+            },
+          };
         },
       }),
       select: () => ({
@@ -128,12 +134,31 @@ beforeEach(() => {
   dbState.claimResult = [];
   dbState.userRows = [];
   dbState.updateCalls = [];
+  dbState.whereClauses = [];
   dbState.insertCalls = [];
   dbState.batchCalls = [];
   dbState.selectCount = 0;
   publishMock.mockClear();
   deleteRoomMock.mockClear();
 });
+
+/**
+ * Flatten a drizzle SQL claim into an ordered col/param sequence so the exact
+ * WHERE predicate (columns AND the boolean flag values) can be asserted.
+ */
+function claimShape(
+  node: unknown,
+  out: Array<{ col?: string; param?: unknown }> = [],
+): Array<{ col?: string; param?: unknown }> {
+  if (!node || typeof node !== "object") return out;
+  const n = node as Record<string, unknown>;
+  if (Array.isArray(n.queryChunks)) {
+    for (const chunk of n.queryChunks) claimShape(chunk, out);
+  }
+  if (n.name && n.table) out.push({ col: n.name as string });
+  else if ("value" in n && n.encoder) out.push({ param: n.value });
+  return out;
+}
 
 describe("finishRace", () => {
   it("applies Elo on a p1 win: updates both users, writes 2 history rows, sets deltas", async () => {
@@ -271,5 +296,115 @@ describe("finishRace", () => {
     expect(dbState.selectCount).toBe(0);
     expect(publishMock).not.toHaveBeenCalled();
     expect(deleteRoomMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("finishRace — ready-deadline walkover (issue #275)", () => {
+  it("default (no readyWalkover) claims active->finished: WHERE is id + status='active' only", async () => {
+    dbState.claimResult = [];
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      reason: "solved",
+    });
+
+    // The active-path claim references only id and status — byte-identical to
+    // the pre-#275 behavior. No ready_deadline_at / ready-flag pins.
+    const shape = claimShape(dbState.whereClauses[0]);
+    const cols = shape.filter((s) => s.col).map((s) => s.col);
+    expect(cols).toEqual(["id", "status"]);
+    const statusIdx = shape.findIndex((s) => s.col === "status");
+    expect(shape[statusIdx + 1]).toEqual({ param: "active" });
+  });
+
+  it("walkover claim flips ready->finished pinning deadline + EXACT ready flags (p1)", async () => {
+    dbState.claimResult = [
+      makeRace({
+        status: "finished",
+        winnerId: "user-p1",
+        outcome: "p1_win",
+        p1Ready: true,
+        p2Ready: false,
+        startedAt: null,
+        readyDeadlineAt: new Date("2024-01-01T00:00:00Z"),
+      }),
+    ];
+    dbState.userRows = [
+      makeUser({ id: "user-p1", elo: 1200, racesPlayed: 0 }),
+      makeUser({ id: "user-p2", elo: 1200, racesPlayed: 0 }),
+    ];
+
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      reason: "ready_timeout",
+      readyWalkover: { readySide: "p1" },
+    });
+
+    const shape = claimShape(dbState.whereClauses[0]);
+    const cols = shape.filter((s) => s.col).map((s) => s.col);
+    // status='ready' (not 'active'), the deadline guard, and BOTH ready flags.
+    expect(cols).toContain("status");
+    expect(cols).toContain("ready_deadline_at");
+    expect(cols).toContain("p1_ready");
+    expect(cols).toContain("p2_ready");
+    const statusIdx = shape.findIndex((s) => s.col === "status");
+    expect(shape[statusIdx + 1]).toEqual({ param: "ready" });
+    // Exact-flag pin (NOT a bare XOR): readySide 'p1' ⇒ p1_ready=true, p2_ready=false.
+    const p1Idx = shape.findIndex((s) => s.col === "p1_ready");
+    const p2Idx = shape.findIndex((s) => s.col === "p2_ready");
+    expect(shape[p1Idx + 1]).toEqual({ param: true });
+    expect(shape[p2Idx + 1]).toEqual({ param: false });
+
+    // The SET marks it finished; startedAt is left untouched (stays null — the
+    // client's walkover discriminator). Full Elo is applied exactly once.
+    expect(dbState.updateCalls[0].values).toMatchObject({
+      status: "finished",
+      outcome: "p1_win",
+      winnerId: "user-p1",
+    });
+    expect(dbState.updateCalls[0].values).not.toHaveProperty("startedAt");
+    expect(dbState.batchCalls).toHaveLength(1);
+    expect(dbState.updateCalls[3].values).toEqual({ eloDeltaP1: 32, eloDeltaP2: -32 });
+    expect(publishMock).toHaveBeenCalledWith(
+      "room-1",
+      expect.objectContaining({ type: "race_finished", outcome: "p1_win" }),
+    );
+  });
+
+  it("walkover pins the EXACT flags for readySide 'p2' (p1_ready=false, p2_ready=true)", async () => {
+    dbState.claimResult = [];
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p2_win",
+      winnerId: "user-p2",
+      reason: "ready_timeout",
+      readyWalkover: { readySide: "p2" },
+    });
+
+    const shape = claimShape(dbState.whereClauses[0]);
+    const p1Idx = shape.findIndex((s) => s.col === "p1_ready");
+    const p2Idx = shape.findIndex((s) => s.col === "p2_ready");
+    expect(shape[p1Idx + 1]).toEqual({ param: false });
+    expect(shape[p2Idx + 1]).toEqual({ param: true });
+  });
+
+  it("a lost/second walkover claim applies no Elo and publishes nothing", async () => {
+    dbState.claimResult = []; // flags churned or already resolved
+
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      reason: "ready_timeout",
+      readyWalkover: { readySide: "p1" },
+    });
+
+    expect(dbState.updateCalls).toHaveLength(1); // only the claim
+    expect(dbState.batchCalls).toHaveLength(0);
+    expect(dbState.insertCalls).toHaveLength(0);
+    expect(publishMock).not.toHaveBeenCalled();
   });
 });
