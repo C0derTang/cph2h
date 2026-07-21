@@ -172,7 +172,7 @@ export default async function TournamentPage() {
           <HeroWord
             word="tournament"
             tone="muted"
-            className="pointer-events-none absolute top-8 left-1/2 -z-10 -translate-x-1/2 whitespace-nowrap"
+            className="pointer-events-none absolute top-8 left-1/2 -z-10 -translate-x-1/2 whitespace-nowrap opacity-25"
           />
 
           <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
