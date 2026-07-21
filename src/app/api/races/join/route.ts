@@ -22,6 +22,7 @@ import { requireLinkedUser } from "@/lib/race/session";
 import { canJoin } from "@/lib/race/machine";
 import { buildRaceSnapshot, toPublicUser } from "@/lib/race/snapshot";
 import { publishRaceEvent } from "@/lib/race/hooks";
+import { enforceDbRateLimit, RACES_JOIN_POLICY } from "@/lib/ratelimit/policies";
 
 const bodySchema = z.object({ token: z.string().min(1) });
 
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest) {
   if (!session.ok) {
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
+
+  const limited = await enforceDbRateLimit(req, "races_join", session.user.id, RACES_JOIN_POLICY);
+  if (limited) return limited;
 
   // Block known cheaters from accepting a challenge (issue #184). Fail-open:
   // a null set (list unavailable) always allows.
