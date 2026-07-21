@@ -17,7 +17,7 @@ import { z } from "zod";
 import { and, eq, isNull } from "drizzle-orm";
 import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import { db } from "@/lib/db";
-import { races } from "@/lib/db/schema";
+import { queueEntries, races } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { canJoin } from "@/lib/race/machine";
 import { buildRaceSnapshot, toPublicUser } from "@/lib/race/snapshot";
@@ -95,6 +95,10 @@ export async function POST(req: NextRequest) {
       { status: 409 },
     );
   }
+
+  // The joiner is now committed to this race; drop any quick-match queue row so
+  // they can't also be paired into a second race.
+  await db.delete(queueEntries).where(eq(queueEntries.userId, session.user.id));
 
   await publishRaceEvent(joined.id, {
     type: "opponent_joined",

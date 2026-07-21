@@ -48,6 +48,8 @@ vi.mock("@/lib/db", () => ({
         where: () => ({ returning: dbUpdateReturningMock }),
       }),
     }),
+    // Issue #274: on a successful join the route clears the joiner's queue row.
+    delete: () => ({ where: () => Promise.resolve() }),
   },
 }));
 vi.mock("@/lib/race/snapshot", () => ({

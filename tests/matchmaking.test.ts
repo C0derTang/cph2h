@@ -21,6 +21,26 @@ import {
   BAND_STEP_SEC,
   BAND_MAX,
 } from "@/lib/matchmaking";
+import type { RaceProblemFilters } from "@/lib/types";
+
+/** A fully unbounded filter set (all four columns null). */
+const NO_FILTERS: RaceProblemFilters = {
+  ratingMin: null,
+  ratingMax: null,
+  dateFrom: null,
+  dateTo: null,
+};
+
+/** A queue row with no filters, for `RETURNING` mocks. */
+function row(userId: string): Record<string, unknown> {
+  return {
+    user_id: userId,
+    rating_min: null,
+    rating_max: null,
+    date_from: null,
+    date_to: null,
+  };
+}
 
 describe("bandForWait", () => {
   it("returns the base band at zero / negative / non-finite wait", () => {
@@ -68,42 +88,47 @@ describe("tryPair", () => {
     execute.mockReset();
   });
 
-  it("enqueue mode: returns the opponent id when the opponent row is deleted", async () => {
-    execute.mockResolvedValueOnce({ rows: [{ user_id: "opp-1" }] });
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 100, "enqueue");
-    expect(matched).toBe("opp-1");
+  it("enqueue mode: returns the opponent + filters when the opponent row is deleted", async () => {
+    execute.mockResolvedValueOnce({
+      rows: [{ ...row("opp-1"), rating_min: 1200, rating_max: 1600 }],
+    });
+    const matched = await tryPair({ userId: "me", elo: 1200, filters: NO_FILTERS }, 100, "enqueue");
+    expect(matched).toEqual({
+      opponentId: "opp-1",
+      opponentFilters: { ratingMin: 1200, ratingMax: 1600, dateFrom: null, dateTo: null },
+    });
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("poll mode: returns the opponent id only when BOTH rows were deleted", async () => {
-    execute.mockResolvedValueOnce({ rows: [{ user_id: "me" }, { user_id: "opp-1" }] });
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 100, "poll");
-    expect(matched).toBe("opp-1");
+  it("poll mode: returns the opponent (picking the non-self row) only when BOTH rows were deleted", async () => {
+    execute.mockResolvedValueOnce({ rows: [row("me"), row("opp-1")] });
+    const matched = await tryPair({ userId: "me", elo: 1200, filters: NO_FILTERS }, 100, "poll");
+    expect(matched?.opponentId).toBe("opp-1");
   });
 
   it("poll mode: refuses a race when only the opponent row was deleted (self not locked)", async () => {
     // Simulates the 3+ concurrent-poller hole: our own row was already claimed
     // by another pairing, so it never made it into `pair`/`deleted`.
-    execute.mockResolvedValueOnce({ rows: [{ user_id: "opp-1" }] });
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 100, "poll");
+    execute.mockResolvedValueOnce({ rows: [row("opp-1")] });
+    const matched = await tryPair({ userId: "me", elo: 1200, filters: NO_FILTERS }, 100, "poll");
     expect(matched).toBeNull();
   });
 
   it("poll mode: returns null when nothing was deleted", async () => {
     execute.mockResolvedValueOnce({ rows: [] });
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 200, "poll");
+    const matched = await tryPair({ userId: "me", elo: 1200, filters: NO_FILTERS }, 200, "poll");
     expect(matched).toBeNull();
   });
 
   it("tolerates a result without a rows array", async () => {
     execute.mockResolvedValueOnce({});
-    const matched = await tryPair({ userId: "me", elo: 1200 }, 200, "enqueue");
+    const matched = await tryPair({ userId: "me", elo: 1200, filters: NO_FILTERS }, 200, "enqueue");
     expect(matched).toBeNull();
   });
 
   it("issues a single locking statement with the caller's params", async () => {
     execute.mockResolvedValueOnce({ rows: [] });
-    await tryPair({ userId: "me-42", elo: 1337 }, 250, "enqueue");
+    await tryPair({ userId: "me-42", elo: 1337, filters: NO_FILTERS }, 250, "enqueue");
 
     expect(execute).toHaveBeenCalledTimes(1);
     const query = execute.mock.calls[0][0];
@@ -118,9 +143,47 @@ describe("tryPair", () => {
     expect(text).toContain("250");
   });
 
+  it("builds the four overlap conditions with explicit ::int/::timestamptz casts", async () => {
+    execute.mockResolvedValueOnce({ rows: [] });
+    await tryPair(
+      { userId: "me", elo: 1200, filters: { ratingMin: 1000, ratingMax: 1500, dateFrom: null, dateTo: null } },
+      100,
+      "enqueue",
+    );
+    const text = JSON.stringify(execute.mock.calls[0][0]);
+    // Overlap predicate: candidate columns compared against the caller's bounds.
+    expect(text).toContain("rating_min IS NULL OR");
+    expect(text).toContain("::int IS NULL OR rating_min <= ");
+    expect(text).toContain("rating_max IS NULL OR");
+    expect(text).toContain("::int IS NULL OR rating_max >= ");
+    expect(text).toContain("date_from IS NULL OR");
+    expect(text).toContain("::timestamptz IS NULL OR date_from <= ");
+    expect(text).toContain("date_to IS NULL OR");
+    expect(text).toContain("::timestamptz IS NULL OR date_to >= ");
+  });
+
+  it("RETURNING carries the opponent's filter columns", async () => {
+    execute.mockResolvedValueOnce({ rows: [] });
+    await tryPair({ userId: "me", elo: 1200, filters: NO_FILTERS }, 100, "enqueue");
+    const text = JSON.stringify(execute.mock.calls[0][0]);
+    expect(text).toContain("RETURNING user_id, rating_min, rating_max, date_from, date_to");
+  });
+
+  it("accepts all-null filter binds without erroring (the ::int/::timestamptz casts type them)", async () => {
+    execute.mockResolvedValueOnce({ rows: [] });
+    // All-null filters: every filter bind is null and is cast in SQL so
+    // neon-http can type it; the statement builds and runs without throwing.
+    await expect(
+      tryPair({ userId: "me", elo: 1200, filters: NO_FILTERS }, 100, "poll"),
+    ).resolves.toBeNull();
+    const text = JSON.stringify(execute.mock.calls[0][0]);
+    expect(text).toContain("::int IS NULL");
+    expect(text).toContain("::timestamptz IS NULL");
+  });
+
   it("poll mode includes the self-guard (self CTE + `me IN pair`)", async () => {
     execute.mockResolvedValueOnce({ rows: [] });
-    await tryPair({ userId: "me-99", elo: 1500 }, 300, "poll");
+    await tryPair({ userId: "me-99", elo: 1500, filters: NO_FILTERS }, 300, "poll");
 
     const text = JSON.stringify(execute.mock.calls[0][0]);
     // The non-locking self presence CTE ...
@@ -133,10 +196,31 @@ describe("tryPair", () => {
 
   it("enqueue mode omits the self CTE (self is legitimately absent)", async () => {
     execute.mockResolvedValueOnce({ rows: [] });
-    await tryPair({ userId: "me-7", elo: 1100 }, 100, "enqueue");
+    await tryPair({ userId: "me-7", elo: 1100, filters: NO_FILTERS }, 100, "enqueue");
 
     const text = JSON.stringify(execute.mock.calls[0][0]);
     expect(text).not.toContain("self AS");
     expect(text).toContain("FOR UPDATE SKIP LOCKED");
+  });
+
+  it("enqueue and poll share the identical overlap fragment", async () => {
+    const filters: RaceProblemFilters = {
+      ratingMin: 1100,
+      ratingMax: 1700,
+      dateFrom: "2024-01-01T00:00:00.000Z",
+      dateTo: "2024-12-31T00:00:00.000Z",
+    };
+    execute.mockResolvedValueOnce({ rows: [] });
+    await tryPair({ userId: "me", elo: 1200, filters }, 100, "enqueue");
+    const enqueueText = JSON.stringify(execute.mock.calls[0][0]);
+
+    execute.mockReset();
+    execute.mockResolvedValueOnce({ rows: [] });
+    await tryPair({ userId: "me", elo: 1200, filters }, 100, "poll");
+    const pollText = JSON.stringify(execute.mock.calls[0][0]);
+
+    const fragment = "rating_min IS NULL OR";
+    const grab = (t: string) => t.slice(t.indexOf(fragment), t.indexOf(fragment) + 400);
+    expect(grab(enqueueText)).toBe(grab(pollText));
   });
 });

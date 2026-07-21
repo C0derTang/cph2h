@@ -34,14 +34,26 @@ vi.mock("@/lib/race/create", () => ({ createRace: vi.fn() }));
 vi.mock("@/lib/matchmaking", () => ({
   tryPair: tryPairMock,
   bandForWait: vi.fn(),
+  intersectFilters: vi.fn(),
   BAND_BASE: 100,
 }));
 vi.mock("@/lib/cf/cheaters", () => ({
   getCheaterSet: getCheaterSetMock,
   isKnownCheater: isKnownCheaterMock,
 }));
+vi.mock("@/lib/cf/problem-availability", () => ({
+  countAvailableProblems: vi.fn().mockResolvedValue(1),
+}));
 vi.mock("@/lib/db", () => ({
   db: {
+    // findActiveRaceId(): no in-flight race for the caller.
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          orderBy: () => ({ limit: () => Promise.resolve([]) }),
+        }),
+      }),
+    }),
     insert: () => ({
       values: () => ({
         onConflictDoUpdate: dbInsertMock,
