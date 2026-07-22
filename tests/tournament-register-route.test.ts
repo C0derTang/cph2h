@@ -20,7 +20,7 @@ import type { SessionResult } from "../src/lib/race/session";
 
 const {
   requireLinkedUserMock,
-  getUserRatingMock,
+  getUserInfoMock,
   insertValuesMock,
   onConflictDoUpdateMock,
   enforceDbRateLimitMock,
@@ -31,7 +31,7 @@ const {
   };
   return {
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
-    getUserRatingMock: vi.fn(),
+    getUserInfoMock: vi.fn(),
     insertValuesMock: vi.fn(),
     onConflictDoUpdateMock: vi.fn(),
     enforceDbRateLimitMock: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("@/lib/race/session", () => ({
 }));
 
 vi.mock("@/lib/cf/client", () => ({
-  getUserRating: getUserRatingMock,
+  getUserInfo: getUserInfoMock,
 }));
 
 // `src/lib/ratelimit/policies.ts` transitively imports the real `@/lib/db`
@@ -104,25 +104,22 @@ function baseBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** Fake CF `user.rating` entries, one per given `newRating` value. */
-function ratingHistory(ratings: number[]) {
-  return ratings.map((newRating, i) => ({
-    contestId: 1000 + i,
-    contestName: `Contest ${i + 1}`,
-    newRating,
-  }));
+/** Fake CF `user.info` response — one entry for the handle, `maxRating`
+ *  omitted (undefined) for an unrated handle. */
+function userInfo(maxRating?: number) {
+  return [{ handle: "cfhandle", maxRating }];
 }
 
 beforeEach(() => {
   requireLinkedUserMock.mockReset();
-  getUserRatingMock.mockReset();
+  getUserInfoMock.mockReset();
   insertValuesMock.mockClear();
   onConflictDoUpdateMock.mockClear();
   enforceDbRateLimitMock.mockReset().mockResolvedValue(null);
   dbState.insertReturning = [];
 
   // Eligible by default so tests that don't care about eligibility pass.
-  getUserRatingMock.mockResolvedValue(ratingHistory([1850, 1920]));
+  getUserInfoMock.mockResolvedValue(userInfo(1920));
 
   requireLinkedUserMock.mockResolvedValue({
     ok: true,
@@ -345,7 +342,7 @@ describe("POST /api/tournament/register", () => {
   });
 
   it("returns 403 rating_too_low with the peak rating when peak is 1899", async () => {
-    getUserRatingMock.mockResolvedValue(ratingHistory([1850, 1899]));
+    getUserInfoMock.mockResolvedValue(userInfo(1899));
 
     const res = await POST(makeRequest(baseBody()));
 
@@ -357,17 +354,17 @@ describe("POST /api/tournament/register", () => {
   });
 
   it("proceeds with the upsert at exactly peak rating 1900", async () => {
-    getUserRatingMock.mockResolvedValue(ratingHistory([1850, 1900]));
+    getUserInfoMock.mockResolvedValue(userInfo(1900));
 
     const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(200);
-    expect(getUserRatingMock).toHaveBeenCalledWith("cfhandle");
+    expect(getUserInfoMock).toHaveBeenCalledWith("cfhandle");
     expect(insertValuesMock).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 403 rating_too_low for an unrated handle (empty history)", async () => {
-    getUserRatingMock.mockResolvedValue(ratingHistory([]));
+  it("returns 403 rating_too_low for an unrated handle (maxRating absent)", async () => {
+    getUserInfoMock.mockResolvedValue(userInfo(undefined));
 
     const res = await POST(makeRequest(baseBody()));
 
@@ -379,7 +376,7 @@ describe("POST /api/tournament/register", () => {
   });
 
   it("returns 502 cf_unavailable when the CF API call fails", async () => {
-    getUserRatingMock.mockRejectedValue(new Error("CF down"));
+    getUserInfoMock.mockRejectedValue(new Error("CF down"));
 
     const res = await POST(makeRequest(baseBody()));
 
@@ -405,7 +402,7 @@ describe("POST /api/tournament/register", () => {
     );
     expect(badUrl.status).toBe(400);
 
-    expect(getUserRatingMock).not.toHaveBeenCalled();
+    expect(getUserInfoMock).not.toHaveBeenCalled();
     expect(insertValuesMock).not.toHaveBeenCalled();
   });
 
@@ -453,7 +450,7 @@ describe("POST /api/tournament/register — rate limiting (issue #256)", () => {
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("20");
     expect(insertValuesMock).not.toHaveBeenCalled();
-    expect(getUserRatingMock).not.toHaveBeenCalled();
+    expect(getUserInfoMock).not.toHaveBeenCalled();
   });
 
   it("is keyed by the authenticated user id", async () => {

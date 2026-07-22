@@ -21,7 +21,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { tournamentRegistrations } from "@/lib/db/schema";
-import { getUserRating } from "@/lib/cf/client";
+import { getUserInfo } from "@/lib/cf/client";
 import { requireLinkedUser } from "@/lib/race/session";
 import { enforceDbRateLimit, TOURNAMENT_REGISTER_POLICY } from "@/lib/ratelimit/policies";
 import {
@@ -124,11 +124,15 @@ export async function POST(req: Request) {
   // MIN_PEAK_RATING (Candidate Master). Checked on every POST (edits too) —
   // peak rating only grows, so this never locks out an existing registrant.
   // `cfHandle` is non-null past `requireLinkedUser`, but guard defensively.
-  // Fail closed on CF errors: registration is retryable.
+  // Fail closed on CF errors: registration is retryable. Peak rating comes
+  // from CF `user.info`'s `maxRating` (issue #287) rather than deriving it
+  // from `user.rating` history — smaller payload, no empty/paginated-history
+  // edge case. Unrated handles have no `maxRating` -> null -> 403, same as
+  // empty history before.
   let peakRating: number | null;
   try {
-    const history = await getUserRating(session.user.cfHandle ?? "");
-    peakRating = history.length ? Math.max(...history.map((h) => h.newRating)) : null;
+    const [info] = await getUserInfo(session.user.cfHandle ?? "");
+    peakRating = info?.maxRating ?? null;
   } catch {
     return NextResponse.json({ error: "cf_unavailable" }, { status: 502 });
   }
