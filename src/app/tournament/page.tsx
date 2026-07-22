@@ -188,7 +188,7 @@ export default async function TournamentPage() {
             <SlabButton
               tone="neutral"
               size="lg"
-              render={<a href="https://discord.gg/ENQ4Bq93gJ" target="_blank" rel="noopener noreferrer" />}
+              render={<a href="https://discord.com/invite/MvK96CZQPq" target="_blank" rel="noopener noreferrer" />}
               nativeButton={false}
             >
               <MessageCircle className="size-5" aria-hidden />
