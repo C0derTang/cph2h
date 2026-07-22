@@ -19,6 +19,7 @@ export const BACK_ROUTE_PREFIXES = [
   "/settings",
   "/race",
   "/tournament",
+  "/report-bug",
 ] as const;
 
 /** True on a back route (exact prefix match or `prefix/…` subpath) — e.g.
@@ -70,6 +71,7 @@ const ROUTE_MARKER_LABELS: Record<string, string> = {
   "/sign-in": "auth",
   "/sign-up": "auth",
   "/tournament": "tournament",
+  "/report-bug": "Report a bug",
 };
 
 /** Returns the fixed HUD marker label for the section `pathname` falls
