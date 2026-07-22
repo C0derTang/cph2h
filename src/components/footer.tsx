@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 // Site-wide footer, rendered once in the root layout. Client component only
@@ -27,6 +28,12 @@ export function Footer() {
         >
           discord.gg/ENQ4Bq93gJ
         </a>
+        <Link
+          href="/report-bug"
+          className="font-mono text-[11px] text-player-self hover:underline"
+        >
+          Report a bug
+        </Link>
         <p>&copy; {new Date().getFullYear()} cph2h. All rights reserved.</p>
         {/* hud-meta scatter point: build tag in the footer corner. */}
         <span aria-hidden className="hud-meta">
