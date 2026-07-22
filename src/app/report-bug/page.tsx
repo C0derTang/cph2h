@@ -10,11 +10,11 @@ export default function ReportBugPage() {
   return (
     <main className="shell-narrow flex-1 py-16 md:py-24">
       <Link
-        href="/tournament"
+        href="/"
         className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
-        Back to tournament
+        Back to home
       </Link>
 
       <p className="mt-8 eyebrow text-muted-foreground">Support</p>
