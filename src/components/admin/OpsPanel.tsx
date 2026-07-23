@@ -19,6 +19,8 @@ import { Badge, type badgeVariants } from "@/components/ui/badge";
 import { Stat } from "@/components/ui/stat";
 import { formatEloDelta } from "@/lib/format";
 import { jitteredDelayMs } from "@/lib/poll-timing";
+import { pageSlice } from "@/lib/paging";
+import { Pager } from "@/components/admin/Pager";
 import type { AdminOps, RecentRaceDTO, RecentRacePlayer } from "@/lib/admin/ops";
 import type { VariantProps } from "class-variance-authority";
 
@@ -32,6 +34,7 @@ type OpsState =
 export function OpsPanel() {
   const [state, setState] = useState<OpsState>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(0);
   const cancelledRef = useRef(false);
 
   const fetchOps = useCallback(async (background: boolean) => {
@@ -137,11 +140,18 @@ export function OpsPanel() {
               {state.data.recentRaces.length === 0 ? (
                 <p className="py-6 text-sm text-muted-foreground">No races yet.</p>
               ) : (
-                <ul className="divide-y divide-border">
-                  {state.data.recentRaces.map((race) => (
-                    <RecentRaceRow key={race.id} race={race} />
-                  ))}
-                </ul>
+                <>
+                  <ul className="divide-y divide-border">
+                    {pageSlice(state.data.recentRaces, page).map((race) => (
+                      <RecentRaceRow key={race.id} race={race} />
+                    ))}
+                  </ul>
+                  <Pager
+                    page={page}
+                    total={state.data.recentRaces.length}
+                    onPageChange={setPage}
+                  />
+                </>
               )}
             </div>
           </div>
