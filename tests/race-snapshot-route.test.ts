@@ -12,11 +12,11 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Race, User } from "../src/lib/db/schema";
-import type { SessionResult } from "../src/lib/race/session";
+import type { AdminSessionResult, SessionResult } from "../src/lib/race/session";
 import { _resetMemoryStore } from "../src/lib/ratelimit";
 import { RATE_LIMIT_POLICIES } from "../src/lib/ratelimit/policies";
 
-const { authMock, requireLinkedUserMock, buildRaceSnapshotMock, resolveReadyTimeoutMock, dbState } = vi.hoisted(() => {
+const { authMock, requireLinkedUserMock, requireAdminMock, buildRaceSnapshotMock, resolveReadyTimeoutMock, dbState } = vi.hoisted(() => {
   const dbState = {
     selectResults: [] as unknown[][],
     selectIndex: 0,
@@ -24,6 +24,7 @@ const { authMock, requireLinkedUserMock, buildRaceSnapshotMock, resolveReadyTime
   return {
     authMock: vi.fn(),
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
+    requireAdminMock: vi.fn<() => Promise<AdminSessionResult>>(),
     buildRaceSnapshotMock: vi.fn(async (race: Race) => ({
       __snapshotFor: race.id,
       status: race.status,
@@ -34,7 +35,10 @@ const { authMock, requireLinkedUserMock, buildRaceSnapshotMock, resolveReadyTime
 });
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
-vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
+vi.mock("@/lib/race/session", () => ({
+  requireLinkedUser: requireLinkedUserMock,
+  requireAdmin: requireAdminMock,
+}));
 vi.mock("@/lib/race/snapshot", () => ({ buildRaceSnapshot: buildRaceSnapshotMock }));
 vi.mock("@/lib/race/ready-timeout", () => ({ resolveReadyTimeout: resolveReadyTimeoutMock }));
 
@@ -92,8 +96,8 @@ function makeRace(overrides: Partial<Race> = {}): Race {
   };
 }
 
-function mockSessionAs(userId: string) {
-  const user: User = {
+function makeUser(userId: string, overrides: Partial<User> = {}): User {
+  return {
     id: userId,
     clerkId: `clerk-${userId}`,
     username: userId,
@@ -107,8 +111,12 @@ function mockSessionAs(userId: string) {
     solveHistoryImportCursor: null,
     createdAt: null,
     isAdmin: false,
+    ...overrides,
   };
-  requireLinkedUserMock.mockResolvedValue({ ok: true, user });
+}
+
+function mockSessionAs(userId: string, overrides: Partial<User> = {}) {
+  requireLinkedUserMock.mockResolvedValue({ ok: true, user: makeUser(userId, overrides) });
 }
 
 const params = Promise.resolve({ id: RACE_ID });
@@ -120,6 +128,10 @@ beforeEach(() => {
   _resetMemoryStore();
   authMock.mockReset().mockResolvedValue({ userId: "clerk-user-p1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
+  // Default: not an admin. Individual admin-view tests override this. The route
+  // only consults requireAdmin when requireLinkedUser fails OR to broaden the
+  // participant check, so this 404 default keeps every existing test unchanged.
+  requireAdminMock.mockReset().mockResolvedValue({ ok: false, status: 404, error: "not_found" });
   buildRaceSnapshotMock.mockClear();
   resolveReadyTimeoutMock.mockClear();
   resolveReadyTimeoutMock.mockResolvedValue(undefined);
@@ -153,6 +165,43 @@ describe("GET /api/races/[id] — snapshot", () => {
     requireLinkedUserMock.mockResolvedValue({ ok: false, status: 401, error: "unauthorized" });
     const res = await GET(req(), { params });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /api/races/[id] — admin spectate (issue #296)", () => {
+  it("lets a linked admin view a race they are NOT a participant of (200)", async () => {
+    mockSessionAs("stranger", { isAdmin: true });
+    dbState.selectResults = [[makeRace()]];
+    const res = await GET(req(), { params });
+    expect(res.status).toBe(200);
+    // requireAdmin isn't even consulted — the linked-user path resolved, and
+    // the participant check was broadened by user.isAdmin.
+    expect(requireAdminMock).not.toHaveBeenCalled();
+  });
+
+  it("still 403s a linked NON-admin non-participant", async () => {
+    mockSessionAs("stranger"); // isAdmin: false
+    dbState.selectResults = [[makeRace()]];
+    const res = await GET(req(), { params });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "not_participant" });
+  });
+
+  it("falls back to requireAdmin when the linked-user gate fails, and 200s for an admin", async () => {
+    requireLinkedUserMock.mockResolvedValue({ ok: false, status: 403, error: "cf_not_linked" });
+    requireAdminMock.mockResolvedValue({ ok: true, user: makeUser("admin", { isAdmin: true }) });
+    dbState.selectResults = [[makeRace()]];
+    const res = await GET(req(), { params });
+    expect(res.status).toBe(200);
+    expect(requireAdminMock).toHaveBeenCalled();
+  });
+
+  it("returns the ORIGINAL linked-user error when the admin fallback also fails", async () => {
+    requireLinkedUserMock.mockResolvedValue({ ok: false, status: 403, error: "cf_not_linked" });
+    // requireAdmin default is the 404 shape.
+    const res = await GET(req(), { params });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "cf_not_linked" });
   });
 });
 

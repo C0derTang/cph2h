@@ -14,9 +14,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { races } from "@/lib/db/schema";
+import { races, type User } from "@/lib/db/schema";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
-import { requireLinkedUser } from "@/lib/race/session";
+import { requireAdmin, requireLinkedUser } from "@/lib/race/session";
 import { isParticipant, readyTimeoutAction } from "@/lib/race/machine";
 import { resolveReadyTimeout } from "@/lib/race/ready-timeout";
 import { enforcePolicy } from "@/lib/ratelimit/policies";
@@ -33,9 +33,20 @@ export async function GET(
   const limited = await enforcePolicy(req, "raceSnapshot", clerkId);
   if (limited) return limited;
 
+  // Participants view via `requireLinkedUser`. An admin (issue #296) may
+  // spectate ANY race, so fall back to `requireAdmin` when the linked-user gate
+  // fails — but if that also fails, return the ORIGINAL linked-user error
+  // unchanged (a non-admin's 401/403 is preserved byte-for-byte).
   const session = await requireLinkedUser();
-  if (!session.ok) {
-    return NextResponse.json({ error: session.error }, { status: session.status });
+  let user: User;
+  if (session.ok) {
+    user = session.user;
+  } else {
+    const admin = await requireAdmin();
+    if (!admin.ok) {
+      return NextResponse.json({ error: session.error }, { status: session.status });
+    }
+    user = admin.user;
   }
 
   const [race] = await db
@@ -48,7 +59,9 @@ export async function GET(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  if (!isParticipant(race, session.user.id)) {
+  // Participants see their own race; admins see any. A non-admin non-participant
+  // keeps the exact 403 `not_participant`.
+  if (!isParticipant(race, user.id) && !user.isAdmin) {
     return NextResponse.json({ error: "not_participant" }, { status: 403 });
   }
 
