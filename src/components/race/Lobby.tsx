@@ -40,7 +40,6 @@ import { cn } from "@/lib/utils";
 import { buildJoinUrl } from "@/lib/race/join-url";
 import { computeSkewMs, correctedNow } from "@/lib/race/countdown";
 import { jitteredDelayMs } from "@/lib/poll-timing";
-import { canCompete } from "@/lib/race/av-requirements";
 import { useCamPermission, useMicPermission } from "@/components/race/useMicPermission";
 import { AudioToggleButtons } from "@/components/race/AudioControls";
 import { LiveTickerIndicator } from "@/components/race/LiveTickerIndicator";
@@ -110,19 +109,14 @@ export function Lobby({
     skewMsRef.current = skewMs;
   }, [skewMs]);
 
-  // Compete gate (issue #100, extended to camera by #171): a client-side-only
-  // requirement, checked here so the "I'm ready" button can't be pressed
-  // muted or invisible. `useMicPermission`/`useCamPermission` work without
-  // any LiveKit context (the Lobby renders standalone, before `LiveKitRoom`
-  // mounts in the active branch — see `RaceRoom.tsx`).
+  // Cam/mic prompt (issue #100, extended to camera by #171, made optional by
+  // #299): mic and camera are no longer required to compete, but the lobby
+  // still surfaces an opt-in prompt (`CompeteGate` below) with Grant buttons.
+  // `useMicPermission`/`useCamPermission` work without any LiveKit context
+  // (the Lobby renders standalone, before `LiveKitRoom` mounts in the active
+  // branch — see `RaceRoom.tsx`).
   const mic = useMicPermission();
   const cam = useCamPermission();
-  const meetsCompeteGate = canCompete({
-    micGranted: mic.micGranted,
-    micLive: mic.micLive,
-    camGranted: cam.camGranted,
-    camLive: cam.camLive,
-  });
 
   // Applies any freshly-received `RaceSnapshot` — whether from the polling
   // `refresh()` fetch or a direct action response (`handleReady`,
@@ -526,7 +520,7 @@ export function Lobby({
             size="lg"
             className="w-full"
             onClick={handleReady}
-            disabled={readying || cancelling || youReady || !meetsCompeteGate}
+            disabled={readying || cancelling || youReady}
             data-testid="ready-btn"
           >
             {readying ? (
@@ -536,8 +530,6 @@ export function Lobby({
               </>
             ) : youReady ? (
               "They’re still catching up."
-            ) : !meetsCompeteGate ? (
-              "Mic + camera on."
             ) : (
               "I'm ready"
             )}
@@ -601,11 +593,11 @@ function LobbyShell({
 }
 
 /**
- * Compete-gate checklist (issue #100, extended by #171): "Mic and camera on.
- * No excuses." Shows mic ✓/✗ and camera ✓/✗, each with its own "Grant"
- * action, plus the SFX/BGM toggles. Pure presentation; the actual gating
- * predicate (`canCompete`) lives with the hooks in the parent so it can also
- * disable the ready button.
+ * Optional cam/mic checklist (issue #100, extended by #171, made optional by
+ * #299): mic and camera are no longer required to compete — this is just an
+ * opt-in prompt. Shows mic ✓/✗ and camera ✓/✗, each with its own "Grant"
+ * action, plus the SFX/BGM toggles. Pure presentation; it never disables the
+ * ready button.
  */
 function CompeteGate({
   mic,
@@ -632,16 +624,16 @@ function CompeteGate({
     <div className="stat-plate flex flex-col gap-3 p-3" data-testid="compete-gate">
       <div className="flex flex-col gap-0.5">
         <p className="eyebrow text-muted-foreground">
-          Compete requirements
+          Camera & mic
         </p>
-        <p className="text-sm">Mic and camera on. No excuses.</p>
+        <p className="text-sm">Optional — turn them on to trash talk face to face.</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span
           className={cn(
             "flex items-center gap-1.5 text-sm",
-            micOk ? "text-foreground" : "text-destructive",
+            micOk ? "text-foreground" : "text-muted-foreground",
           )}
           data-testid="mic-requirement"
         >
@@ -671,7 +663,7 @@ function CompeteGate({
         <span
           className={cn(
             "flex items-center gap-1.5 text-sm",
-            camOk ? "text-foreground" : "text-destructive",
+            camOk ? "text-foreground" : "text-muted-foreground",
           )}
           data-testid="cam-requirement"
         >
