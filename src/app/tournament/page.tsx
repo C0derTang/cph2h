@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     "The CPH2H Launch Tournament: a single-elimination Codeforces bracket, limited spots available. Format, rules, and how to sponsor.",
 };
 
-// "At a glance" facts — the format in five numbers. Kept as plain data so the
+// "At a glance" facts — the format in six numbers. Kept as plain data so the
 // grid below stays a pure render, matching the landing page's STEPS pattern.
 const FACTS = [
   {
@@ -337,7 +337,7 @@ export default async function TournamentPage() {
         </ul>
       </section>
 
-      {/* At a glance — the format in five facts. */}
+      {/* At a glance — the format in six facts. */}
       <section className="shell border-t border-border py-12 md:py-20">
         <p className="eyebrow text-muted-foreground">At a glance</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight uppercase md:text-4xl">
