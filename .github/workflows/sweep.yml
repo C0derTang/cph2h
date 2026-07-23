@@ -8,7 +8,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Hit sweep endpoint
+        # Deliberately no -L: curl drops the Authorization header on a
+        # cross-host redirect, and a redirect here means the URL is stale —
+        # that must fail the run loudly, not silently no-op (the 301 to
+        # cph2h.com did exactly that for days while runs stayed green).
         run: |
-          curl -sS --fail --max-time 300 \
+          status=$(curl -sS --max-time 300 -o body.txt -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://cph2h.vercel.app/api/cron/sweep"
+            "https://cph2h.com/api/cron/sweep")
+          echo "HTTP $status"
+          cat body.txt; echo
+          if [ "$status" != "200" ]; then
+            echo "::error::sweep did not run (HTTP $status) — check domain redirect / CRON_SECRET"
+            exit 1
+          fi
+          grep -q '"ok":true' body.txt || { echo "::error::sweep response missing ok:true"; exit 1; }
