@@ -26,8 +26,8 @@ const FACTS = [
   },
   {
     label: "Timing",
-    value: "Aug 2",
-    hint: "2026 · runs ~1 week",
+    value: "Aug 23",
+    hint: "2026 · starts 2:35pm UTC",
   },
   {
     label: "Match",
@@ -35,9 +35,14 @@ const FACTS = [
     hint: "40 min · difficulty scales by round",
   },
   {
-    label: "Match window",
-    value: "24 hours",
-    hint: "per pairing, to coordinate + play",
+    label: "Tiebreak",
+    value: "Sudden death",
+    hint: "no solve in 40 min then first to solve a 1400",
+  },
+  {
+    label: "Schedule",
+    value: "Hourly rounds",
+    hint: "back-to-back until the bracket completes",
   },
   {
     label: "Prize pool",
