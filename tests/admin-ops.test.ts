@@ -115,20 +115,30 @@ function makeRace(overrides: Partial<Race> = {}): Race {
   };
 }
 
+// A clock well after every fixture timestamp, so started races expose their
+// problemId. Individual tests override `startedAt` to probe the gate.
+const NOW = new Date("2026-07-02T00:00:00.000Z");
+
 beforeEach(() => {
   dbState.selectResults = [];
   dbState.selectIndex = 0;
 });
 
 describe("mapRecentRace", () => {
-  it("maps a finished race row + batched users to a RecentRaceDTO", () => {
-    const race = makeRace();
+  it("maps a finished race row + batched users to a RecentRaceDTO (with settings)", () => {
+    const race = makeRace({
+      ratingMin: 800,
+      ratingMax: 1600,
+      problemDateFrom: new Date("2020-01-01T00:00:00.000Z"),
+      problemDateTo: new Date("2021-01-01T00:00:00.000Z"),
+      readyDeadlineAt: new Date("2026-06-30T23:57:00.000Z"),
+    });
     const usersById = new Map([
       ["user-p1", makeUser({ id: "user-p1", username: "p1" })],
       ["user-p2", makeUser({ id: "user-p2", username: "p2" })],
     ]);
 
-    expect(mapRecentRace(race, usersById)).toEqual({
+    expect(mapRecentRace(race, usersById, NOW)).toEqual({
       id: "race-1",
       status: "finished",
       p1: { id: "user-p1", username: "p1" },
@@ -140,6 +150,13 @@ describe("mapRecentRace", () => {
       startedAt: "2026-07-01T00:00:00.000Z",
       finishedAt: "2026-07-01T00:05:00.000Z",
       createdAt: "2026-06-30T23:55:00.000Z",
+      ratingMin: 800,
+      ratingMax: 1600,
+      problemDateFrom: "2020-01-01T00:00:00.000Z",
+      problemDateTo: "2021-01-01T00:00:00.000Z",
+      timeLimitSec: 2400,
+      problemId: "1794C",
+      readyDeadlineAt: "2026-06-30T23:57:00.000Z",
     });
   });
 
@@ -147,7 +164,7 @@ describe("mapRecentRace", () => {
     const race = makeRace({ p2Id: null, outcome: null, status: "active" });
     const usersById = new Map([["user-p1", makeUser({ id: "user-p1", username: "p1" })]]);
 
-    const dto = mapRecentRace(race, usersById);
+    const dto = mapRecentRace(race, usersById, NOW);
     expect(dto.p2).toBeNull();
     expect(dto.status).toBe("active");
     expect(dto.outcome).toBeNull();
@@ -158,26 +175,71 @@ describe("mapRecentRace", () => {
     const usersById = new Map([["user-p1", makeUser({ id: "user-p1", username: "p1" })]]);
     // user-p2's row is deliberately missing.
 
-    const dto = mapRecentRace(race, usersById);
+    const dto = mapRecentRace(race, usersById, NOW);
     expect(dto.p1).toEqual({ id: "user-p1", username: "p1" });
     expect(dto.p2).toEqual({ id: "user-p2", username: "unknown" });
   });
 
-  it("serializes null timestamps as null", () => {
-    const race = makeRace({ startedAt: null, finishedAt: null, createdAt: null });
-    const dto = mapRecentRace(race, new Map());
+  it("serializes null timestamps/settings as null", () => {
+    const race = makeRace({
+      startedAt: null,
+      finishedAt: null,
+      createdAt: null,
+      problemDateFrom: null,
+      problemDateTo: null,
+      readyDeadlineAt: null,
+    });
+    const dto = mapRecentRace(race, new Map(), NOW);
     expect(dto.startedAt).toBeNull();
     expect(dto.finishedAt).toBeNull();
     expect(dto.createdAt).toBeNull();
+    expect(dto.problemDateFrom).toBeNull();
+    expect(dto.problemDateTo).toBeNull();
+    expect(dto.readyDeadlineAt).toBeNull();
+    // startedAt null → the race never started → problemId gated to null.
+    expect(dto.problemId).toBeNull();
   });
 
   it("passes through outcome and elo deltas unchanged", () => {
     const race = makeRace({ outcome: "draw", eloDeltaP1: 0, eloDeltaP2: 0, winnerId: null });
-    const dto = mapRecentRace(race, new Map());
+    const dto = mapRecentRace(race, new Map(), NOW);
     expect(dto.outcome).toBe("draw");
     expect(dto.winnerId).toBeNull();
     expect(dto.eloDeltaP1).toBe(0);
     expect(dto.eloDeltaP2).toBe(0);
+  });
+
+  it("exposes problemId once the race has started (startedAt <= now)", () => {
+    const race = makeRace({
+      status: "active",
+      startedAt: new Date("2026-07-01T00:00:00.000Z"),
+      problemId: "1794C",
+    });
+    const dto = mapRecentRace(race, new Map(), NOW);
+    expect(dto.problemId).toBe("1794C");
+  });
+
+  it("HIDES problemId during the pre-start countdown (startedAt in the future)", () => {
+    // Countdown phase: status active but startedAt is 5s past `now` — the
+    // never-leak-problem-before-start invariant means problemId must be null.
+    const now = new Date("2026-07-01T00:00:00.000Z");
+    const race = makeRace({
+      status: "active",
+      startedAt: new Date("2026-07-01T00:00:05.000Z"),
+      problemId: "1794C",
+    });
+    const dto = mapRecentRace(race, new Map(), now);
+    expect(dto.problemId).toBeNull();
+  });
+
+  it("maps pending/ready rows correctly (no problem, status passes through)", () => {
+    for (const status of ["pending", "ready"] as const) {
+      const race = makeRace({ status, startedAt: null, problemId: null, outcome: null, winnerId: null });
+      const dto = mapRecentRace(race, new Map(), NOW);
+      expect(dto.status).toBe(status);
+      expect(dto.problemId).toBeNull();
+      expect(dto.startedAt).toBeNull();
+    }
   });
 });
 

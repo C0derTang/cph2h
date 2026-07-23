@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { queueEntries, races, users, type Race, type User } from "@/lib/db/schema";
 
 /** Cap on the recent-races list — newest first, no pagination beyond this. */
-export const RECENT_RACES_CAP = 20;
+export const RECENT_RACES_CAP = 50;
 
 export interface RecentRacePlayer {
   id: string;
@@ -22,7 +22,7 @@ export interface RecentRacePlayer {
 
 export interface RecentRaceDTO {
   id: string;
-  status: string; // "active" | "finished"
+  status: string; // any of the five RaceStatus values
   p1: RecentRacePlayer;
   p2: RecentRacePlayer | null;
   outcome: string | null;
@@ -32,6 +32,21 @@ export interface RecentRaceDTO {
   startedAt: string | null; // ISO
   finishedAt: string | null; // ISO
   createdAt: string | null; // ISO
+  /** Race settings surfaced for the ops panel + admin controls (issue #296). */
+  ratingMin: number | null;
+  ratingMax: number | null;
+  problemDateFrom: string | null; // ISO
+  problemDateTo: string | null; // ISO
+  timeLimitSec: number;
+  /**
+   * The assigned problem id — but ONLY once the race has actually started
+   * (`startedAt !== null && startedAt <= now`). It stays null during the
+   * pre-start countdown so an admin who is themselves racing can't peek at
+   * their own upcoming problem via the ops panel (never-leak-before-start).
+   */
+  problemId: string | null;
+  /** Non-null → this race came from matchmaking (the "MM" discriminator). */
+  readyDeadlineAt: string | null; // ISO
 }
 
 export interface AdminOps {
@@ -50,8 +65,18 @@ function resolvePlayer(id: string, byId: Map<string, User>): RecentRacePlayer {
   return row ? { id: row.id, username: row.username } : placeholderPlayer(id);
 }
 
-/** Pure DTO mapping given an already-fetched race row and its batched users. */
-export function mapRecentRace(race: Race, usersById: Map<string, User>): RecentRaceDTO {
+/**
+ * Pure DTO mapping given an already-fetched race row and its batched users.
+ * `now` gates the problem-before-start invariant (see {@link RecentRaceDTO}).
+ */
+export function mapRecentRace(
+  race: Race,
+  usersById: Map<string, User>,
+  now: Date,
+): RecentRaceDTO {
+  const problemVisible =
+    race.startedAt !== null && race.startedAt.getTime() <= now.getTime();
+
   return {
     id: race.id,
     status: race.status,
@@ -64,6 +89,13 @@ export function mapRecentRace(race: Race, usersById: Map<string, User>): RecentR
     startedAt: race.startedAt ? race.startedAt.toISOString() : null,
     finishedAt: race.finishedAt ? race.finishedAt.toISOString() : null,
     createdAt: race.createdAt ? race.createdAt.toISOString() : null,
+    ratingMin: race.ratingMin,
+    ratingMax: race.ratingMax,
+    problemDateFrom: race.problemDateFrom ? race.problemDateFrom.toISOString() : null,
+    problemDateTo: race.problemDateTo ? race.problemDateTo.toISOString() : null,
+    timeLimitSec: race.timeLimitSec,
+    problemId: problemVisible ? race.problemId : null,
+    readyDeadlineAt: race.readyDeadlineAt ? race.readyDeadlineAt.toISOString() : null,
   };
 }
 
@@ -77,7 +109,10 @@ async function toRecentRaceDTOs(rows: Race[]): Promise<RecentRaceDTO[]> {
   const userRows = await db.select().from(users).where(inArray(users.id, userIds));
   const usersById = new Map(userRows.map((u) => [u.id, u]));
 
-  return rows.map((row) => mapRecentRace(row, usersById));
+  // One clock for the whole batch — the problem-gating boundary is consistent
+  // across every row in this response.
+  const now = new Date();
+  return rows.map((row) => mapRecentRace(row, usersById, now));
 }
 
 /** Fetch + assemble the admin live-ops payload. */
@@ -91,7 +126,6 @@ export async function getAdminOps(): Promise<AdminOps> {
     db
       .select()
       .from(races)
-      .where(inArray(races.status, ["active", "finished"]))
       .orderBy(desc(races.createdAt))
       .limit(RECENT_RACES_CAP),
   ]);
