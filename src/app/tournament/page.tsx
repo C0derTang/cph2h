@@ -26,7 +26,7 @@ const FACTS = [
   },
   {
     label: "Timing",
-    value: "Aug 2",
+    value: "Aug 23",
     hint: "2026 · runs ~1 week",
   },
   {
