@@ -15,7 +15,9 @@ import { toast } from "sonner";
 import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/admin/Pager";
 import { cn } from "@/lib/utils";
+import { clampPage, pageSlice } from "@/lib/paging";
 import { formatReportReason } from "@/lib/format";
 import {
   deriveRaceDuration,
@@ -45,6 +47,7 @@ export function ReportsQueue() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [evidence, setEvidence] = useState<Record<string, EvidenceState>>({});
   const [resolving, setResolving] = useState<Record<string, boolean>>({});
+  const [page, setPage] = useState(0);
 
   const fetchReports = useCallback(async (status: StatusFilter) => {
     setLoading(true);
@@ -77,6 +80,12 @@ export function ReportsQueue() {
 
   function selectFilter(next: StatusFilter) {
     setFilter(next);
+    setExpandedId(null);
+    setPage(0);
+  }
+
+  function changePage(next: number) {
+    setPage(next);
     setExpandedId(null);
   }
 
@@ -211,19 +220,26 @@ export function ReportsQueue() {
         )}
 
         {!loading && !error && reports && reports.length > 0 && (
-          <ul className="divide-y divide-border">
-            {reports.map((report) => (
-              <ReportRow
-                key={report.id}
-                report={report}
-                expanded={expandedId === report.id}
-                onToggle={() => toggleExpand(report.id)}
-                onResolve={() => resolveReport(report)}
-                resolving={Boolean(resolving[report.id])}
-                evidenceState={evidence[report.id]}
-              />
-            ))}
-          </ul>
+          <>
+            <ul className="divide-y divide-border">
+              {pageSlice(reports, clampPage(page, reports.length)).map((report) => (
+                <ReportRow
+                  key={report.id}
+                  report={report}
+                  expanded={expandedId === report.id}
+                  onToggle={() => toggleExpand(report.id)}
+                  onResolve={() => resolveReport(report)}
+                  resolving={Boolean(resolving[report.id])}
+                  evidenceState={evidence[report.id]}
+                />
+              ))}
+            </ul>
+            <Pager
+              page={clampPage(page, reports.length)}
+              total={reports.length}
+              onPageChange={changePage}
+            />
+          </>
         )}
       </div>
     </div>

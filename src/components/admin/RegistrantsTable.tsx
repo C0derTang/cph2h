@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/admin/Pager";
+import { pageSlice } from "@/lib/paging";
 import { registrantsToCsv } from "@/lib/admin/csv";
 import type { RegistrantDTO } from "@/lib/admin/registrants";
 
@@ -59,6 +61,7 @@ export function RegistrantsTable() {
   const [registrants, setRegistrants] = useState<RegistrantDTO[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const fetchRegistrants = useCallback(async () => {
     setLoading(true);
@@ -155,7 +158,7 @@ export function RegistrantsTable() {
                 </tr>
               </thead>
               <tbody>
-                {registrants.map((r) => {
+                {pageSlice(registrants, page).map((r) => {
                   const fullName = [r.firstName, r.lastName].filter(Boolean).join(" ");
                   return (
                     <tr
@@ -200,6 +203,7 @@ export function RegistrantsTable() {
                 })}
               </tbody>
             </table>
+            <Pager page={page} total={registrants.length} onPageChange={setPage} />
           </div>
         )}
       </div>

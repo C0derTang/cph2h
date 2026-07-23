@@ -16,6 +16,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Loader2, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/admin/Pager";
+import { clampPage, pageSlice } from "@/lib/paging";
 import {
   DIRECTORY_LIST_CAP,
   filterDirectory,
@@ -27,6 +29,7 @@ export function UserDirectory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -64,7 +67,10 @@ export function UserDirectory() {
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(0);
+          }}
           placeholder="Search username or CF handle…"
           aria-label="Search users by username or Codeforces handle"
           className="h-8 w-full max-w-xs rounded-[var(--radius)] border border-border bg-background px-2 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -102,7 +108,8 @@ export function UserDirectory() {
                 No users match your search.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <div className="overflow-x-auto">
                 <table className="w-full min-w-[40rem] text-sm">
                   <thead>
                     <tr className="border-b border-border eyebrow text-muted-foreground">
@@ -126,7 +133,7 @@ export function UserDirectory() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((user) => (
+                    {pageSlice(filtered, clampPage(page, filtered.length)).map((user) => (
                       <tr
                         key={user.id}
                         className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/50"
@@ -181,7 +188,13 @@ export function UserDirectory() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+                <Pager
+                  page={clampPage(page, filtered.length)}
+                  total={filtered.length}
+                  onPageChange={setPage}
+                />
+              </>
             )}
           </>
         )}
