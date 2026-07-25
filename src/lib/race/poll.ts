@@ -40,11 +40,14 @@ interface AcceptedHit {
  * Stamp the calling participant's presence heartbeat (issue #105).
  *
  * Runs on EVERY participant poll — *before and independent of* the poll mutex —
- * so a mutex-skipped poll (most of them) still proves the caller is present. A
- * single atomic `UPDATE` keyed by caller side, guarded on `status='active'`
- * (neon-http-safe: no read-then-write). Never stamps a non-active race, and the
- * cron sweep never calls this, so a heartbeat can only be set by the player it
- * belongs to actually polling — presence can't be faked.
+ * so a mutex-skipped poll (most of them) still proves the caller is present.
+ * Also invoked by the participant-only freeze-beacon route
+ * (`POST /api/races/[id]/heartbeat`, issue #303) when a tab is about to be
+ * backgrounded/frozen. A single atomic `UPDATE` keyed by caller side, guarded
+ * on `status='active'` (neon-http-safe: no read-then-write). Never stamps a
+ * non-active race, and the cron sweep never calls this, so a heartbeat can
+ * only be set by the authenticated player it belongs to — presence can't be
+ * faked.
  */
 export async function stampHeartbeat(
   raceId: string,
@@ -74,6 +77,16 @@ export async function stampHeartbeat(
  * forfeit their opponent by merely polling. `finishRace`'s `WHERE
  * status='active'` claim makes concurrent/repeat forfeits idempotent. Returns
  * `true` iff a forfeit finish was attempted.
+ *
+ * CF-activity fallback (issue #303): a recent Codeforces submission proves the
+ * opponent is present even when their heartbeat is dead (frozen/discarded
+ * background tab — `pollActiveRace` upserted their observed submissions into
+ * `race_submissions` earlier in this SAME request). The decision input is
+ * `lastSeenMs = max(heartbeatMs, latestSubmissionMs)` (either may be null);
+ * the pure `presence.ts` helpers are unchanged — only this caller's input
+ * widens. The submissions query only runs when the heartbeat alone would
+ * already forfeit (max() can only push last-seen later, so a fresh heartbeat
+ * short-circuits identically without the extra query).
  */
 export async function maybeAbsenceForfeit(
   race: Race,
@@ -82,10 +95,49 @@ export async function maybeAbsenceForfeit(
 ): Promise<boolean> {
   if (race.status !== "active" || !race.startedAt) return false;
 
-  const opponentLastSeen = callerIsP1 ? race.p2LastSeenAt : race.p1LastSeenAt;
-  const lastSeenMs = opponentLastSeen ? opponentLastSeen.getTime() : null;
+  const startedAtMs = race.startedAt.getTime();
+  const nowMs = now.getTime();
 
-  if (!isAbsenceForfeit(lastSeenMs, race.startedAt.getTime(), now.getTime())) {
+  const opponentLastSeen = callerIsP1 ? race.p2LastSeenAt : race.p1LastSeenAt;
+  const heartbeatMs = opponentLastSeen ? opponentLastSeen.getTime() : null;
+
+  // Heartbeat alone keeps them alive ⇒ done; the CF fallback below can only
+  // ever extend last-seen, never shorten it.
+  if (!isAbsenceForfeit(heartbeatMs, startedAtMs, nowMs)) {
+    return false;
+  }
+
+  // Heartbeat is stale — before forfeiting, check for recent CF activity: the
+  // opponent's latest observed submission in this race (upserted by
+  // `pollActiveRace`, including moments ago in this very request).
+  const opponentId = callerIsP1 ? race.p2Id : race.p1Id;
+  let lastSeenMs = heartbeatMs;
+  if (opponentId) {
+    const [row] = await db
+      .select({
+        latest: sql<string | Date | null>`max(${raceSubmissions.submittedAt})`,
+      })
+      .from(raceSubmissions)
+      .where(
+        and(
+          eq(raceSubmissions.raceId, race.id),
+          eq(raceSubmissions.userId, opponentId),
+        ),
+      );
+    const raw = row?.latest ?? null;
+    if (raw != null) {
+      const latestSubmissionMs =
+        raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
+      if (Number.isFinite(latestSubmissionMs)) {
+        lastSeenMs =
+          lastSeenMs === null
+            ? latestSubmissionMs
+            : Math.max(lastSeenMs, latestSubmissionMs);
+      }
+    }
+  }
+
+  if (!isAbsenceForfeit(lastSeenMs, startedAtMs, nowMs)) {
     return false;
   }
 
