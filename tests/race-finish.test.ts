@@ -408,3 +408,100 @@ describe("finishRace — ready-deadline walkover (issue #275)", () => {
     expect(publishMock).not.toHaveBeenCalled();
   });
 });
+
+describe("finishRace — unrated challenge races (issue #302)", () => {
+  it("challenge race (challengeToken set), p1_win: finishes but applies zero Elo", async () => {
+    dbState.claimResult = [
+      makeRace({ challengeToken: "abc123", winnerId: "user-p1", outcome: "p1_win" }),
+    ];
+
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      winningSubmissionId: 42,
+      reason: "solved",
+    });
+
+    // The claim itself still ran (race finished, outcome/winner recorded).
+    expect(dbState.updateCalls).toHaveLength(1);
+    expect(dbState.updateCalls[0].values).toMatchObject({
+      status: "finished",
+      outcome: "p1_win",
+      winnerId: "user-p1",
+    });
+
+    // No Elo: no user select, no batch, no elo_history insert.
+    expect(dbState.selectCount).toBe(0);
+    expect(dbState.batchCalls).toHaveLength(0);
+    expect(dbState.insertCalls).toHaveLength(0);
+
+    // Publish still fires once, with zero deltas (client refetches for the
+    // real — NULL — deltas from the snapshot).
+    expect(publishMock).toHaveBeenCalledTimes(1);
+    expect(publishMock).toHaveBeenCalledWith("room-1", {
+      type: "race_finished",
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      eloDeltas: { "user-p1": 0, "user-p2": 0 },
+    });
+  });
+
+  it("challenge race (challengeToken set), draw: finishes but applies zero Elo", async () => {
+    dbState.claimResult = [
+      makeRace({ challengeToken: "abc123", outcome: "draw", winnerId: null }),
+    ];
+
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "draw",
+      winnerId: null,
+      reason: "timeout",
+    });
+
+    expect(dbState.updateCalls).toHaveLength(1);
+    expect(dbState.selectCount).toBe(0);
+    expect(dbState.batchCalls).toHaveLength(0);
+    expect(dbState.insertCalls).toHaveLength(0);
+    expect(publishMock).toHaveBeenCalledTimes(1);
+    expect(publishMock).toHaveBeenCalledWith("room-1", {
+      type: "race_finished",
+      outcome: "draw",
+      winnerId: null,
+      eloDeltas: { "user-p1": 0, "user-p2": 0 },
+    });
+  });
+
+  it("contrast: matchmade race (challengeToken null, readyDeadlineAt set) still applies Elo", async () => {
+    // Pins that the rated/unrated discriminator is challengeToken, not the
+    // presence of a ready deadline.
+    dbState.claimResult = [
+      makeRace({
+        challengeToken: null,
+        readyDeadlineAt: new Date("2024-01-01T00:00:00Z"),
+        winnerId: "user-p1",
+        outcome: "p1_win",
+      }),
+    ];
+    dbState.userRows = [
+      makeUser({ id: "user-p1", elo: 1200, racesPlayed: 0 }),
+      makeUser({ id: "user-p2", elo: 1200, racesPlayed: 0 }),
+    ];
+
+    await finishRace({
+      raceId: RACE_ID,
+      outcome: "p1_win",
+      winnerId: "user-p1",
+      reason: "solved",
+    });
+
+    expect(dbState.selectCount).toBe(1);
+    expect(dbState.batchCalls).toHaveLength(1);
+    expect(dbState.batchCalls[0]).toHaveLength(4);
+    expect(dbState.insertCalls).toHaveLength(1);
+    expect(dbState.updateCalls[3].values).toEqual({
+      eloDeltaP1: 32,
+      eloDeltaP2: -32,
+    });
+  });
+});

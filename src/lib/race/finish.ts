@@ -1,9 +1,9 @@
 /**
  * Authoritative race finalization + Elo application (issue #15).
  *
- * `finishRace` is the single place a race becomes `finished` and Elo is applied.
- * It is **self-guarding / idempotent**: the very first statement is an atomic
- * status claim
+ * `finishRace` is the single place a race becomes `finished` and, for rated
+ * races, Elo is applied. It is **self-guarding / idempotent**: the very first
+ * statement is an atomic status claim
  *
  *   UPDATE races SET status='finished', ... WHERE id=$1 AND status='active' RETURNING *
  *
@@ -12,6 +12,21 @@
  * therefore never need their own guard (the abort route delegates here without
  * one, and the poll route / sweep cron can all race to finish the same row
  * safely).
+ *
+ * ## Rated vs. unrated (issue #302)
+ *
+ * Challenge-link races (`races.challengeToken !== null`) are unrated: the race
+ * still finishes normally, but the Elo block — user load, `applyResult`, and
+ * the entire `db.batch` (both users' Elo/`racesPlayed` updates, both
+ * `elo_history` inserts, and the `eloDeltaP1`/`eloDeltaP2` write) — is skipped
+ * entirely. The rated/unrated discriminator is read off the atomic claim's
+ * `RETURNING` row so it can never race with a concurrent update. Deltas stay
+ * NULL in the DB for unrated races; the `race_finished` publish still fires
+ * with `eloDeltas: {p1: 0, p2: 0}`, which is fine because clients treat the
+ * event as a refetch hint and read the real (possibly-NULL) deltas from the
+ * snapshot. Matchmade races are always rated: the `readyWalkover` claim
+ * requires a non-null `readyDeadlineAt`, which only matchmade races have, and
+ * matchmade races always have `challengeToken === null`.
  *
  * ## Transaction note (neon-http)
  *
@@ -40,7 +55,12 @@ import type { RaceOutcome } from "@/lib/types";
 
 export interface FinishRaceInput {
   raceId: string;
-  /** Non-aborted terminal outcome. Elo is applied for all three. */
+  /**
+   * Non-aborted terminal outcome. Elo is applied for all three outcomes, but
+   * only when the race is rated (`races.challengeToken === null`) — see
+   * issue #302. Challenge-link races finish with this outcome recorded but no
+   * Elo mutation.
+   */
   outcome: "p1_win" | "p2_win" | "draw";
   winnerId: string | null;
   /** CF submission id that won the race, when the finish is a solve. */
@@ -107,12 +127,17 @@ export async function finishRace(input: FinishRaceInput): Promise<void> {
 
   const { p1Id, p2Id } = race;
 
+  // Challenge-link races are unrated (issue #302): no Elo, no racesPlayed
+  // increment, no elo_history rows. Deltas stay 0/NULL and the block below is
+  // skipped entirely.
+  const rated = race.challengeToken === null;
+
   // Elo needs both players. An active race always has p2, but stay defensive:
   // if p2 is somehow missing, the race is still marked finished above.
   let d1 = 0;
   let d2 = 0;
 
-  if (p2Id) {
+  if (rated && p2Id) {
     const playerRows = await db
       .select()
       .from(users)
