@@ -213,7 +213,7 @@ describe("pickProblem", () => {
       expect(result).toEqual({ ok: false, reason: "all_problems_seen" });
     });
 
-    it("falls back to a conforming problem outside the target's widening reach when a filter is set", () => {
+    it("picks uniformly from the eligible range even when it lies outside the target's widening reach", () => {
       // target 1200 (reach maxes ~[600,1900]); only unseen conforming problem
       // is at 3000, well inside the wide filter [800,3500] -> must still pick it.
       const candidates = [problem("1A", 3000)];
@@ -261,7 +261,7 @@ describe("pickProblem", () => {
     });
 
     it("picks uniformly across the eligible range when the filter is below the target (mirror of the above)", () => {
-      // target ~2000 (above the filter window entirely); filter 800-1200.
+      // target 1700 (above the filter window entirely); filter 800-1200.
       const candidates = [
         problem("1A", 800),
         problem("2A", 900),
@@ -275,8 +275,8 @@ describe("pickProblem", () => {
         const result = pickProblem({
           candidates,
           seenIds: new Set(),
-          p1Rating: 1900,
-          p2Rating: 2100,
+          p1Rating: 1600,
+          p2Rating: 1800,
           seed,
           ratingMin: 800,
           ratingMax: 1200,
