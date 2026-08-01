@@ -42,10 +42,16 @@ export const UNLOCK_REFETCH_BACKOFF_MS = [500, 1000, 2000] as const;
 
 /**
  * How long a player may be absent (no poll heartbeat) during an active race
- * before the present opponent wins by forfeit. Generous enough to survive a
- * refresh or a network blip; a closed tab stays absent and forfeits.
+ * before the present opponent wins by forfeit. The constraint that sizes this:
+ * users MUST background the race tab to submit on codeforces.com (the normal
+ * flow — there is no in-platform submission), and Chrome throttles
+ * background-tab timers to roughly one tick per minute, so a backgrounded but
+ * fully present player heartbeats at ~60-75s intervals. The grace must
+ * comfortably exceed that throttled cadence (several missed throttled ticks,
+ * plus Battery/Memory-Saver freezes) so only a genuinely gone player — closed
+ * tab, walked away — ever forfeits.
  */
-export const ABSENCE_FORFEIT_SEC = 60;
+export const ABSENCE_FORFEIT_SEC = 300;
 
 /**
  * Matchmade (quick-match) races only: both players must mark ready within this

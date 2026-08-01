@@ -46,6 +46,17 @@ describe("isAbsenceForfeit (server decision)", () => {
     expect(isAbsenceForfeit(null, START, now)).toBe(true);
   });
 
+  it("does not forfeit a 75s heartbeat gap (throttled background tab)", () => {
+    // Regression for issue #303: submitting on codeforces.com REQUIRES
+    // backgrounding the race tab, and Chrome throttles background-tab timers
+    // to ~1/min, so an actively-solving player heartbeats at 60-75s gaps.
+    // With the old ABSENCE_FORFEIT_SEC = 60 (strict >), a 75s gap forfeited
+    // the player who was busy submitting — the false-forfeit bug.
+    const lastSeen = START + sec(100);
+    const now = lastSeen + sec(75);
+    expect(isAbsenceForfeit(lastSeen, START, now)).toBe(false);
+  });
+
   it("does not forfeit a recently-seen opponent (refresh gap)", () => {
     const lastSeen = START + sec(100);
     const now = lastSeen + sec(8); // an 8s refresh gap

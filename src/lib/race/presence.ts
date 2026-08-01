@@ -3,10 +3,13 @@
  *
  * A player who closes their tab during an active race loses by forfeit after a
  * grace window (`ABSENCE_FORFEIT_SEC`). Presence is proven server-side by the
- * existing poll traffic: every participant poll stamps the caller's
- * `pN_last_seen_at`. These functions are the shared, exhaustively-testable math
- * behind both the server's authoritative forfeit decision and the client's
- * "they bailed" countdown banner.
+ * existing poll traffic (every participant poll stamps the caller's
+ * `pN_last_seen_at`), by the freeze-beacon route, and — issue #303 — by
+ * observed Codeforces activity: callers widen the `lastSeenMs` input to
+ * `max(heartbeat, latest CF submission)` before consulting these helpers,
+ * which stay pure and heartbeat-agnostic. These functions are the shared,
+ * exhaustively-testable math behind both the server's authoritative forfeit
+ * decision and the client's "they bailed" countdown banner.
  *
  * All functions are pure — no `Date.now()` baked in; callers inject the clock
  * (the client injects a *skew-corrected* now, see `src/lib/race/countdown.ts`).
@@ -18,11 +21,13 @@ import { ABSENCE_FORFEIT_SEC } from "@/lib/types";
 /**
  * How long (seconds) the opponent's heartbeat must be stale before the client
  * escalates the generic "disconnected" banner into the absence-forfeit
- * countdown. Kept comfortably below `ABSENCE_FORFEIT_SEC` so the last stretch of
- * the grace window is shown as a live countdown, yet high enough that an
- * ordinary refresh (a few seconds of heartbeat gap) never triggers it.
+ * countdown. Kept comfortably below `ABSENCE_FORFEIT_SEC` so the last stretch
+ * (~60s) of the grace window is shown as a live countdown, yet high enough
+ * that ordinary staleness — a refresh, or the 60-75s heartbeat gaps of a
+ * backgrounded tab whose timers Chrome throttles to ~1/min while its player
+ * submits on codeforces.com — never triggers it.
  */
-export const ABSENCE_COUNTDOWN_AFTER_SEC = 35;
+export const ABSENCE_COUNTDOWN_AFTER_SEC = 240;
 
 /**
  * The opponent's *effective* last-seen instant (ms), floored at the race start.

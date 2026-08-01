@@ -152,6 +152,11 @@ export function RaceRoom({
   const [nowTick, setNowTick] = useState(() => Date.now());
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailuresRef = useRef(0);
+  // Set by the verdict-poll effect while active: cancels the pending jittered
+  // timer and runs a poll tick immediately. Used by the tab-wake handler
+  // (issue #303) so a resumed tab re-proves presence right away instead of
+  // waiting out a (possibly throttled) scheduled tick.
+  const pollNowRef = useRef<(() => void) | null>(null);
 
   // --- Race-end overlay (issue #113) --------------------------------------
   // A game-like VICTORY/DEFEAT/DRAW slam shown ONLY when this client observes
@@ -435,13 +440,60 @@ export function RaceRoom({
     };
 
     schedule();
+    pollNowRef.current = () => {
+      clearTimeout(timer);
+      void tick();
+    };
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      pollNowRef.current = null;
       pollFailuresRef.current = 0;
       setPollDegraded(false);
     };
   }, [status, raceId, applySnapshot, refetch]);
+
+  // --- Freeze beacon + tab-wake re-sync (issue #303, active only) ----------
+  // Backgrounding the tab is the NORMAL flow (users submit on codeforces.com),
+  // and Chrome throttles background timers to ~1/min and may freeze/discard
+  // the tab outright — silently starving the presence heartbeat. On the way
+  // out (`visibilitychange` → hidden, Page Lifecycle `freeze`) fire a
+  // `navigator.sendBeacon` at the heartbeat route: sendBeacon survives
+  // freeze/unload and carries cookies, so Clerk auth works and the server
+  // gets one last presence stamp. On the way back (`resume`, `pageshow`,
+  // visibility → visible) immediately refetch the snapshot and run a poll
+  // tick so the returning tab re-proves presence without waiting for the
+  // next scheduled (possibly still-throttled) tick.
+  useEffect(() => {
+    if (status !== "active") return;
+
+    const beacon = () => {
+      try {
+        navigator.sendBeacon(`/api/races/${raceId}/heartbeat`);
+      } catch {
+        // Best-effort — the server-side CF-activity fallback still covers us.
+      }
+    };
+    const wake = () => {
+      void refetch();
+      pollNowRef.current?.();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") beacon();
+      else wake();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("freeze", beacon);
+    document.addEventListener("resume", wake);
+    window.addEventListener("pageshow", wake);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("freeze", beacon);
+      document.removeEventListener("resume", wake);
+      window.removeEventListener("pageshow", wake);
+    };
+  }, [status, raceId, refetch]);
 
   // --- Unlock timer --------------------------------------------------------
   // Bridges the gap between countdown end and the next verdict-poll mutex
@@ -769,12 +821,35 @@ export function RaceRoom({
   // heartbeat (skew-corrected) has gone stale past the escalation threshold,
   // the generic disconnect banner escalates into a "victory in Xs" countdown.
   // Display only — the server's poll path decides the actual forfeit.
+  //
+  // CF-activity coherence (issue #303): the server treats the opponent's
+  // latest observed CF submission as proof of presence too, so mirror the
+  // same `max(heartbeat, latest opponent submission)` from the snapshot's
+  // submissions feed here — the banner must never threaten a forfeit the
+  // server won't fire.
   const opponentLastSeenIso = isP1
     ? snapshot.p2LastSeenAt
     : snapshot.p1LastSeenAt;
-  const opponentLastSeenMs = opponentLastSeenIso
+  const opponentHeartbeatMs = opponentLastSeenIso
     ? Date.parse(opponentLastSeenIso)
     : null;
+  let opponentLatestSubmissionMs: number | null = null;
+  if (opponent) {
+    for (const s of snapshot.submissions) {
+      if (s.userId !== opponent.id) continue;
+      const t = Date.parse(s.submittedAt);
+      if (!Number.isFinite(t)) continue;
+      if (opponentLatestSubmissionMs === null || t > opponentLatestSubmissionMs) {
+        opponentLatestSubmissionMs = t;
+      }
+    }
+  }
+  const opponentLastSeenMs =
+    opponentHeartbeatMs === null
+      ? opponentLatestSubmissionMs
+      : opponentLatestSubmissionMs === null
+        ? opponentHeartbeatMs
+        : Math.max(opponentHeartbeatMs, opponentLatestSubmissionMs);
   const absenceNowMs = correctedNow(skewMs, nowTick);
   const showAbsenceCountdown =
     startedAtMs != null &&
