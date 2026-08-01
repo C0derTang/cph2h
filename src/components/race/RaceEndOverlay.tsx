@@ -34,6 +34,14 @@ export interface RaceEndOverlayProps {
   eloDelta: number | null;
   /** Win/loss by forfeit or absence (no winning submission) vs. an actual solve. */
   byForfeit: boolean;
+  /**
+   * `snapshot.challengeToken === null` at transition time (issue #307).
+   * Precedence: a non-null `eloDelta` always renders as a delta regardless of
+   * this flag — historical challenge races finished before c7c9cdc carry real
+   * deltas and must keep showing them. Only a null delta on an unrated race
+   * (`rated === false`) renders "Unrated".
+   */
+  rated: boolean;
   onDismiss: () => void;
 }
 
@@ -68,6 +76,7 @@ export function RaceEndOverlay({
   opponentUsername,
   eloDelta,
   byForfeit,
+  rated,
   onDismiss,
 }: RaceEndOverlayProps) {
   // Auto-dismiss after a beat; any click also dismisses (handled on the root).
@@ -116,7 +125,7 @@ export function RaceEndOverlay({
           {subheadline(outcome, opponentUsername, byForfeit)}
         </p>
 
-        {eloDelta != null && (
+        {eloDelta != null ? (
           <div className="flex flex-col items-center gap-1">
             <span className="eyebrow text-muted-foreground">
               Elo
@@ -133,6 +142,20 @@ export function RaceEndOverlay({
               {eloDelta}
             </span>
           </div>
+        ) : (
+          !rated && (
+            <div className="flex flex-col items-center gap-1">
+              <span className="eyebrow text-muted-foreground">
+                Elo
+              </span>
+              <span
+                data-testid="race-end-unrated"
+                className="font-mono text-2xl font-semibold text-muted-foreground sm:text-3xl"
+              >
+                Unrated
+              </span>
+            </div>
+          )
         )}
 
         <span className="eyebrow text-muted-foreground/70">

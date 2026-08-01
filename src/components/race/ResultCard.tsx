@@ -99,6 +99,12 @@ export function ResultCard({
 }: ResultCardProps) {
   const result = resultFor(snapshot, currentUserId);
   const isP1 = snapshot.p1.id === currentUserId;
+  // Challenge-link races (non-null `challengeToken`) never get Elo applied
+  // (finishRace, commit c7c9cdc / #304) — a null delta on one of these reads
+  // as "Unrated" rather than the fail-tone "—" (issue #307). A non-null delta
+  // always wins regardless of this flag: historical challenge races finished
+  // before c7c9cdc carry real deltas and must keep showing them.
+  const unrated = snapshot.challengeToken !== null;
   const walkover = isWalkoverFinish(snapshot);
   const matchmadeTimeoutAbort = isMatchmadeTimeoutAbort(snapshot);
   const heading = headingFor(result, walkover);
@@ -178,6 +184,7 @@ export function ResultCard({
           winner={p1IsWinner}
           tone="self"
           isYou={isP1}
+          unrated={unrated}
         />
         <PlayerResultTile
           username={snapshot.p2?.username ?? "—"}
@@ -185,6 +192,7 @@ export function ResultCard({
           winner={p2IsWinner}
           tone="opponent"
           isYou={!isP1}
+          unrated={unrated}
         />
       </div>
 
@@ -256,12 +264,14 @@ function PlayerResultTile({
   winner,
   tone,
   isYou,
+  unrated,
 }: {
   username: string;
   eloDelta: number | null;
   winner: boolean;
   tone: "self" | "opponent";
   isYou: boolean;
+  unrated: boolean;
 }) {
   const isSelf = tone === "self";
   return (
@@ -292,7 +302,11 @@ function PlayerResultTile({
           eloDelta != null && eloDelta < 0 && "text-verdict-fail",
         )}
       >
-        {eloDelta == null ? "—" : `${eloDelta >= 0 ? "+" : ""}${eloDelta}`}
+        {eloDelta != null
+          ? `${eloDelta >= 0 ? "+" : ""}${eloDelta}`
+          : unrated
+            ? "Unrated"
+            : "—"}
       </p>
     </div>
   );
