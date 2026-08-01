@@ -80,6 +80,9 @@ type RecentRace = {
   eloDeltaP1: number | null;
   eloDeltaP2: number | null;
   finishedAt: Date | null;
+  /** Non-null for challenge-link races — `finishRace` (c7c9cdc, #304) skips
+   *  Elo for these, so a null delta here renders "Unrated" (issue #307). */
+  challengeToken: string | null;
   p1User?: { username: string };
   p2User?: { username: string } | null;
 };
@@ -381,6 +384,9 @@ function PlayHubContent({
                   const opponent = isP1 ? race.p2User : race.p1User;
                   const eloDelta = isP1 ? race.eloDeltaP1 : race.eloDeltaP2;
                   const outcome = formatOutcome(race.outcome, isP1);
+                  // Challenge-link races never get Elo applied — a null delta
+                  // there is "Unrated", not a loss (issue #307).
+                  const unrated = eloDelta == null && race.challengeToken != null;
                   const isGain = eloDelta != null && eloDelta > 0;
                   const deltaTone = isGain
                     ? "text-verdict-ok"
@@ -411,19 +417,25 @@ function PlayHubContent({
                         <Badge variant={outcomeBadgeVariant(outcome)}>
                           {outcome}
                         </Badge>
-                        <span
-                          className={cn(
-                            "flex items-center gap-1 font-mono text-xs font-semibold tabular-nums",
-                            deltaTone,
-                          )}
-                        >
-                          {isGain ? (
-                            <TrendingUp className="size-3" />
-                          ) : (
-                            <TrendingDown className="size-3" />
-                          )}
-                          {formatEloDelta(eloDelta)}
-                        </span>
+                        {unrated ? (
+                          <Badge variant="outline" data-testid="unrated-chip">
+                            Unrated
+                          </Badge>
+                        ) : (
+                          <span
+                            className={cn(
+                              "flex items-center gap-1 font-mono text-xs font-semibold tabular-nums",
+                              deltaTone,
+                            )}
+                          >
+                            {isGain ? (
+                              <TrendingUp className="size-3" />
+                            ) : (
+                              <TrendingDown className="size-3" />
+                            )}
+                            {formatEloDelta(eloDelta)}
+                          </span>
+                        )}
                       </div>
                     </li>
                   );

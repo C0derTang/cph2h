@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { SlabButton } from "@/components/menu/slab-button";
 import { ProblemPane } from "@/components/race/ProblemPane";
 import { Lobby } from "@/components/race/Lobby";
@@ -99,6 +100,9 @@ interface OverlayState {
   opponentUsername: string | null;
   eloDelta: number | null;
   byForfeit: boolean;
+  /** `challengeToken === null` at transition time — false for challenge-link
+   *  races (issue #307), which `finishRace` never applies Elo to. */
+  rated: boolean;
 }
 
 /** How long the opponent's video track must be absent before we surface a
@@ -172,6 +176,10 @@ export function RaceRoom({
   const [voiceDisconnected, setVoiceDisconnected] = useState(false);
 
   const status = snapshot.status;
+  // Challenge-link races carry a non-null `challengeToken`; `finishRace`
+  // (commit c7c9cdc, #304) skips Elo entirely for those, so the UI marks them
+  // "Unrated" instead of showing a stale/missing delta (issue #307).
+  const rated = snapshot.challengeToken === null;
 
   // --- Post-race call persistence (issue #121) -----------------------------
   // Keep the LiveKit call alive on the result screen for players who watched
@@ -266,6 +274,7 @@ export function RaceRoom({
       opponentUsername: opp?.username ?? null,
       eloDelta,
       byForfeit: outcome !== "draw" && !solved,
+      rated: snapshot.challengeToken === null,
     });
   }, [snapshot, currentUserId]);
 
@@ -760,6 +769,13 @@ export function RaceRoom({
         <span data-testid="race-status" className="sr-only">
           {status}
         </span>
+        {!rated && (
+          <div className="mb-3 flex justify-center">
+            <Badge variant="outline" data-testid="unrated-tag">
+              Unrated
+            </Badge>
+          </div>
+        )}
         <Lobby
           raceId={raceId}
           currentUserId={currentUserId}
@@ -798,6 +814,7 @@ export function RaceRoom({
             opponentUsername={overlay.opponentUsername}
             eloDelta={overlay.eloDelta}
             byForfeit={overlay.byForfeit}
+            rated={overlay.rated}
             onDismiss={() => setOverlay(null)}
           />
         )}
@@ -1323,6 +1340,7 @@ export function RaceRoom({
           opponentUsername={overlay.opponentUsername}
           eloDelta={overlay.eloDelta}
           byForfeit={overlay.byForfeit}
+          rated={overlay.rated}
           onDismiss={() => setOverlay(null)}
         />
       )}
