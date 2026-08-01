@@ -17,6 +17,10 @@
  *     enforcement on GET/ready is primary; this is the safety net for a lobby
  *     both players abandoned.
  *  3. Abort `pending` races older than 24h.
+ *  3b. Abort `ready` challenge lobbies (`ready_deadline_at IS NULL`) older
+ *      than 24h (issue #308) — a matchmade lobby always carries a deadline
+ *      and is handled exclusively by step 2, so the `IS NULL` guard keeps
+ *      this step from ever touching one.
  *  4. Purge `queue_entries` whose heartbeat (`last_seen_at`) is >5 minutes
  *     stale — NOT by `enqueued_at`, so a still-polling user who has legitimately
  *     waited longer than 5 minutes is never purged out from under an active
@@ -125,6 +129,29 @@ export async function GET(request: Request) {
     )
     .returning({ id: races.id });
 
+  // 3b. Abort challenge lobbies stuck in `ready` for >24h (issue #308). A
+  //     `ready_deadline_at IS NULL` lobby is a challenge race (matchmade
+  //     lobbies always carry a deadline and belong exclusively to step 2's
+  //     `resolveReadyTimeout` walkover/abort semantics — the guard below must
+  //     never touch them). If a challenge player never enters the lobby /
+  //     drops after readying, `readyTimeoutAction` bails on a null deadline
+  //     and both players stay "in a race" (`findActiveRaceId`) forever with
+  //     no other path out. Single atomic status-conditioned UPDATE, no
+  //     read-then-write (Neon HTTP has no transactions) and no event publish
+  //     (consistent with the pending-abort above; snapshot is source of truth
+  //     on next fetch).
+  const abortedStaleReadyRows = await db
+    .update(races)
+    .set({ status: "aborted", outcome: "aborted", finishedAt: now })
+    .where(
+      and(
+        eq(races.status, "ready"),
+        isNull(races.readyDeadlineAt),
+        lt(races.createdAt, sql`now() - interval '24 hours'`),
+      ),
+    )
+    .returning({ id: races.id });
+
   // 4. Purge stale matchmaking queue entries by heartbeat staleness. Keyed off
   //    `last_seen_at` (stamped on every queue-status poll), NOT `enqueued_at`:
   //    a user actively polling has a fresh heartbeat and must survive even after
@@ -164,6 +191,7 @@ export async function GET(request: Request) {
     pollFailed: failed,
     resolvedReadyTimeouts,
     abortedPending: abortedRows.length,
+    abortedStaleReady: abortedStaleReadyRows.length,
     purgedQueue: purgedRows.length,
     ratingsChecked: ratings.checked,
     ratingsUpdated: ratings.updated,
