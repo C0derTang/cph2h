@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
   ExternalLink,
+  Radio,
   Settings,
   Swords,
   Trophy,
@@ -21,9 +22,10 @@ import {
   SPARKLINE_VIEWBOX_HEIGHT,
 } from "@/lib/elo-sparkline";
 import { ensureUser } from "@/lib/user";
+import { findActiveRaceId } from "@/lib/race/active";
 import { cn } from "@/lib/utils";
 import { HeroWord } from "@/components/hud/hero-word";
-import { MenuRowLink } from "@/components/menu/menu-row";
+import { MenuRowContent, MenuRowLink, accentStyle } from "@/components/menu/menu-row";
 import { ChallengeMenuRow } from "@/components/dashboard/challenge-menu-row";
 import type { RaceOutcome } from "@/lib/types";
 
@@ -257,10 +259,32 @@ function IdentityPlate({
   );
 }
 
+/** Prominent CTA shown above the hero word when the caller has a race that's
+ *  still `ready`/`active` (issue #309) — e.g. they lost connection or closed
+ *  the tab mid-race and otherwise have no discoverable path back. Reuses the
+ *  menu-row treatment (issue #124) so it reads as part of the same hub
+ *  language, just first in line and pulsing for urgency. */
+function ResumeRaceBanner({ raceId }: { raceId: string }) {
+  return (
+    <Link
+      href={`/race/${raceId}`}
+      className="menu-row mb-5 block"
+      style={accentStyle("var(--player-self)")}
+    >
+      <MenuRowContent
+        icon={Radio}
+        label="Race in progress — return to race"
+        tagline="Your match is still live. Jump back in."
+      />
+    </Link>
+  );
+}
+
 function PlayHubContent({
   user,
   recentRaces,
   eloHistoryData,
+  activeRaceId,
 }: {
   user: {
     id: string;
@@ -274,6 +298,7 @@ function PlayHubContent({
   eloHistoryData: Array<{
     eloAfter: number;
   }>;
+  activeRaceId: string | null;
 }) {
   const record = computeRecord(recentRaces, user.id);
   const cfLinked = Boolean(user.cfHandle);
@@ -288,6 +313,7 @@ function PlayHubContent({
         {/* The main menu: the graffiti hero word over a stack of giant
             color-coded action slabs. */}
         <div>
+          {activeRaceId ? <ResumeRaceBanner raceId={activeRaceId} /> : null}
           <HeroWord word="play" className="pointer-events-none -ml-1 block" />
           <p className="mt-3 inline-flex items-center gap-2 eyebrow text-muted-foreground">
             <span className="size-2 rounded-full bg-player-self motion-safe:animate-pulse" />
@@ -487,11 +513,23 @@ export default async function DashboardPage() {
     return <ErrorDisplay />;
   }
 
+  // Isolated from the query above: a failure here (e.g. transient DB hiccup)
+  // must not take down the whole hub — the resume banner is a convenience,
+  // not core to the page.
+  let activeRaceId: string | null = null;
+  try {
+    activeRaceId = await findActiveRaceId(user.id);
+  } catch (error) {
+    console.error("Error loading active race for resume banner:", error);
+    activeRaceId = null;
+  }
+
   return (
     <PlayHubContent
       user={user}
       recentRaces={recentRaces}
       eloHistoryData={eloHistoryData}
+      activeRaceId={activeRaceId}
     />
   );
 }
