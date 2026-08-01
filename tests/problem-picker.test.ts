@@ -229,18 +229,99 @@ describe("pickProblem", () => {
       expect(pickedId(result)).toBe("1A");
     });
 
-    it("still prefers a near-target problem over a far conforming one", () => {
-      const candidates = [problem("1A", 1200), problem("2A", 3400)];
-      const result = pickProblem({
-        candidates,
-        seenIds: new Set(),
-        p1Rating: 1200,
-        p2Rating: 1200,
-        seed: 3,
-        ratingMin: 800,
-        ratingMax: 3500,
-      });
-      expect(pickedId(result)).toBe("1A");
+    it("picks uniformly across the eligible range when a filter is set (>=2 distinct ids, and picks land above the low edge)", () => {
+      // target 1300 (below the filter window entirely); filter 1600-2100.
+      // Regression for the bug where the band always clamped to [1600,1600].
+      const candidates = [
+        problem("1A", 1600),
+        problem("2A", 1700),
+        problem("3A", 1800),
+        problem("4A", 1900),
+        problem("5A", 2000),
+        problem("6A", 2100),
+      ];
+      const pickedIds = new Set<string>();
+      let sawNonEdge = false;
+      for (let seed = 0; seed < 100; seed++) {
+        const result = pickProblem({
+          candidates,
+          seenIds: new Set(),
+          p1Rating: 1200,
+          p2Rating: 1400,
+          seed,
+          ratingMin: 1600,
+          ratingMax: 2100,
+        });
+        const id = pickedId(result);
+        pickedIds.add(id);
+        if (id !== "1A") sawNonEdge = true;
+      }
+      expect(pickedIds.size).toBeGreaterThanOrEqual(2);
+      expect(sawNonEdge).toBe(true);
     });
+
+    it("picks uniformly across the eligible range when the filter is below the target (mirror of the above)", () => {
+      // target ~2000 (above the filter window entirely); filter 800-1200.
+      const candidates = [
+        problem("1A", 800),
+        problem("2A", 900),
+        problem("3A", 1000),
+        problem("4A", 1100),
+        problem("5A", 1200),
+      ];
+      const pickedIds = new Set<string>();
+      let sawNonEdge = false;
+      for (let seed = 0; seed < 100; seed++) {
+        const result = pickProblem({
+          candidates,
+          seenIds: new Set(),
+          p1Rating: 1900,
+          p2Rating: 2100,
+          seed,
+          ratingMin: 800,
+          ratingMax: 1200,
+        });
+        const id = pickedId(result);
+        pickedIds.add(id);
+        if (id !== "5A") sawNonEdge = true;
+      }
+      expect(pickedIds.size).toBeGreaterThanOrEqual(2);
+      expect(sawNonEdge).toBe(true);
+    });
+
+    it("is deterministic with a rating filter set: same seed + same inputs always pick the same problem", () => {
+      const candidates = [
+        problem("1A", 1600),
+        problem("2A", 1700),
+        problem("3A", 1800),
+        problem("4A", 1900),
+      ];
+      const opts = {
+        candidates,
+        seenIds: new Set<string>(),
+        p1Rating: 1200,
+        p2Rating: 1400,
+        seed: 17,
+        ratingMin: 1600,
+        ratingMax: 1900,
+      };
+      const first = pickProblem(opts);
+      const second = pickProblem(opts);
+      const third = pickProblem({ ...opts, candidates: [...candidates] });
+      expect(first).toEqual(second);
+      expect(first).toEqual(third);
+    });
+  });
+
+  it("(filterless) still prefers a near-target problem over a far one", () => {
+    const candidates = [problem("1A", 1200), problem("2A", 3400)];
+    const result = pickProblem({
+      candidates,
+      seenIds: new Set(),
+      p1Rating: 1200,
+      p2Rating: 1200,
+      seed: 3,
+    });
+    expect(pickedId(result)).toBe("1A");
   });
 });

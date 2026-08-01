@@ -30,9 +30,10 @@ export interface PickProblemOptions {
   seed: number;
   /**
    * Hard rating-filter bounds from the challenger's filters (null = no
-   * constraint). Widening never escapes `[ratingMin, ratingMax]`, and only
-   * problems inside these bounds are ever eligible — so a rating-filtered race
-   * can never pick a non-conforming problem.
+   * constraint). Only problems inside these bounds are ever eligible — so a
+   * rating-filtered race can never pick a non-conforming problem. When either
+   * bound is set, the target-proximity band is skipped entirely and the pick
+   * is uniform across the whole eligible unseen set (see step 4 below).
    */
   ratingMin?: number | null;
   ratingMax?: number | null;
@@ -90,15 +91,18 @@ function seededRandom(seed: number): () => number {
  * 2. Restrict to *eligible* candidates: those within `[ratingMin, ratingMax]`
  *    when set. If none exist at all → `no_problems_in_filters`.
  * 3. Drop seen problems. If nothing unseen remains → `all_problems_seen`.
- * 4. Prefer problems near the target: filter to `[target-100, target+200]`,
- *    widening by ±100 up to `MAX_WIDEN_ATTEMPTS` times — the band is always
- *    clamped so it never escapes `[ratingMin, ratingMax]`.
- * 5. When a rating filter is set and target-proximity finds nothing (an unseen
- *    conforming problem exists but lies outside the target's widening reach),
- *    fall back to any unseen eligible problem so the race can still start with
- *    a conforming problem. Without a rating filter, the widening reach is the
- *    whole eligible universe, so this fallback never triggers — an out-of-band
- *    problem is intentionally *not* forced onto a mismatched race.
+ * 4. When any rating filter (`ratingMin`/`ratingMax`) is set, skip the
+ *    target-proximity band entirely and pick uniformly at random across the
+ *    whole unseen eligible set. A challenger who set a filter has already
+ *    expressed their preferred range explicitly — re-centering a target band
+ *    inside a fixed filter window collapses it to a single edge value (e.g.
+ *    the band always clamping to `[ratingMin, ratingMin]`), so honoring the
+ *    filter uniformly is both simpler and fairer.
+ * 5. Without a rating filter, prefer problems near the target: filter to
+ *    `[target-100, target+200]`, widening by ±100 up to `MAX_WIDEN_ATTEMPTS`
+ *    times. If widening exhausts its bound without finding a candidate,
+ *    report `no_problems_in_filters` — an out-of-band problem is
+ *    intentionally *not* forced onto a mismatched race.
  */
 export function pickProblem(opts: PickProblemOptions): PickProblemResult {
   const { candidates, seenIds, p1Rating, p2Rating, seed } = opts;
@@ -123,24 +127,22 @@ export function pickProblem(opts: PickProblemOptions): PickProblemResult {
     return { ok: false, reason: "all_problems_seen" };
   }
 
+  // A rating filter is an explicit preference for the whole range — pick
+  // uniformly across it rather than re-centering a target band that could
+  // collapse to a single edge value.
+  if (hasRatingFilter) {
+    return { ok: true, problem: pickDeterministic(unseen, rand) };
+  }
+
   for (let attempt = 0; attempt <= MAX_WIDEN_ATTEMPTS; attempt++) {
     const widen = attempt * WIDEN_STEP;
-    let lo = target - BAND_LOW_OFFSET - widen;
-    let hi = target + BAND_HIGH_OFFSET + widen;
-    // Clamp the band so widening never escapes the hard filter bounds.
-    if (ratingMin !== null) lo = Math.max(lo, ratingMin);
-    if (ratingMax !== null) hi = Math.min(hi, ratingMax);
+    const lo = target - BAND_LOW_OFFSET - widen;
+    const hi = target + BAND_HIGH_OFFSET + widen;
     const inWindow = unseen.filter((c) => c.rating >= lo && c.rating <= hi);
     if (inWindow.length === 0) {
       continue;
     }
     return { ok: true, problem: pickDeterministic(inWindow, rand) };
-  }
-
-  // Rating-filtered race with an unseen conforming problem outside the target's
-  // widening reach — still start, on any conforming problem.
-  if (hasRatingFilter) {
-    return { ok: true, problem: pickDeterministic(unseen, rand) };
   }
 
   // Filterless: unseen problems exist but all lie outside the acceptable
