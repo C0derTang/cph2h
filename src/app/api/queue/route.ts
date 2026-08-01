@@ -22,11 +22,12 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { queueEntries, races } from "@/lib/db/schema";
+import { queueEntries } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { createRace } from "@/lib/race/create";
+import { findActiveRaceId } from "@/lib/race/active";
 import { bandForWait, tryPair, intersectFilters, BAND_BASE } from "@/lib/matchmaking";
 import { getCheaterSet, isKnownCheater } from "@/lib/cf/cheaters";
 import { countAvailableProblems } from "@/lib/cf/problem-availability";
@@ -62,22 +63,6 @@ function filterColumns(filters: RaceProblemFilters) {
     dateFrom: filters.dateFrom ? new Date(filters.dateFrom) : null,
     dateTo: filters.dateTo ? new Date(filters.dateTo) : null,
   };
-}
-
-/** Newest race the caller is part of that is still ready/active, if any. */
-async function findActiveRaceId(meId: string): Promise<string | null> {
-  const [race] = await db
-    .select({ id: races.id })
-    .from(races)
-    .where(
-      and(
-        or(eq(races.p1Id, meId), eq(races.p2Id, meId)),
-        inArray(races.status, ["ready", "active"]),
-      ),
-    )
-    .orderBy(desc(races.createdAt))
-    .limit(1);
-  return race?.id ?? null;
 }
 
 // ---------------------------------------------------------------------------
