@@ -20,7 +20,6 @@ import type { SessionResult } from "../src/lib/race/session";
 
 const {
   requireLinkedUserMock,
-  getUserInfoMock,
   insertValuesMock,
   onConflictDoUpdateMock,
   enforceDbRateLimitMock,
@@ -31,7 +30,6 @@ const {
   };
   return {
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
-    getUserInfoMock: vi.fn(),
     insertValuesMock: vi.fn(),
     onConflictDoUpdateMock: vi.fn(),
     enforceDbRateLimitMock: vi.fn(),
@@ -41,10 +39,6 @@ const {
 
 vi.mock("@/lib/race/session", () => ({
   requireLinkedUser: requireLinkedUserMock,
-}));
-
-vi.mock("@/lib/cf/client", () => ({
-  getUserInfo: getUserInfoMock,
 }));
 
 // `src/lib/ratelimit/policies.ts` transitively imports the real `@/lib/db`
@@ -104,22 +98,12 @@ function baseBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** Fake CF `user.info` response — one entry for the handle, `maxRating`
- *  omitted (undefined) for an unrated handle. */
-function userInfo(maxRating?: number) {
-  return [{ handle: "cfhandle", maxRating }];
-}
-
 beforeEach(() => {
   requireLinkedUserMock.mockReset();
-  getUserInfoMock.mockReset();
   insertValuesMock.mockClear();
   onConflictDoUpdateMock.mockClear();
   enforceDbRateLimitMock.mockReset().mockResolvedValue(null);
   dbState.insertReturning = [];
-
-  // Eligible by default so tests that don't care about eligibility pass.
-  getUserInfoMock.mockResolvedValue(userInfo(1920));
 
   requireLinkedUserMock.mockResolvedValue({
     ok: true,
@@ -341,69 +325,13 @@ describe("POST /api/tournament/register", () => {
     expect(config.set.githubUrl).toBe("https://github.com/torvalds");
   });
 
-  it("returns 403 rating_too_low with the peak rating when peak is 1899", async () => {
-    getUserInfoMock.mockResolvedValue(userInfo(1899));
-
-    const res = await POST(makeRequest(baseBody()));
-
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.error).toBe("rating_too_low");
-    expect(body.peakRating).toBe(1899);
-    expect(insertValuesMock).not.toHaveBeenCalled();
-  });
-
-  it("proceeds with the upsert at exactly peak rating 1900", async () => {
-    getUserInfoMock.mockResolvedValue(userInfo(1900));
-
+  it("registers without any CF rating eligibility check (no rating gate)", async () => {
+    // No CF client mock exists in this suite at all — if the route ever
+    // re-adds a `getUserInfo` call, the unmocked import would fail loudly.
     const res = await POST(makeRequest(baseBody()));
 
     expect(res.status).toBe(200);
-    expect(getUserInfoMock).toHaveBeenCalledWith("cfhandle");
     expect(insertValuesMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("returns 403 rating_too_low for an unrated handle (maxRating absent)", async () => {
-    getUserInfoMock.mockResolvedValue(userInfo(undefined));
-
-    const res = await POST(makeRequest(baseBody()));
-
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.error).toBe("rating_too_low");
-    expect(body.peakRating).toBeNull();
-    expect(insertValuesMock).not.toHaveBeenCalled();
-  });
-
-  it("returns 502 cf_unavailable when the CF API call fails", async () => {
-    getUserInfoMock.mockRejectedValue(new Error("CF down"));
-
-    const res = await POST(makeRequest(baseBody()));
-
-    expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe("cf_unavailable");
-    expect(insertValuesMock).not.toHaveBeenCalled();
-  });
-
-  it("does not call CF before body/terms/identity/URL validation", async () => {
-    const invalidBody = await POST(makeRequest(baseBody({ termsAccepted: "yes" })));
-    expect(invalidBody.status).toBe(400);
-
-    const termsMissing = await POST(
-      makeRequest({ firstName: "Grace", lastName: "Hopper", email: "grace@example.com" }),
-    );
-    expect(termsMissing.status).toBe(400);
-
-    const invalidName = await POST(makeRequest(baseBody({ firstName: "   " })));
-    expect(invalidName.status).toBe(400);
-
-    const badUrl = await POST(
-      makeRequest(baseBody({ githubUrl: "https://gitlab.com/me" })),
-    );
-    expect(badUrl.status).toBe(400);
-
-    expect(getUserInfoMock).not.toHaveBeenCalled();
-    expect(insertValuesMock).not.toHaveBeenCalled();
   });
 
   it("returns 200 with the returned row's fields", async () => {
@@ -450,7 +378,6 @@ describe("POST /api/tournament/register — rate limiting (issue #256)", () => {
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("20");
     expect(insertValuesMock).not.toHaveBeenCalled();
-    expect(getUserInfoMock).not.toHaveBeenCalled();
   });
 
   it("is keyed by the authenticated user id", async () => {

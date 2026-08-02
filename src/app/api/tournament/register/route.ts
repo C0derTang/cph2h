@@ -21,7 +21,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { tournamentRegistrations } from "@/lib/db/schema";
-import { getUserInfo } from "@/lib/cf/client";
 import { requireLinkedUser } from "@/lib/race/session";
 import { enforceDbRateLimit, TOURNAMENT_REGISTER_POLICY } from "@/lib/ratelimit/policies";
 import {
@@ -31,10 +30,6 @@ import {
   normalizeLocation,
   normalizeName,
 } from "@/lib/tournament/registration";
-
-/** Minimum peak Codeforces rating required to register — Candidate Master
- *  threshold (issue #280). */
-const MIN_PEAK_RATING = 1900;
 
 const bodySchema = z.object({
   // Required identity fields (issue #239). Required on every POST, including
@@ -120,28 +115,9 @@ export async function POST(req: Request) {
     }
   }
 
-  // Eligibility gate (issue #280): peak rating must be at least
-  // MIN_PEAK_RATING (Candidate Master). Checked on every POST (edits too) —
-  // peak rating only grows, so this never locks out an existing registrant.
-  // `cfHandle` is non-null past `requireLinkedUser`, but guard defensively.
-  // Fail closed on CF errors: registration is retryable. Peak rating comes
-  // from CF `user.info`'s `maxRating` (issue #287) rather than deriving it
-  // from `user.rating` history — smaller payload, no empty/paginated-history
-  // edge case. Unrated handles have no `maxRating` -> null -> 403, same as
-  // empty history before.
-  let peakRating: number | null;
-  try {
-    const [info] = await getUserInfo(session.user.cfHandle ?? "");
-    peakRating = info?.maxRating ?? null;
-  } catch {
-    return NextResponse.json({ error: "cf_unavailable" }, { status: 502 });
-  }
-  if (peakRating === null || peakRating < MIN_PEAK_RATING) {
-    return NextResponse.json(
-      { error: "rating_too_low", peakRating },
-      { status: 403 },
-    );
-  }
+  // No rating eligibility gate: registration is open to any linked handle,
+  // rated or unrated (the 1900+ Candidate Master requirement from issue #280
+  // was dropped).
 
   const [registration] = await db
     .insert(tournamentRegistrations)

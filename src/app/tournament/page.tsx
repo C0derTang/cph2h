@@ -307,8 +307,8 @@ export default async function TournamentPage() {
               className="mt-2 size-1 shrink-0 rounded-full bg-player-self/70"
             />
             <span>
-              Peak rating of 1900+ (Candidate Master) on your linked handle
-              (verified when you register).
+              A linked Codeforces handle — open to all ratings, including
+              unrated.
             </span>
           </li>
           <li className="flex items-start gap-2.5">
@@ -412,7 +412,7 @@ export default async function TournamentPage() {
               <p className="max-w-xl text-sm leading-6 text-muted-foreground">
                 {viewState === "registered"
                   ? "You're registered for the launch tournament. Update your details anytime."
-                  : "Entry requires a peak Codeforces rating of 1900+ (Candidate Master) on your linked handle. We check when you register."}
+                  : "Open to everyone with a linked Codeforces handle — no rating requirement."}
               </p>
               <SlabButton
                 tone="self"

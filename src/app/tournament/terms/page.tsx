@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 const SECTIONS = [
   {
     title: "Eligibility",
-    body: "Open to anyone who can sign up for CPH2H and link a Codeforces account. Your linked handle must have a peak rating of at least 1900 (Candidate Master). There is no maximum rating limit.",
+    body: "Open to anyone who can sign up for CPH2H and link a Codeforces account. There is no rating requirement — rated and unrated handles alike are welcome.",
   },
   {
     title: "Account requirements",
