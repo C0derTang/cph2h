@@ -19,11 +19,7 @@ import { races } from "@/lib/db/schema";
 import { requireLinkedUser } from "@/lib/race/session";
 import { isParticipant } from "@/lib/race/machine";
 import { buildRaceSnapshot } from "@/lib/race/snapshot";
-import {
-  pollActiveRace,
-  stampHeartbeat,
-  maybeAbsenceForfeit,
-} from "@/lib/race/poll";
+import { pollActiveRace } from "@/lib/race/poll";
 import { POLL_MIN_INTERVAL_SEC } from "@/lib/types";
 import { SECONDS_PER_ACTIVE_RACE } from "@/lib/race/poll-interval";
 import { enforcePolicy } from "@/lib/ratelimit/policies";
@@ -58,13 +54,6 @@ export async function POST(
     return NextResponse.json({ error: "not_participant" }, { status: 403 });
   }
 
-  const callerIsP1 = race.p1Id === session.user.id;
-
-  // Presence heartbeat (issue #105): stamp the caller BEFORE and independent of
-  // the poll mutex, so mutex-skipped polls (the majority) still prove presence.
-  // A no-op unless the race is active.
-  await stampHeartbeat(id, callerIsP1);
-
   // DB mutex: claim the poll only if the race is active and not polled within
   // the dynamic window. The window scales with the current count of `active`
   // races — `GREATEST(POLL_MIN_INTERVAL_SEC, count(active) * SECONDS_PER_ACTIVE_RACE)`
@@ -98,29 +87,11 @@ export async function POST(
 
   await pollActiveRace(claimed);
 
-  let [current] = await db
+  const [current] = await db
     .select()
     .from(races)
     .where(eq(races.id, id))
     .limit(1);
-
-  // Absence forfeit (issue #105): verdicts already had precedence inside
-  // pollActiveRace above (a solve/timeout finish flips status away from
-  // 'active'). Only if the race is still active do we check whether the OTHER
-  // player has been absent past the grace window — the caller just stamped
-  // their own heartbeat, so this can only ever forfeit the opponent, never the
-  // caller. finishRace is idempotent, so a concurrent finisher is safe.
-  const race2 = current ?? claimed;
-  if (race2.status === "active") {
-    const forfeited = await maybeAbsenceForfeit(race2, callerIsP1);
-    if (forfeited) {
-      [current] = await db
-        .select()
-        .from(races)
-        .where(eq(races.id, id))
-        .limit(1);
-    }
-  }
 
   return NextResponse.json(await buildRaceSnapshot(current ?? claimed), {
     status: 200,

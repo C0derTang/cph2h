@@ -41,19 +41,6 @@ export const SOLVE_HISTORY_STALE_SEC = 21600;
 export const UNLOCK_REFETCH_BACKOFF_MS = [500, 1000, 2000] as const;
 
 /**
- * How long a player may be absent (no poll heartbeat) during an active race
- * before the present opponent wins by forfeit. The constraint that sizes this:
- * users MUST background the race tab to submit on codeforces.com (the normal
- * flow — there is no in-platform submission), and Chrome throttles
- * background-tab timers to roughly one tick per minute, so a backgrounded but
- * fully present player heartbeats at ~60-75s intervals. The grace must
- * comfortably exceed that throttled cadence (several missed throttled ticks,
- * plus Battery/Memory-Saver freezes) so only a genuinely gone player — closed
- * tab, walked away — ever forfeits.
- */
-export const ABSENCE_FORFEIT_SEC = 300;
-
-/**
  * Matchmade (quick-match) races only: both players must mark ready within this
  * window of pairing. Past the deadline, one-ready resolves as a walkover win
  * for the ready player (full Elo); zero-ready aborts with no Elo. Challenge
@@ -203,13 +190,6 @@ export interface RaceSnapshot {
    * on decline, withdraw, or when the race ends.
    */
   drawOfferBy: string | null;
-  /**
-   * Per-player presence heartbeats (ISO), stamped by each client's polls
-   * while active. Clients render the absence-forfeit countdown from the
-   * opponent's stamp using skew-corrected time. Null before a first poll.
-   */
-  p1LastSeenAt: string | null;
-  p2LastSeenAt: string | null;
   /** Problem filters constraining selection; null when the race has none. */
   filters: RaceProblemFilters | null;
   /**

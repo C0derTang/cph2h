@@ -32,7 +32,7 @@ export interface RaceEndOverlayProps {
   opponentUsername: string | null;
   /** The viewer's own Elo delta from the snapshot (± shown), or null. */
   eloDelta: number | null;
-  /** Win/loss by forfeit or absence (no winning submission) vs. an actual solve. */
+  /** Win/loss by forfeit (no winning submission) vs. an actual solve. */
   byForfeit: boolean;
   /**
    * `snapshot.challengeToken === null` at transition time (issue #307).

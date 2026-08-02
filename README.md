@@ -10,7 +10,7 @@
 2. **Find an opponent.** Send a challenge link to a friend, or join the quick-match queue and get paired by Elo.
 3. **Ready up.** Both players confirm, a countdown runs, and the problem is revealed to both at the same instant — never earlier.
 4. **Race.** Solve locally and submit on codeforces.com as usual. The platform polls the public CF API and picks up your verdict within seconds — no manual reporting.
-5. **Win.** First `Accepted` takes the race. Elo updates exactly once, atomically. Leaving mid-race forfeits after a grace period.
+5. **Win.** First `Accepted` takes the race. Elo updates exactly once, atomically. A race with no accepted submission runs to the time limit and ends in a draw (you can also forfeit or offer a draw at any time).
 
 ## Features
 
@@ -64,7 +64,7 @@ CI runs lint, typecheck, and unit tests. The Playwright smoke test is deliberate
 
 Pure logic lives in `src/lib/`; routes in `src/app/api/` are thin shells that validate, call pure functions, and persist.
 
-- `src/lib/race/` — race lifecycle (`pending → ready → active → finished|aborted`), verdict polling, presence/forfeit
+- `src/lib/race/` — race lifecycle (`pending → ready → active → finished|aborted`), verdict polling
 - `src/lib/matchmaking.ts` — quick-match pairing (single-statement claim with `FOR UPDATE SKIP LOCKED`)
 - `src/lib/cf/` — Codeforces API client, handle verification, solve-history import
 - `src/lib/types.ts` — the shared contract: race DTOs and the LiveKit event union

@@ -45,8 +45,6 @@ function snap(overrides: Partial<RaceSnapshot> = {}): RaceSnapshot {
     challengeToken: null,
     drawOfferBy: null,
     readyDeadlineAt: null,
-    p1LastSeenAt: null,
-    p2LastSeenAt: null,
     filters: null,
     problemSelectionFailedReason: null,
     ...overrides,

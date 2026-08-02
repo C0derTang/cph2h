@@ -71,10 +71,6 @@ import {
   unlockRescheduleDelay,
 } from "@/lib/race/countdown";
 import { jitteredDelayMs } from "@/lib/poll-timing";
-import {
-  absenceSecondsRemaining,
-  shouldShowAbsenceCountdown,
-} from "@/lib/race/presence";
 import { refetchThrottleDecision } from "@/lib/race/refetch-throttle";
 import {
   detectOverlayOutcome,
@@ -151,15 +147,14 @@ export function RaceRoom({
   // against `nowTick` (already ticking every 1s while active) rather than a
   // dedicated interval.
   const [lastCheckedAt, setLastCheckedAt] = useState<number | null>(null);
-  // Local 1s tick, only while active, so the absence-forfeit countdown ticks
-  // down between snapshot receipts (the server still decides the actual finish).
+  // Local 1s tick, only while active, driving the "checked Xs ago" indicator.
   const [nowTick, setNowTick] = useState(() => Date.now());
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollFailuresRef = useRef(0);
   // Set by the verdict-poll effect while active: cancels the pending jittered
-  // timer and runs a poll tick immediately. Used by the tab-wake handler
-  // (issue #303) so a resumed tab re-proves presence right away instead of
-  // waiting out a (possibly throttled) scheduled tick.
+  // timer and runs a poll tick immediately. Used by the tab-wake handler so a
+  // resumed tab catches up on verdicts right away instead of waiting out a
+  // (possibly throttled) scheduled tick.
   const pollNowRef = useRef<(() => void) | null>(null);
 
   // --- Race-end overlay (issue #113) --------------------------------------
@@ -263,7 +258,7 @@ export function RaceRoom({
     const opp = viewerIsP1 ? snapshot.p2 : snapshot.p1;
     const eloDelta = viewerIsP1 ? snapshot.eloDeltaP1 : snapshot.eloDeltaP2;
     // A "solve" win has an accepted CF submission by the winner; earlier
-    // wrong submissions still count as a forfeit / absence win for copy.
+    // wrong submissions still count as a forfeit win for copy.
     // Draws are never a forfeit variant.
     const solved = winnerHasAcceptedSubmission(
       snapshot.winnerId,
@@ -462,47 +457,33 @@ export function RaceRoom({
     };
   }, [status, raceId, applySnapshot, refetch]);
 
-  // --- Freeze beacon + tab-wake re-sync (issue #303, active only) ----------
+  // --- Tab-wake re-sync (active only) --------------------------------------
   // Backgrounding the tab is the NORMAL flow (users submit on codeforces.com),
   // and Chrome throttles background timers to ~1/min and may freeze/discard
-  // the tab outright — silently starving the presence heartbeat. On the way
-  // out (`visibilitychange` → hidden, Page Lifecycle `freeze`) fire a
-  // `navigator.sendBeacon` at the heartbeat route: sendBeacon survives
-  // freeze/unload and carries cookies, so Clerk auth works and the server
-  // gets one last presence stamp. On the way back (`resume`, `pageshow`,
-  // visibility → visible) immediately refetch the snapshot and run a poll
-  // tick so the returning tab re-proves presence without waiting for the
-  // next scheduled (possibly still-throttled) tick.
+  // the tab outright. On the way back (`resume`, `pageshow`, visibility →
+  // visible) immediately refetch the snapshot and run a poll tick so the
+  // returning tab catches up on verdicts without waiting for the next
+  // scheduled (possibly still-throttled) tick.
   useEffect(() => {
     if (status !== "active") return;
 
-    const beacon = () => {
-      try {
-        navigator.sendBeacon(`/api/races/${raceId}/heartbeat`);
-      } catch {
-        // Best-effort — the server-side CF-activity fallback still covers us.
-      }
-    };
     const wake = () => {
       void refetch();
       pollNowRef.current?.();
     };
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") beacon();
-      else wake();
+      if (document.visibilityState !== "hidden") wake();
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
-    document.addEventListener("freeze", beacon);
     document.addEventListener("resume", wake);
     window.addEventListener("pageshow", wake);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      document.removeEventListener("freeze", beacon);
       document.removeEventListener("resume", wake);
       window.removeEventListener("pageshow", wake);
     };
-  }, [status, raceId, refetch]);
+  }, [status, refetch]);
 
   // --- Unlock timer --------------------------------------------------------
   // Bridges the gap between countdown end and the next verdict-poll mutex
@@ -689,8 +670,8 @@ export function RaceRoom({
     };
   }, []);
 
-  // Drive the absence-forfeit countdown: a 1s tick while the race is active so
-  // the banner counts down between snapshot receipts. Idle otherwise.
+  // 1s tick while the race is active — drives the "checked Xs ago" auto-poll
+  // indicator. Idle otherwise.
   useEffect(() => {
     if (status !== "active") return;
     const timer = setInterval(() => setNowTick(Date.now()), 1000);
@@ -834,51 +815,9 @@ export function RaceRoom({
   const startedAtMs = snapshot.startedAt ? Date.parse(snapshot.startedAt) : null;
   const countdownEnded = startedAtMs != null && correctedNow(skewMs) >= startedAtMs;
 
-  // Absence-forfeit countdown (issue #105): once the opponent's snapshot
-  // heartbeat (skew-corrected) has gone stale past the escalation threshold,
-  // the generic disconnect banner escalates into a "victory in Xs" countdown.
-  // Display only — the server's poll path decides the actual forfeit.
-  //
-  // CF-activity coherence (issue #303): the server treats the opponent's
-  // latest observed CF submission as proof of presence too, so mirror the
-  // same `max(heartbeat, latest opponent submission)` from the snapshot's
-  // submissions feed here — the banner must never threaten a forfeit the
-  // server won't fire.
-  const opponentLastSeenIso = isP1
-    ? snapshot.p2LastSeenAt
-    : snapshot.p1LastSeenAt;
-  const opponentHeartbeatMs = opponentLastSeenIso
-    ? Date.parse(opponentLastSeenIso)
-    : null;
-  let opponentLatestSubmissionMs: number | null = null;
-  if (opponent) {
-    for (const s of snapshot.submissions) {
-      if (s.userId !== opponent.id) continue;
-      const t = Date.parse(s.submittedAt);
-      if (!Number.isFinite(t)) continue;
-      if (opponentLatestSubmissionMs === null || t > opponentLatestSubmissionMs) {
-        opponentLatestSubmissionMs = t;
-      }
-    }
-  }
-  const opponentLastSeenMs =
-    opponentHeartbeatMs === null
-      ? opponentLatestSubmissionMs
-      : opponentLatestSubmissionMs === null
-        ? opponentHeartbeatMs
-        : Math.max(opponentHeartbeatMs, opponentLatestSubmissionMs);
-  const absenceNowMs = correctedNow(skewMs, nowTick);
-  const showAbsenceCountdown =
-    startedAtMs != null &&
-    shouldShowAbsenceCountdown(opponentLastSeenMs, startedAtMs, absenceNowMs);
-  const absenceSecondsLeft =
-    startedAtMs != null
-      ? absenceSecondsRemaining(opponentLastSeenMs, startedAtMs, absenceNowMs)
-      : 0;
-
   // Auto-poll indicator (issue #107): seconds since the last successful
-  // verdict-poll response, ticking via the same 1s `nowTick` the absence
-  // countdown uses. Null until the first poll response lands.
+  // verdict-poll response, ticking via the 1s `nowTick`. Null until the first
+  // poll response lands.
   const checkedSecondsAgo =
     lastCheckedAt != null
       ? Math.max(0, Math.round((nowTick - lastCheckedAt) / 1000))
@@ -1197,45 +1136,22 @@ export function RaceRoom({
           </div>
         </div>
       )}
-      {showAbsenceCountdown ? (
+      {opponentDisconnected && (
         <div
-          data-testid="absence-forfeit-banner"
+          data-testid="opponent-disconnected-banner"
           role="alert"
-          className="flex flex-col gap-2 rounded-[var(--radius)] border border-player-self/40 bg-player-self/10 p-3 text-xs text-player-self"
+          className="flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-card p-3 text-xs text-muted-foreground"
         >
           <div className="flex items-center gap-2 font-medium">
             <WifiOff className="size-4 shrink-0" aria-hidden />
-            They bailed.
+            Your opponent appears to have disconnected.
           </div>
-          <p className="text-player-self">
-            Victory in{" "}
-            <span
-              data-testid="absence-forfeit-seconds"
-              className="font-mono font-semibold tabular-nums"
-            >
-              {absenceSecondsLeft}s
-            </span>{" "}
-            unless they show back up.
+          <p className="text-muted-foreground">
+            They may reconnect at any time. If they don&apos;t come back,
+            you can forfeit to end the race. Your opponent would be awarded
+            the win.
           </p>
         </div>
-      ) : (
-        opponentDisconnected && (
-          <div
-            data-testid="opponent-disconnected-banner"
-            role="alert"
-            className="flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-card p-3 text-xs text-muted-foreground"
-          >
-            <div className="flex items-center gap-2 font-medium">
-              <WifiOff className="size-4 shrink-0" aria-hidden />
-              Your opponent appears to have disconnected.
-            </div>
-            <p className="text-muted-foreground">
-              They may reconnect at any time. If they don&apos;t come back,
-              you can forfeit to end the race. Your opponent would be awarded
-              the win.
-            </p>
-          </div>
-        )
       )}
       {pollDegraded && (
         <div

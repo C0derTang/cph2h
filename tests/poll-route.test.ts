@@ -2,15 +2,13 @@
  * Tests for src/app/api/races/[id]/poll/route.ts — the poll mutex claim under
  * the dynamic-window change (issue #238).
  *
- * `requireLinkedUser`, `db`, the shared poll helpers (`stampHeartbeat`,
- * `pollActiveRace`, `maybeAbsenceForfeit`), and `buildRaceSnapshot` are mocked;
- * the REAL `isParticipant` guard runs. Load-bearing invariants pinned here:
+ * `requireLinkedUser`, `db`, the shared poll helper (`pollActiveRace`), and
+ * `buildRaceSnapshot` are mocked; the REAL `isParticipant` guard runs.
+ * Load-bearing invariants pinned here:
  *
  *  - The claim is ONE atomic UPDATE whose window is the dynamic scalar subquery
  *    `GREATEST(5, (SELECT count(*) FROM races WHERE status = 'active') * 4)`,
  *    with the 5/4 sourced from the shared constants (compiled and asserted).
- *  - The presence heartbeat is stamped BEFORE the mutex claim (absence-forfeit
- *    presence must not degrade for the mutex-skipped majority).
  *  - A lost claim (zero rows) short-circuits to `{ skipped: true }` and never
  *    touches CF.
  */
@@ -28,9 +26,7 @@ import { RATE_LIMIT_POLICIES } from "../src/lib/ratelimit/policies";
 const {
   authMock,
   requireLinkedUserMock,
-  stampHeartbeatMock,
   pollActiveRaceMock,
-  maybeAbsenceForfeitMock,
   buildRaceSnapshotMock,
   dbState,
   events,
@@ -46,11 +42,7 @@ const {
   return {
     authMock: vi.fn(),
     requireLinkedUserMock: vi.fn<() => Promise<SessionResult>>(),
-    stampHeartbeatMock: vi.fn(async () => {
-      events.push("heartbeat");
-    }),
     pollActiveRaceMock: vi.fn().mockResolvedValue(undefined),
-    maybeAbsenceForfeitMock: vi.fn().mockResolvedValue(false),
     buildRaceSnapshotMock: vi.fn(async (race: Race) => ({
       __snapshotFor: race.id,
       status: race.status,
@@ -63,9 +55,7 @@ const {
 vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
 vi.mock("@/lib/race/session", () => ({ requireLinkedUser: requireLinkedUserMock }));
 vi.mock("@/lib/race/poll", () => ({
-  stampHeartbeat: stampHeartbeatMock,
   pollActiveRace: pollActiveRaceMock,
-  maybeAbsenceForfeit: maybeAbsenceForfeitMock,
 }));
 vi.mock("@/lib/race/snapshot", () => ({ buildRaceSnapshot: buildRaceSnapshotMock }));
 
@@ -120,8 +110,6 @@ function makeRace(overrides: Partial<Race> = {}): Race {
     eloDeltaP1: null,
     eloDeltaP2: null,
     lastPolledAt: null,
-    p1LastSeenAt: null,
-    p2LastSeenAt: null,
     ratingMin: null,
     ratingMax: null,
     problemDateFrom: null,
@@ -165,10 +153,7 @@ beforeEach(() => {
   _resetMemoryStore();
   authMock.mockReset().mockResolvedValue({ userId: "clerk-user-p1", isAuthenticated: true });
   requireLinkedUserMock.mockReset();
-  stampHeartbeatMock.mockClear();
   pollActiveRaceMock.mockClear();
-  maybeAbsenceForfeitMock.mockClear();
-  maybeAbsenceForfeitMock.mockResolvedValue(false);
   buildRaceSnapshotMock.mockClear();
   dbState.selectResults = [];
   dbState.selectIndex = 0;
@@ -211,19 +196,7 @@ describe("POST /api/races/[id]/poll — dynamic claim window (issue #238)", () =
     expect(text).not.toMatch(/greatest\(\s*5\s*,/i); // floor is a param, not inlined
   });
 
-  it("stamps the presence heartbeat BEFORE the mutex claim", async () => {
-    const race = makeRace();
-    dbState.selectResults = [[race], [race]];
-    dbState.claimReturns = [[race]];
-
-    await POST(req(), { params });
-
-    expect(stampHeartbeatMock).toHaveBeenCalledTimes(1);
-    expect(events.indexOf("heartbeat")).toBeGreaterThanOrEqual(0);
-    expect(events.indexOf("claim")).toBeGreaterThan(events.indexOf("heartbeat"));
-  });
-
-  it("still stamps the heartbeat then returns {skipped:true} when the claim is lost", async () => {
+  it("returns {skipped:true} when the claim is lost", async () => {
     const race = makeRace();
     dbState.selectResults = [[race]];
     dbState.claimReturns = [[]]; // lost the mutex — polled recently or not active
@@ -232,10 +205,7 @@ describe("POST /api/races/[id]/poll — dynamic claim window (issue #238)", () =
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ skipped: true });
-    // Heartbeat still ran (presence must not degrade for mutex-skipped polls)...
-    expect(stampHeartbeatMock).toHaveBeenCalledTimes(1);
-    expect(events).toEqual(["heartbeat", "claim"]);
-    // ...and no CF work happened on the skipped path.
+    // No CF work happened on the skipped path.
     expect(pollActiveRaceMock).not.toHaveBeenCalled();
   });
 
@@ -251,20 +221,18 @@ describe("POST /api/races/[id]/poll — dynamic claim window (issue #238)", () =
     expect(res.status).toBe(200);
   });
 
-  it("returns 404 when the race does not exist (no heartbeat, no claim)", async () => {
+  it("returns 404 when the race does not exist (no claim)", async () => {
     dbState.selectResults = [[]];
     const res = await POST(req(), { params });
     expect(res.status).toBe(404);
-    expect(stampHeartbeatMock).not.toHaveBeenCalled();
     expect(events).toEqual([]);
   });
 
-  it("returns 403 for a non-participant (no heartbeat, no claim)", async () => {
+  it("returns 403 for a non-participant (no claim)", async () => {
     mockSessionAs("stranger");
     dbState.selectResults = [[makeRace()]];
     const res = await POST(req(), { params });
     expect(res.status).toBe(403);
-    expect(stampHeartbeatMock).not.toHaveBeenCalled();
     expect(events).toEqual([]);
   });
 });

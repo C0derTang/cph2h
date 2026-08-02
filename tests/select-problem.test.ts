@@ -89,8 +89,6 @@ function makeRace(overrides: Partial<Race> = {}): Race {
     eloDeltaP1: null,
     eloDeltaP2: null,
     lastPolledAt: null,
-    p1LastSeenAt: null,
-    p2LastSeenAt: null,
     livekitRoom: "room-1",
     drawOfferBy: null,
     readyDeadlineAt: null,

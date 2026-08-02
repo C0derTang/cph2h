@@ -21,133 +21,18 @@
  * safe.
  */
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { races, raceSubmissions, users, type Race } from "@/lib/db/schema";
+import { raceSubmissions, users, type Race } from "@/lib/db/schema";
 import { getUserStatus } from "@/lib/cf/client";
 import { findRaceVerdicts } from "@/lib/cf/verdicts";
 import { publishRaceEvent as publishToRoom } from "@/lib/livekit";
 import type { CfSubmission } from "@/lib/types";
 import { finishRace } from "@/lib/race/finish";
-import { isAbsenceForfeit } from "@/lib/race/presence";
 
 interface AcceptedHit {
   userId: string;
   submission: CfSubmission;
-}
-
-/**
- * Stamp the calling participant's presence heartbeat (issue #105).
- *
- * Runs on EVERY participant poll — *before and independent of* the poll mutex —
- * so a mutex-skipped poll (most of them) still proves the caller is present.
- * Also invoked by the participant-only freeze-beacon route
- * (`POST /api/races/[id]/heartbeat`, issue #303) when a tab is about to be
- * backgrounded/frozen. A single atomic `UPDATE` keyed by caller side, guarded
- * on `status='active'` (neon-http-safe: no read-then-write). Never stamps a
- * non-active race, and the cron sweep never calls this, so a heartbeat can
- * only be set by the authenticated player it belongs to — presence can't be
- * faked.
- */
-export async function stampHeartbeat(
-  raceId: string,
-  callerIsP1: boolean,
-): Promise<void> {
-  await db
-    .update(races)
-    .set(
-      callerIsP1
-        ? { p1LastSeenAt: sql`now()` }
-        : { p2LastSeenAt: sql`now()` },
-    )
-    .where(and(eq(races.id, raceId), eq(races.status, "active")));
-}
-
-/**
- * Absence-forfeit check for a participant poll (issue #105).
- *
- * MUST run only for an authenticated participant caller (never the sweep cron,
- * which has no caller and thus never absence-forfeits) and only AFTER verdicts
- * have had their turn — `pollActiveRace` already ran this request, so a solve or
- * timeout finish flips `status` away from `active` and this no-ops (verdict
- * precedence). While the race is still `active` and past the countdown, if the
- * OPPONENT's effective last-seen (floored at `startedAt`) is older than the
- * grace window, finish with the present caller as the winner. The caller just
- * stamped their own heartbeat this request, so an absent caller can never
- * forfeit their opponent by merely polling. `finishRace`'s `WHERE
- * status='active'` claim makes concurrent/repeat forfeits idempotent. Returns
- * `true` iff a forfeit finish was attempted.
- *
- * CF-activity fallback (issue #303): a recent Codeforces submission proves the
- * opponent is present even when their heartbeat is dead (frozen/discarded
- * background tab — `pollActiveRace` upserted their observed submissions into
- * `race_submissions` earlier in this SAME request). The decision input is
- * `lastSeenMs = max(heartbeatMs, latestSubmissionMs)` (either may be null);
- * the pure `presence.ts` helpers are unchanged — only this caller's input
- * widens. The submissions query only runs when the heartbeat alone would
- * already forfeit (max() can only push last-seen later, so a fresh heartbeat
- * short-circuits identically without the extra query).
- */
-export async function maybeAbsenceForfeit(
-  race: Race,
-  callerIsP1: boolean,
-  now: Date = new Date(),
-): Promise<boolean> {
-  if (race.status !== "active" || !race.startedAt) return false;
-
-  const startedAtMs = race.startedAt.getTime();
-  const nowMs = now.getTime();
-
-  const opponentLastSeen = callerIsP1 ? race.p2LastSeenAt : race.p1LastSeenAt;
-  const heartbeatMs = opponentLastSeen ? opponentLastSeen.getTime() : null;
-
-  // Heartbeat alone keeps them alive ⇒ done; the CF fallback below can only
-  // ever extend last-seen, never shorten it.
-  if (!isAbsenceForfeit(heartbeatMs, startedAtMs, nowMs)) {
-    return false;
-  }
-
-  // Heartbeat is stale — before forfeiting, check for recent CF activity: the
-  // opponent's latest observed submission in this race (upserted by
-  // `pollActiveRace`, including moments ago in this very request).
-  const opponentId = callerIsP1 ? race.p2Id : race.p1Id;
-  let lastSeenMs = heartbeatMs;
-  if (opponentId) {
-    const [row] = await db
-      .select({
-        latest: sql<string | Date | null>`max(${raceSubmissions.submittedAt})`,
-      })
-      .from(raceSubmissions)
-      .where(
-        and(
-          eq(raceSubmissions.raceId, race.id),
-          eq(raceSubmissions.userId, opponentId),
-        ),
-      );
-    const raw = row?.latest ?? null;
-    if (raw != null) {
-      const latestSubmissionMs =
-        raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
-      if (Number.isFinite(latestSubmissionMs)) {
-        lastSeenMs =
-          lastSeenMs === null
-            ? latestSubmissionMs
-            : Math.max(lastSeenMs, latestSubmissionMs);
-      }
-    }
-  }
-
-  if (!isAbsenceForfeit(lastSeenMs, startedAtMs, nowMs)) {
-    return false;
-  }
-
-  await finishRace({
-    raceId: race.id,
-    outcome: callerIsP1 ? "p1_win" : "p2_win",
-    winnerId: callerIsP1 ? race.p1Id : race.p2Id,
-    reason: "forfeit",
-  });
-  return true;
 }
 
 /**

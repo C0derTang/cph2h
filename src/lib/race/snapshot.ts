@@ -144,8 +144,6 @@ export async function buildRaceSnapshot(
     livekitRoom: race.livekitRoom,
     challengeToken: race.challengeToken,
     drawOfferBy: race.drawOfferBy ?? null,
-    p1LastSeenAt: race.p1LastSeenAt?.toISOString() ?? null,
-    p2LastSeenAt: race.p2LastSeenAt?.toISOString() ?? null,
     filters,
     readyDeadlineAt: race.readyDeadlineAt?.toISOString() ?? null,
     problemSelectionFailedReason:
