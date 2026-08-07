@@ -9,7 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isKnownCheater, parseCheaterList } from "@/lib/cf/cheaters";
+import { CHEATER_ALLOWLIST, isKnownCheater, parseCheaterList } from "@/lib/cf/cheaters";
 
 describe("parseCheaterList", () => {
   it("lowercases every handle and returns a Set", () => {
@@ -45,6 +45,22 @@ describe("parseCheaterList", () => {
 
   it("accepts an empty cheaters array", () => {
     expect(parseCheaterList({ cheaters: [], lastExportTime: "x" })).toEqual(new Set());
+  });
+
+  it("drops allowlisted handles regardless of the upstream casing", () => {
+    const allowed = [...CHEATER_ALLOWLIST];
+    expect(allowed.length).toBeGreaterThan(0);
+
+    const set = parseCheaterList({
+      cheaters: [...allowed.map((h) => h.toUpperCase()), "tourist"],
+      lastExportTime: "x",
+    });
+
+    expect(set).toEqual(new Set(["tourist"]));
+    for (const handle of allowed) {
+      expect(isKnownCheater(handle, set!)).toBe(false);
+      expect(isKnownCheater(handle.toUpperCase(), set!)).toBe(false);
+    }
   });
 });
 
