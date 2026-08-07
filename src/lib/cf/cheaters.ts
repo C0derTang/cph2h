@@ -27,6 +27,16 @@ const CHEATER_LIST_URL =
 /** How long a successful fetch is cached before the next call refetches. */
 export const CHEATER_LIST_TTL_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * Handles exempted from the upstream list, lowercased. Entries here are
+ * subtracted in {@link parseCheaterList}, so the exemption applies to every
+ * consumer of the set — there is no second place to keep in sync.
+ *
+ * The upstream list is community-maintained and we cannot correct it, so a
+ * disputed or overturned entry is overridden locally instead.
+ */
+export const CHEATER_ALLOWLIST: ReadonlySet<string> = new Set(["hsolrac"]);
+
 interface CheaterListCache {
   set: Set<string>;
   expiresAt: number;
@@ -37,8 +47,9 @@ let cache: CheaterListCache | null = null;
 
 /**
  * Validate + normalize the raw JSON payload: `{ cheaters: string[],
- * lastExportTime: string }`. Every handle is lowercased. Returns `null` on
- * any shape mismatch. Pure — no I/O.
+ * lastExportTime: string }`. Every handle is lowercased, and anything in
+ * {@link CHEATER_ALLOWLIST} is dropped. Returns `null` on any shape
+ * mismatch. Pure — no I/O.
  */
 export function parseCheaterList(json: unknown): Set<string> | null {
   if (typeof json !== "object" || json === null) return null;
@@ -48,7 +59,9 @@ export function parseCheaterList(json: unknown): Set<string> | null {
   if (!Array.isArray(cheaters)) return null;
   if (!cheaters.every((h) => typeof h === "string")) return null;
 
-  return new Set(cheaters.map((h) => h.toLowerCase()));
+  return new Set(
+    cheaters.map((h) => h.toLowerCase()).filter((h) => !CHEATER_ALLOWLIST.has(h)),
+  );
 }
 
 /**
